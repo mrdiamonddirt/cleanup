@@ -569,7 +569,7 @@ function App() {
         return matchesType && matchesStatus;
     });
 
-    const totals = items.reduce(
+    const totals = filteredItems.reduce(
         (acc, item) => {
             const counts = getItemCounts(item);
             acc.total += counts.total;
