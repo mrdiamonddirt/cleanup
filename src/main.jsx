@@ -37,6 +37,11 @@ const TYPE_LABELS = {
 
 const COUNT_STORAGE_KEY = "cleanup-item-counts-v1";
 const GPS_STORAGE_KEY = "cleanup-item-gps-v1";
+const LANCASTER_TIDE_PROXY_PATH = "/api/lancaster-tides";
+const LANCASTER_TIDE_LATEST_URL =
+    "https://www.tide-forecast.com/locations/Lancaster/tides/latest";
+const LANCASTER_TIDE_CHART_URL =
+    "https://www.tide-forecast.com/tide/Lancaster/tide-times";
 
 const createMapsUrl = (lat, lng) =>
     `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lat},${lng}`)}`;
@@ -66,6 +71,34 @@ const extractGpsFromImage = async (file) => {
     } catch {
         return null;
     }
+};
+
+const parseLancasterTideRows = (html) => {
+    const parser = new DOMParser();
+    const documentNode = parser.parseFromString(html, "text/html");
+    const seen = new Set();
+    const rows = [];
+
+    documentNode.querySelectorAll("table tr").forEach((row) => {
+        if (rows.length >= 6) return;
+
+        const cells = Array.from(row.querySelectorAll("td"))
+            .map((cell) => cell.textContent?.replace(/\s+/g, " ").trim() || "")
+            .filter(Boolean);
+
+        if (cells.length < 3) return;
+
+        const [type, time, height] = cells;
+        if (!/(High Tide|Low Tide)/i.test(type)) return;
+
+        const key = `${type}|${time}|${height}`;
+        if (seen.has(key)) return;
+
+        seen.add(key);
+        rows.push({ type, time, height });
+    });
+
+    return rows;
 };
 
 const clampInt = (value, min = 0) => {
@@ -157,6 +190,12 @@ function App() {
     const [areControlsCollapsed, setAreControlsCollapsed] = useState(() =>
         typeof window !== "undefined" ? window.innerWidth <= 768 : false,
     );
+    const [isTidePlannerCollapsed, setIsTidePlannerCollapsed] = useState(() =>
+        typeof window !== "undefined" ? window.innerWidth <= 768 : false,
+    );
+    const [lancasterTideRows, setLancasterTideRows] = useState([]);
+    const [isLoadingLancasterTides, setIsLoadingLancasterTides] = useState(false);
+    const [lancasterTideError, setLancasterTideError] = useState("");
     const [localCounts, setLocalCounts] = useState({});
     const [localGps, setLocalGps] = useState({});
     const [dbCountFieldSupport, setDbCountFieldSupport] = useState({
@@ -170,6 +209,9 @@ function App() {
     const [isMobile, setIsMobile] = useState(() =>
         typeof window !== "undefined" ? window.innerWidth <= 768 : false,
     );
+    const canUseLancasterTideProxy =
+        typeof window !== "undefined" &&
+        ["localhost", "127.0.0.1"].includes(window.location.hostname);
 
     useEffect(() => {
         const stored = localStorage.getItem(COUNT_STORAGE_KEY);
@@ -230,6 +272,45 @@ function App() {
             setIsImageViewerOpen(false);
         }
     }, [items, selectedItemId]);
+
+    useEffect(() => {
+        fetchLancasterTides();
+    }, []);
+
+    async function fetchLancasterTides() {
+        if (!canUseLancasterTideProxy) {
+            setLancasterTideRows([]);
+            setLancasterTideError(
+                "Embedded tide times need a server-side proxy. On the live static site, use the Lancaster chart link below.",
+            );
+            return;
+        }
+
+        setIsLoadingLancasterTides(true);
+        setLancasterTideError("");
+
+        try {
+            const response = await fetch(LANCASTER_TIDE_PROXY_PATH);
+
+            if (!response.ok) {
+                throw new Error("Could not load Lancaster tide times.");
+            }
+
+            const html = await response.text();
+            const nextRows = parseLancasterTideRows(html);
+
+            if (!nextRows.length) {
+                throw new Error("Lancaster tide data format was not recognised.");
+            }
+
+            setLancasterTideRows(nextRows);
+        } catch (error) {
+            setLancasterTideRows([]);
+            setLancasterTideError(error.message || "Could not load Lancaster tide times.");
+        } finally {
+            setIsLoadingLancasterTides(false);
+        }
+    }
 
     const getItemCounts = (item) => {
         const local = localCounts[item.id] || {};
@@ -735,48 +816,87 @@ function App() {
             <div
                 style={{
                     display: "flex",
-                    justifyContent: isMobile ? "stretch" : "flex-end",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "10px",
+                    flexWrap: "wrap",
                     marginTop: "10px",
                     marginBottom: "10px",
                 }}
             >
-                <button
-                    onClick={() => setAreControlsCollapsed((prev) => !prev)}
+                <div style={{ fontSize: "0.95rem", fontWeight: 800, color: "#0f172a" }}>
+                    Filters & Stats
+                </div>
+                <div
                     style={{
-                        position: "absolute",
-                        top: "20px",
-                        right: isMobile ? "5px" : "20px",
-                        border: "1px solid #cbd5e1",
-                        background: "linear-gradient(135deg, #ffffff, #f8fafc)",
-                        color: "#0f172a",
-                        borderRadius: "999px",
-                        padding: isMobile ? "10px 14px" : "8px 14px",
-                        minHeight: isMobile ? "42px" : "36px",
-                        width: "auto",
-                        fontSize: isMobile ? "0.9rem" : "0.82rem",
-                        fontWeight: 700,
-                        letterSpacing: "0.01em",
-                        display: "inline-flex",
+                        display: "flex",
                         alignItems: "center",
-                        justifyContent: "center",
                         gap: "8px",
-                        boxShadow: "0 4px 16px rgba(15,23,42,0.08)",
-                        cursor: "pointer",
+                        flexWrap: "wrap",
+                        justifyContent: isMobile ? "flex-start" : "flex-end",
                     }}
-                    aria-expanded={!areControlsCollapsed}
-                    aria-label={areControlsCollapsed ? "Show filters and stats" : "Hide filters and stats"}
                 >
-                    <span                    >{areControlsCollapsed ? "Show Controls" : "Hide Controls"}</span>
-                    <span style={{ fontSize: "0.9em" }}>{areControlsCollapsed ? "▾" : "▴"}</span>
-                </button>
+                    <button
+                        onClick={() => setAreControlsCollapsed((prev) => !prev)}
+                        style={{
+                            border: "1px solid #cbd5e1",
+                            background: "linear-gradient(135deg, #ffffff, #f8fafc)",
+                            color: "#0f172a",
+                            borderRadius: "999px",
+                            padding: isMobile ? "8px 12px" : "6px 12px",
+                            minHeight: "32px",
+                            width: "auto",
+                            fontSize: "0.8rem",
+                            fontWeight: 700,
+                            letterSpacing: "0.01em",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: "8px",
+                            boxShadow: "0 4px 16px rgba(15,23,42,0.08)",
+                            cursor: "pointer",
+                        }}
+                        aria-expanded={!areControlsCollapsed}
+                        aria-label={areControlsCollapsed ? "Show filters and stats" : "Hide filters and stats"}
+                    >
+                        <span>{areControlsCollapsed ? "Show Controls" : "Hide Controls"}</span>
+                        <span style={{ fontSize: "0.9em" }}>{areControlsCollapsed ? "▾" : "▴"}</span>
+                    </button>
+                    <button
+                        onClick={() => setIsTidePlannerCollapsed((prev) => !prev)}
+                        style={{
+                            border: "1px solid #cbd5e1",
+                            background: "linear-gradient(135deg, #eff6ff, #f8fafc)",
+                            color: "#0f172a",
+                            borderRadius: "999px",
+                            padding: isMobile ? "8px 12px" : "6px 12px",
+                            minHeight: "32px",
+                            width: "auto",
+                            fontSize: "0.8rem",
+                            fontWeight: 700,
+                            letterSpacing: "0.01em",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: "8px",
+                            boxShadow: "0 4px 16px rgba(15,23,42,0.08)",
+                            cursor: "pointer",
+                        }}
+                        aria-expanded={!isTidePlannerCollapsed}
+                        aria-label={isTidePlannerCollapsed ? "Show tide planner" : "Hide tide planner"}
+                    >
+                        <span>{isTidePlannerCollapsed ? "Show Tide Planner" : "Hide Tide Planner"}</span>
+                        <span style={{ fontSize: "0.9em" }}>{isTidePlannerCollapsed ? "▾" : "▴"}</span>
+                    </button>
+                </div>
             </div>
 
             <div
                 style={{
-                    maxHeight: areControlsCollapsed ? "0px" : "280px",
+                    maxHeight: areControlsCollapsed ? "0px" : "1400px",
                     opacity: areControlsCollapsed ? 0 : 1,
                     transform: areControlsCollapsed ? "translateY(-4px)" : "translateY(0)",
-                    overflow: "hidden",
+                    overflow: areControlsCollapsed ? "hidden" : "visible",
                     pointerEvents: areControlsCollapsed ? "none" : "auto",
                     transition:
                         "max-height 260ms ease, opacity 180ms ease, transform 220ms ease",
@@ -871,6 +991,170 @@ function App() {
                     <strong style={{ color: "#2c3e50" }}>
                         {filteredItems.length}
                     </strong>
+                </div>
+            </div>
+
+            <div
+                style={{
+                    marginBottom: "14px",
+                }}
+            >
+                <div
+                    style={{
+                        maxHeight: isTidePlannerCollapsed ? "0px" : "1200px",
+                        opacity: isTidePlannerCollapsed ? 0 : 1,
+                        transform: isTidePlannerCollapsed ? "translateY(-4px)" : "translateY(0)",
+                        overflow: isTidePlannerCollapsed ? "hidden" : "visible",
+                        pointerEvents: isTidePlannerCollapsed ? "none" : "auto",
+                        transition:
+                            "max-height 260ms ease, opacity 180ms ease, transform 220ms ease",
+                    }}
+                >
+                    <div
+                        style={{
+                            padding: isMobile ? "12px" : "12px 14px",
+                            border: "1px solid #cbd5e1",
+                            borderRadius: "10px",
+                            background: "linear-gradient(140deg, #eff6ff, #f8fafc)",
+                        }}
+                    >
+                            <div
+                                style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    gap: "8px",
+                                    flexWrap: "wrap",
+                                    marginBottom: "8px",
+                                }}
+                            >
+                                <div style={{ fontSize: "0.9rem", fontWeight: 700, color: "#1e293b" }}>
+                                    Lancaster, UK
+                                </div>
+                                <button
+                                    onClick={fetchLancasterTides}
+                                    disabled={isLoadingLancasterTides}
+                                    style={{
+                                        border: "1px solid #94a3b8",
+                                        borderRadius: "999px",
+                                        padding: "6px 12px",
+                                        background: "#fff",
+                                        fontSize: "0.8rem",
+                                        minHeight: "32px",
+                                        fontWeight: 700,
+                                        cursor:
+                                            isLoadingLancasterTides || !canUseLancasterTideProxy
+                                                ? "not-allowed"
+                                                : "pointer",
+                                        opacity: canUseLancasterTideProxy ? 1 : 0.65,
+                                    }}
+                                    title={
+                                        canUseLancasterTideProxy
+                                            ? "Refresh Lancaster tide times"
+                                            : "Embedded tide refresh needs a backend proxy and is only enabled in local dev"
+                                    }
+                                >
+                                    {isLoadingLancasterTides
+                                        ? "Refreshing..."
+                                        : canUseLancasterTideProxy
+                                          ? "Refresh"
+                                          : "Embed Unavailable Live"}
+                                </button>
+                            </div>
+
+                        <div style={{ fontSize: "0.84rem", color: "#334155", marginBottom: "8px" }}>
+                            Best cleanup window is usually around low tide: target about 90 minutes before and after the low tide rows shown below.
+                        </div>
+
+                        {lancasterTideError ? (
+                            <div
+                                style={{
+                                    marginBottom: "8px",
+                                    padding: "10px",
+                                    borderRadius: "8px",
+                                    background: "#fff7ed",
+                                    color: "#9a3412",
+                                    border: "1px solid #fdba74",
+                                    fontSize: "0.83rem",
+                                }}
+                            >
+                                {lancasterTideError}
+                            </div>
+                        ) : null}
+
+                        {lancasterTideRows.length ? (
+                            <div
+                                style={{
+                                    overflowX: "auto",
+                                    border: "1px solid #dbeafe",
+                                    borderRadius: "10px",
+                                    background: "#ffffff",
+                                    marginBottom: "10px",
+                                }}
+                            >
+                                <table
+                                    style={{
+                                        width: "100%",
+                                        borderCollapse: "collapse",
+                                        fontSize: "0.84rem",
+                                    }}
+                                >
+                                    <thead>
+                                        <tr style={{ background: "#eff6ff", color: "#1e3a8a" }}>
+                                            <th style={{ textAlign: "left", padding: "10px" }}>Tide</th>
+                                            <th style={{ textAlign: "left", padding: "10px" }}>Time</th>
+                                            <th style={{ textAlign: "left", padding: "10px" }}>Height</th>
+                                            <th style={{ textAlign: "left", padding: "10px" }}>Best For</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {lancasterTideRows.map((row, index) => {
+                                            const isLowTide = /low tide/i.test(row.type);
+
+                                            return (
+                                                <tr
+                                                    key={`${row.type}-${row.time}-${index}`}
+                                                    style={{
+                                                        borderTop: index === 0 ? "none" : "1px solid #e2e8f0",
+                                                        background: isLowTide ? "#f0fdf4" : "#ffffff",
+                                                    }}
+                                                >
+                                                    <td style={{ padding: "10px", fontWeight: 700, color: "#0f172a" }}>
+                                                        {row.type}
+                                                    </td>
+                                                    <td style={{ padding: "10px", color: "#334155" }}>{row.time}</td>
+                                                    <td style={{ padding: "10px", color: "#334155" }}>{row.height}</td>
+                                                    <td style={{ padding: "10px", color: isLowTide ? "#166534" : "#64748b" }}>
+                                                        {isLowTide ? "Best cleanup window" : "Check access / rising water"}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : null}
+
+                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                            <a
+                                href={LANCASTER_TIDE_CHART_URL}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{
+                                    textDecoration: "none",
+                                    border: "1px solid #60a5fa",
+                                    color: "#1d4ed8",
+                                    background: "#fff",
+                                    borderRadius: "8px",
+                                    padding: isMobile ? "10px 12px" : "8px 10px",
+                                    fontSize: "0.84rem",
+                                    fontWeight: 700,
+                                }}
+                            >
+                                Open Full Lancaster Chart
+                            </a>
+                        </div>
+                    </div>
                 </div>
             </div>
             </div>
