@@ -37,9 +37,7 @@ const TYPE_LABELS = {
 
 const COUNT_STORAGE_KEY = "cleanup-item-counts-v1";
 const GPS_STORAGE_KEY = "cleanup-item-gps-v1";
-const LANCASTER_TIDE_PROXY_PATH = "/api/lancaster-tides";
-const LANCASTER_TIDE_LATEST_URL =
-    "https://www.tide-forecast.com/locations/Lancaster/tides/latest";
+const LANCASTER_TIDE_JSON_URL = `${import.meta.env.BASE_URL}lancaster-tides.json`;
 const LANCASTER_TIDE_CHART_URL =
     "https://www.tide-forecast.com/tide/Lancaster/tide-times";
 
@@ -71,34 +69,6 @@ const extractGpsFromImage = async (file) => {
     } catch {
         return null;
     }
-};
-
-const parseLancasterTideRows = (html) => {
-    const parser = new DOMParser();
-    const documentNode = parser.parseFromString(html, "text/html");
-    const seen = new Set();
-    const rows = [];
-
-    documentNode.querySelectorAll("table tr").forEach((row) => {
-        if (rows.length >= 6) return;
-
-        const cells = Array.from(row.querySelectorAll("td"))
-            .map((cell) => cell.textContent?.replace(/\s+/g, " ").trim() || "")
-            .filter(Boolean);
-
-        if (cells.length < 3) return;
-
-        const [type, time, height] = cells;
-        if (!/(High Tide|Low Tide)/i.test(type)) return;
-
-        const key = `${type}|${time}|${height}`;
-        if (seen.has(key)) return;
-
-        seen.add(key);
-        rows.push({ type, time, height });
-    });
-
-    return rows;
 };
 
 const clampInt = (value, min = 0) => {
@@ -196,6 +166,7 @@ function App() {
     const [lancasterTideRows, setLancasterTideRows] = useState([]);
     const [isLoadingLancasterTides, setIsLoadingLancasterTides] = useState(false);
     const [lancasterTideError, setLancasterTideError] = useState("");
+    const [lancasterTideUpdatedAt, setLancasterTideUpdatedAt] = useState("");
     const [localCounts, setLocalCounts] = useState({});
     const [localGps, setLocalGps] = useState({});
     const [dbCountFieldSupport, setDbCountFieldSupport] = useState({
@@ -209,9 +180,6 @@ function App() {
     const [isMobile, setIsMobile] = useState(() =>
         typeof window !== "undefined" ? window.innerWidth <= 768 : false,
     );
-    const canUseLancasterTideProxy =
-        typeof window !== "undefined" &&
-        ["localhost", "127.0.0.1"].includes(window.location.hostname);
 
     useEffect(() => {
         const stored = localStorage.getItem(COUNT_STORAGE_KEY);
@@ -278,35 +246,29 @@ function App() {
     }, []);
 
     async function fetchLancasterTides() {
-        if (!canUseLancasterTideProxy) {
-            setLancasterTideRows([]);
-            setLancasterTideError(
-                "Embedded tide times need a server-side proxy. On the live static site, use the Lancaster chart link below.",
-            );
-            return;
-        }
-
         setIsLoadingLancasterTides(true);
         setLancasterTideError("");
 
         try {
-            const response = await fetch(LANCASTER_TIDE_PROXY_PATH);
+            const response = await fetch(LANCASTER_TIDE_JSON_URL, { cache: "no-store" });
 
             if (!response.ok) {
-                throw new Error("Could not load Lancaster tide times.");
+                throw new Error("Could not load saved Lancaster tide times.");
             }
 
-            const html = await response.text();
-            const nextRows = parseLancasterTideRows(html);
+            const payload = await response.json();
+            const nextRows = Array.isArray(payload.rows) ? payload.rows : [];
 
             if (!nextRows.length) {
-                throw new Error("Lancaster tide data format was not recognised.");
+                throw new Error("Saved Lancaster tide data is missing or empty.");
             }
 
             setLancasterTideRows(nextRows);
+            setLancasterTideUpdatedAt(payload.updatedAt || "");
         } catch (error) {
             setLancasterTideRows([]);
-            setLancasterTideError(error.message || "Could not load Lancaster tide times.");
+            setLancasterTideUpdatedAt("");
+            setLancasterTideError(error.message || "Could not load saved Lancaster tide times.");
         } finally {
             setIsLoadingLancasterTides(false);
         }
@@ -1042,29 +1004,24 @@ function App() {
                                         fontSize: "0.8rem",
                                         minHeight: "32px",
                                         fontWeight: 700,
-                                        cursor:
-                                            isLoadingLancasterTides || !canUseLancasterTideProxy
-                                                ? "not-allowed"
-                                                : "pointer",
-                                        opacity: canUseLancasterTideProxy ? 1 : 0.65,
+                                        cursor: isLoadingLancasterTides ? "wait" : "pointer",
+                                        opacity: 1,
                                     }}
-                                    title={
-                                        canUseLancasterTideProxy
-                                            ? "Refresh Lancaster tide times"
-                                            : "Embedded tide refresh needs a backend proxy and is only enabled in local dev"
-                                    }
+                                    title="Reload saved Lancaster tide times"
                                 >
-                                    {isLoadingLancasterTides
-                                        ? "Refreshing..."
-                                        : canUseLancasterTideProxy
-                                          ? "Refresh"
-                                          : "Embed Unavailable Live"}
+                                    {isLoadingLancasterTides ? "Refreshing..." : "Refresh"}
                                 </button>
                             </div>
 
                         <div style={{ fontSize: "0.84rem", color: "#334155", marginBottom: "8px" }}>
                             Best cleanup window is usually around low tide: target about 90 minutes before and after the low tide rows shown below.
                         </div>
+
+                            {lancasterTideUpdatedAt ? (
+                                <div style={{ fontSize: "0.78rem", color: "#64748b", marginBottom: "8px" }}>
+                                    Updated: {new Date(lancasterTideUpdatedAt).toLocaleString()}
+                                </div>
+                            ) : null}
 
                         {lancasterTideError ? (
                             <div

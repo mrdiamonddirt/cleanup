@@ -15,3 +15,8 @@ An interactive mapping tool designed to track and manage environmental cleanup e
 
 ## 📐 Technical Implementation
 To maintain the aspect ratio of the aerial imagery, I implemented a custom `CRS.Simple` coordinate system mapped to the image dimensions (1687x830). This ensures that markers stay pinned to exact pixel coordinates regardless of screen scaling.
+
+## 🌊 Tide Data
+- The Lancaster tide planner reads from [public/lancaster-tides.json](public/lancaster-tides.json)
+- Refresh manually with `npm run update:tides`
+- A scheduled GitHub Actions workflow updates the JSON daily and redeploys the site
