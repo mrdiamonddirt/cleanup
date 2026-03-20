@@ -61,21 +61,62 @@ function App() {
         if (!error) setItems(data);
     }
 
+    async function uploadImage(file) {
+        const fileExt = file.name.split(".").pop();
+        const fileName = `${Math.random()}.${fileExt}`;
+        const filePath = `${fileName}`;
+
+    // Upload the file to the Supabase Bucket
+        const { error: uploadError } = await supabase.storage
+            .from("debris-images")
+            .upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+
+        // 2. Get the Public URL
+        const { data } = supabase.storage
+            .from("debris-images")
+            .getPublicUrl(filePath);
+        return data.publicUrl;
+    }
+
     // Click handler to add new items to SQL
     function MapEvents() {
         useMapEvents({
             click: async (e) => {
-                const type = prompt(
-                    "Item type (trolley, bike, other)?",
-                    "trolley",
-                );
-                if (!type) return;
+                // Create a "hidden" file input in memory
+                const input = document.createElement("input");
+                input.type = "file";
+                input.accept = "image/*"; // This tells mobile to open the camera
+                input.capture = "environment"; // This forces the back camera on many phones
 
-                const { error } = await supabase
-                    .from("items")
-                    .insert([{ y: e.latlng.lat, x: e.latlng.lng, type: type }]);
+                input.onchange = async (event) => {
+                    const file = event.target.files[0];
+                    if (!file) return;
 
-                if (!error) fetchItems();
+                    const type = prompt(
+                        "Item type (trolley, bike, other)?",
+                        "trolley",
+                    );
+                    if (!type) return;
+
+                    // Upload the photo first
+                    const imageUrl = await uploadImage(file);
+
+                    // Save to SQL with the image URL
+                    const { error } = await supabase.from("items").insert([
+                        {
+                            y: e.latlng.lat,
+                            x: e.latlng.lng,
+                            type: type,
+                            image_url: imageUrl, // Make sure this column exists in SQL!
+                        },
+                    ]);
+
+                    if (!error) fetchItems();
+                };
+
+                input.click(); // Open the camera/file picker
             },
         });
         return null;
@@ -143,7 +184,7 @@ function App() {
                     zIndex: 0,
                 }}
             >
-                <ImageOverlay url="/river-photo.jpg" bounds={bounds} />
+                <ImageOverlay url="river-photo.jpg" bounds={bounds} />
                 <MapEvents />
 
                 {items.map((item) => (
@@ -156,55 +197,118 @@ function App() {
                             <div
                                 style={{
                                     textAlign: "center",
-                                    minWidth: "120px",
+                                    minWidth: "160px",
+                                    maxWidth: "250px",
+                                    fontFamily: "sans-serif",
                                 }}
                             >
-                                <strong style={{ fontSize: "1.1em" }}>
-                                    {item.type.toUpperCase()}
-                                </strong>
-                                <p
+                                {/* Item Header */}
+                                <strong
                                     style={{
-                                        fontSize: "0.8em",
-                                        margin: "5px 0",
+                                        fontSize: "1.2rem",
+                                        color: "#2c3e50",
                                     }}
                                 >
-                                    {new Date(
-                                        item.created_at,
-                                    ).toLocaleDateString()}
-                                </p>
-                                <hr />
+                                    {item.type.toUpperCase()}
+                                </strong>
+
+                                {/* Image Display */}
+                                {item.image_url ? (
+                                    <div
+                                        style={{
+                                            marginTop: "10px",
+                                            marginBottom: "10px",
+                                        }}
+                                    >
+                                        <img
+                                            src={item.image_url}
+                                            alt="Debris evidence"
+                                            style={{
+                                                width: "100%",
+                                                height: "auto",
+                                                borderRadius: "8px",
+                                                border: "1px solid #ddd",
+                                                boxShadow:
+                                                    "0 2px 4px rgba(0,0,0,0.1)",
+                                            }}
+                                        />
+                                    </div>
+                                ) : (
+                                    <div
+                                        style={{
+                                            padding: "10px",
+                                            color: "#999",
+                                            fontSize: "0.8rem",
+                                            fontStyle: "italic",
+                                        }}
+                                    >
+                                        No photo attached
+                                    </div>
+                                )}
+
+                                {/* Details Section */}
+                                <div
+                                    style={{
+                                        fontSize: "0.85rem",
+                                        color: "#666",
+                                        marginBottom: "10px",
+                                    }}
+                                >
+                                    <span>
+                                        Spotted:{" "}
+                                        {new Date(
+                                            item.created_at,
+                                        ).toLocaleDateString()}
+                                    </span>
+                                    <br />
+                                    <span>
+                                        Status:{" "}
+                                        {item.is_recovered
+                                            ? "✅ Recovered"
+                                            : "❌ In Water"}
+                                    </span>
+                                </div>
+
+                                <hr style={{ border: "0.5px solid #eee" }} />
+
+                                {/* Action Button */}
                                 {!item.is_recovered ? (
                                     <button
                                         style={{
-                                            marginTop: "8px",
-                                            padding: "8px 12px",
+                                            marginTop: "5px",
+                                            padding: "10px",
                                             backgroundColor: "#2ecc71",
                                             color: "white",
                                             border: "none",
-                                            borderRadius: "4px",
+                                            borderRadius: "6px",
                                             fontWeight: "bold",
-                                            width: "100%", // Easier to tap on mobile
+                                            width: "100%",
+                                            cursor: "pointer",
+                                            fontSize: "0.9rem",
                                         }}
                                         onClick={async (e) => {
                                             e.stopPropagation();
-                                            await supabase
+                                            const { error } = await supabase
                                                 .from("items")
                                                 .update({ is_recovered: true })
                                                 .eq("id", item.id);
-                                            fetchItems();
+
+                                            if (!error) fetchItems();
                                         }}
                                     >
-                                        Recovered
+                                        Mark as Recovered
                                     </button>
                                 ) : (
-                                    <span
+                                    <div
                                         style={{
-                                            color: "green",
+                                            padding: "8px",
+                                            color: "#27ae60",
                                             fontWeight: "bold",
+                                            fontSize: "0.9rem",
                                         }}
                                     >
-                                        CLEARED ✅
-                                    </span>
+                                        CLEARED FROM RIVER
+                                    </div>
                                 )}
                             </div>
                         </Popup>
