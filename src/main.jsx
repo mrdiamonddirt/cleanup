@@ -41,6 +41,12 @@ const ASSUMED_ITEM_WEIGHTS_KG = {
     bike: 15,
     misc: 30,
 };
+const CONSERVATIVE_SCRAP_VALUE_GBP_PER_KG = {
+    min: 0.08,
+    max: 0.15,
+};
+
+const formatGbp = (value) => `£${value.toFixed(2)}`;
 
 const COUNT_STORAGE_KEY = "cleanup-item-counts-v1";
 const GPS_STORAGE_KEY = "cleanup-item-gps-v1";
@@ -944,6 +950,10 @@ function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impact
     const remainingTrolley = impactStats.remainingByType.trolley;
     const remainingBike = impactStats.remainingByType.bike;
     const remainingMisc = impactStats.remainingByType.misc;
+    const remainingScrapValueMin = impactStats.estimatedRemainingKg * CONSERVATIVE_SCRAP_VALUE_GBP_PER_KG.min;
+    const remainingScrapValueMax = impactStats.estimatedRemainingKg * CONSERVATIVE_SCRAP_VALUE_GBP_PER_KG.max;
+    const recoveredScrapValueMin = impactStats.estimatedRecoveredKg * CONSERVATIVE_SCRAP_VALUE_GBP_PER_KG.min;
+    const recoveredScrapValueMax = impactStats.estimatedRecoveredKg * CONSERVATIVE_SCRAP_VALUE_GBP_PER_KG.max;
 
     useEffect(() => {
         if (!activeTooltip) return undefined;
@@ -993,6 +1003,8 @@ function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impact
         `${remainingBike} bikes x ${bikeWeight}kg = ${remainingBike * bikeWeight}kg`,
         `${remainingMisc} misc x ${miscWeight}kg = ${remainingMisc * miscWeight}kg`,
         `Total = ${Math.round(impactStats.estimatedRemainingKg)}kg`,
+        "Conservative scrap value estimate:",
+        `${formatGbp(remainingScrapValueMin)} to ${formatGbp(remainingScrapValueMax)} (£0.08-£0.15 per kg)`,
     ];
 
     const removedWeightTooltipLines = [
@@ -1001,90 +1013,103 @@ function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impact
         `${recoveredBike} bikes x ${bikeWeight}kg = ${recoveredBike * bikeWeight}kg`,
         `${recoveredMisc} misc x ${miscWeight}kg = ${recoveredMisc * miscWeight}kg`,
         `Total = ${Math.round(impactStats.estimatedRecoveredKg)}kg`,
+        "Conservative scrap value estimate:",
+        `${formatGbp(recoveredScrapValueMin)} to ${formatGbp(recoveredScrapValueMax)} (£0.08-£0.15 per kg)`,
     ];
 
-    const renderStatTile = (id, label, valueNode, tooltipLines, valueColor) => (
-        <button
-            type="button"
-            onClick={() => setActiveTooltip((prev) => (prev === id ? null : id))}
-            onMouseEnter={() => {
-                if (!isMobile) setActiveTooltip(id);
-            }}
-            onMouseLeave={() => {
-                if (!isMobile) setActiveTooltip((prev) => (prev === id ? null : prev));
-            }}
-            style={{
-                position: "relative",
-                width: "100%",
-                border: "1px solid #dbe4ee",
-                background: activeTooltip === id ? "#eff6ff" : "rgba(255,255,255,0.84)",
-                borderRadius: "10px",
-                padding: isMobile ? "8px 10px" : "7px 10px",
-                textAlign: "left",
-                color: "#0f172a",
-                cursor: "help",
-                boxShadow: activeTooltip === id ? "0 10px 24px rgba(37,99,235,0.12)" : "none",
-                minWidth: 0,
-                minHeight: isMobile ? "auto" : "44px",
-            }}
-            aria-expanded={activeTooltip === id}
-            aria-label={`${label}. Tap or hover for breakdown.`}
-        >
-            <span style={{ display: "block", paddingRight: "18px" }}>
-                {label}: <strong style={valueColor ? { color: valueColor } : undefined}>{valueNode}</strong>
-            </span>
-            <span
-                aria-hidden="true"
-                style={{
-                    position: "absolute",
-                    top: "7px",
-                    right: "8px",
-                    width: "16px",
-                    height: "16px",
-                    borderRadius: "999px",
-                    background: activeTooltip === id ? "#2563eb" : "#cbd5e1",
-                    color: activeTooltip === id ? "#fff" : "#334155",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "0.7rem",
-                    fontWeight: 700,
+    const desktopRightAlignedTooltipIds = new Set(["remaining-weight", "removed-weight"]);
+    const mobileRightAlignedTooltipIds = new Set(["recovered-items", "locations", "removed-weight"]);
+
+    const renderStatTile = (id, label, valueNode, tooltipLines, valueColor) => {
+        const alignTooltipRight = isMobile
+            ? mobileRightAlignedTooltipIds.has(id)
+            : desktopRightAlignedTooltipIds.has(id);
+
+        return (
+            <button
+                type="button"
+                onClick={() => setActiveTooltip((prev) => (prev === id ? null : id))}
+                onMouseEnter={() => {
+                    if (!isMobile) setActiveTooltip(id);
                 }}
+                onMouseLeave={() => {
+                    if (!isMobile) setActiveTooltip((prev) => (prev === id ? null : prev));
+                }}
+                style={{
+                    position: "relative",
+                    width: "100%",
+                    border: "1px solid #dbe4ee",
+                    background: activeTooltip === id ? "#eff6ff" : "rgba(255,255,255,0.84)",
+                    borderRadius: "10px",
+                    padding: isMobile ? "8px 10px" : "7px 10px",
+                    textAlign: "left",
+                    color: "#0f172a",
+                    cursor: "help",
+                    boxShadow: activeTooltip === id ? "0 10px 24px rgba(37,99,235,0.12)" : "none",
+                    minWidth: 0,
+                    minHeight: isMobile ? "auto" : "44px",
+                }}
+                aria-expanded={activeTooltip === id}
+                aria-label={`${label}. Tap or hover for breakdown.`}
             >
-                i
-            </span>
-            {activeTooltip === id ? (
-                <div
+                <span style={{ display: "block", paddingRight: "18px" }}>
+                    {label}: <strong style={valueColor ? { color: valueColor } : undefined}>{valueNode}</strong>
+                </span>
+                <span
+                    aria-hidden="true"
                     style={{
                         position: "absolute",
-                        left: 0,
-                        top: "calc(100% + 8px)",
-                        zIndex: 20,
-                        width: isMobile ? "min(260px, calc(100vw - 40px))" : "260px",
-                        maxWidth: "calc(100vw - 40px)",
-                        padding: "10px 11px",
-                        borderRadius: "10px",
-                        border: "1px solid #cbd5e1",
-                        background: "rgba(255,255,255,0.98)",
-                        boxShadow: "0 18px 35px rgba(15,23,42,0.18)",
-                        color: "#334155",
-                        fontSize: "0.78rem",
-                        lineHeight: 1.45,
-                        whiteSpace: "pre-line",
+                        top: "7px",
+                        right: "8px",
+                        width: "16px",
+                        height: "16px",
+                        borderRadius: "999px",
+                        background: activeTooltip === id ? "#2563eb" : "#cbd5e1",
+                        color: activeTooltip === id ? "#fff" : "#334155",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "0.7rem",
+                        fontWeight: 700,
                     }}
                 >
-                    {tooltipLines.map((line) => (
-                        <div
-                            key={`${id}-${line}`}
-                            style={{ fontWeight: line.endsWith(":") ? 700 : 500, marginBottom: line.endsWith(":") ? "4px" : "0" }}
-                        >
-                            {line}
-                        </div>
-                    ))}
-                </div>
-            ) : null}
-        </button>
-    );
+                    i
+                </span>
+                {activeTooltip === id ? (
+                    <div
+                        style={{
+                            position: "absolute",
+                            top: "calc(100% + 8px)",
+                            bottom: "auto",
+                            left: alignTooltipRight ? "auto" : 0,
+                            right: alignTooltipRight ? 0 : "auto",
+                            zIndex: 1600,
+                            width: isMobile ? "min(240px, calc(100vw - 24px))" : "260px",
+                            maxWidth: "calc(100vw - 24px)",
+                            padding: "10px 11px",
+                            borderRadius: "10px",
+                            border: "1px solid #cbd5e1",
+                            background: "rgba(255,255,255,0.98)",
+                            boxShadow: "0 18px 35px rgba(15,23,42,0.18)",
+                            color: "#334155",
+                            fontSize: "0.78rem",
+                            lineHeight: 1.45,
+                            whiteSpace: "pre-line",
+                        }}
+                    >
+                        {tooltipLines.map((line) => (
+                            <div
+                                key={`${id}-${line}`}
+                                style={{ fontWeight: line.endsWith(":") ? 700 : 500, marginBottom: line.endsWith(":") ? "4px" : "0" }}
+                            >
+                                {line}
+                            </div>
+                        ))}
+                    </div>
+                ) : null}
+            </button>
+        );
+    };
 
     const remainingKgLabel =
         impactStats.estimatedRemainingKg >= 1000
