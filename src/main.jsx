@@ -32,6 +32,7 @@ const RIVER_LUNE_ZOOM = 15;
 
 const TYPE_LABELS = {
     bike: "Bike",
+    motorbike: "Motorbike",
     trolley: "Trolley",
     misc: "Misc",
 };
@@ -39,6 +40,7 @@ const TYPE_LABELS = {
 const ASSUMED_ITEM_WEIGHTS_KG = {
     trolley: 28,
     bike: 15,
+    motorbike: 180,
     misc: 30,
 };
 const CONSERVATIVE_SCRAP_VALUE_GBP_PER_KG = {
@@ -48,8 +50,10 @@ const CONSERVATIVE_SCRAP_VALUE_GBP_PER_KG = {
 
 const formatGbp = (value) => `£${value.toFixed(2)}`;
 
+const ITEMS_STORAGE_KEY = "cleanup-items-v1";
 const COUNT_STORAGE_KEY = "cleanup-item-counts-v1";
 const GPS_STORAGE_KEY = "cleanup-item-gps-v1";
+const WEIGHT_STORAGE_KEY = "cleanup-item-weights-v1";
 const LANCASTER_TIDE_JSON_URL = `${import.meta.env.BASE_URL}lancaster-tides.json`;
 const LANCASTER_TIDE_CHART_URL =
     "https://www.tide-forecast.com/tide/Lancaster/tide-times";
@@ -73,6 +77,112 @@ const parseGpsNumber = (value) => {
     const parsed = Number(value);
     if (!Number.isFinite(parsed)) return null;
     return parsed;
+};
+
+const parseEstimatedWeightKg = (value) => {
+    if (value === "" || value === null || value === undefined) return null;
+
+    const parsed = Number.parseFloat(value);
+    if (!Number.isFinite(parsed) || parsed <= 0) return null;
+
+    return Math.round(parsed * 10) / 10;
+};
+
+const formatWeightKg = (value) => {
+    if (!Number.isFinite(value)) return "0 kg";
+    return Number.isInteger(value) ? `${value} kg` : `${value.toFixed(1)} kg`;
+};
+
+const getDefaultWeightForType = (type) =>
+    ASSUMED_ITEM_WEIGHTS_KG[normalizeType(type)] || ASSUMED_ITEM_WEIGHTS_KG.misc;
+
+const readStoredJson = (storageKey, fallbackValue, isValid) => {
+    if (typeof window === "undefined") return fallbackValue;
+
+    try {
+        const stored = window.localStorage.getItem(storageKey);
+        if (!stored) return fallbackValue;
+
+        const parsed = JSON.parse(stored);
+        return isValid(parsed) ? parsed : fallbackValue;
+    } catch {
+        return fallbackValue;
+    }
+};
+
+const inferDbCountFieldSupport = (items) => {
+    const first = Array.isArray(items) ? items[0] : null;
+
+    return {
+        total: Boolean(first && Object.prototype.hasOwnProperty.call(first, "total_count")),
+        recovered: Boolean(first && Object.prototype.hasOwnProperty.call(first, "recovered_count")),
+    };
+};
+
+const inferDbGpsFieldSupport = (items) => {
+    const first = Array.isArray(items) ? items[0] : null;
+
+    return {
+        latitude: first ? Object.prototype.hasOwnProperty.call(first, "gps_latitude") : null,
+        longitude: first ? Object.prototype.hasOwnProperty.call(first, "gps_longitude") : null,
+    };
+};
+
+const inferDbWeightFieldSupport = (items) => {
+    const first = Array.isArray(items) ? items[0] : null;
+
+    return first ? Object.prototype.hasOwnProperty.call(first, "estimated_weight_kg") : null;
+};
+
+const buildLiveLocationSample = (position) => {
+    const latitude = parseGpsNumber(position?.coords?.latitude);
+    const longitude = parseGpsNumber(position?.coords?.longitude);
+
+    if (latitude === null || longitude === null) return null;
+    if (latitude < -90 || latitude > 90) return null;
+    if (longitude < -180 || longitude > 180) return null;
+
+    const accuracy = parseGpsNumber(position?.coords?.accuracy);
+
+    return {
+        latitude,
+        longitude,
+        accuracy,
+        timestamp: position?.timestamp || Date.now(),
+    };
+};
+
+const shouldReplaceLiveLocation = (currentSample, nextSample) => {
+    if (!nextSample) return false;
+    if (!currentSample) return true;
+
+    if (nextSample.accuracy === null) {
+        return currentSample.accuracy === null && nextSample.timestamp > currentSample.timestamp;
+    }
+
+    if (currentSample.accuracy === null) return true;
+
+    if (nextSample.accuracy < currentSample.accuracy - 3) return true;
+
+    return (
+        nextSample.accuracy <= currentSample.accuracy + 2 &&
+        nextSample.timestamp > currentSample.timestamp + 15000
+    );
+};
+
+const getLiveLocationErrorMessage = (error) => {
+    if (!error) return "Unable to fetch live location right now.";
+
+    switch (error.code) {
+        case error.PERMISSION_DENIED:
+            return "Location access was denied.";
+        case error.POSITION_UNAVAILABLE:
+            return "Location data is unavailable right now.";
+        case error.TIMEOUT:
+            return "Timed out while waiting for a GPS fix.";
+        default:
+            return "Unable to fetch live location right now.";
+    }
 };
 
 const getGitHubLoginFromUser = (user) => {
@@ -330,6 +440,19 @@ const clampInt = (value, min = 0) => {
 const normalizeType = (value) => {
     const normalized = (value || "").toString().trim().toLowerCase();
 
+    if (
+        normalized === "motorbike" ||
+        normalized === "motor bike" ||
+        normalized === "motorbikes" ||
+        normalized === "motor bikes" ||
+        normalized === "motorcycle" ||
+        normalized === "motorcycles" ||
+        normalized.includes("motorbike") ||
+        normalized.includes("motor bike") ||
+        normalized.includes("motorcycle")
+    ) {
+        return "motorbike";
+    }
     if (normalized === "bike") return "bike";
     if (
         normalized === "trolley" ||
@@ -351,12 +474,14 @@ const getIcon = (type, isRecovered) => {
 
     const iconMap = {
         bike: "🚲",
+        motorbike: "🏍️",
         trolley: "🛒",
         misc: "🧰",
     };
 
     const colors = {
         bike: "#3498db",
+        motorbike: "#dc2626",
         trolley: "#e67e22",
         misc: "#7f8c8d",
     };
@@ -401,11 +526,13 @@ function PendingPlacementOverlay({
     pendingLocation,
     pendingItemType,
     pendingCount,
+    pendingEstimatedWeight,
     isSavingItem,
     isMobile,
     controlFontSize,
     touchButtonSize,
     setPendingCount,
+    setPendingEstimatedWeight,
     setPendingItemType,
     setPendingLocation,
     handleTypePick,
@@ -503,7 +630,7 @@ function PendingPlacementOverlay({
             map.off("zoom", scheduleUpdate);
             map.off("resize", scheduleUpdate);
         };
-    }, [map, pendingLocation, pendingItemType, pendingCount, isMobile, isSavingItem]);
+    }, [map, pendingLocation, pendingItemType, pendingCount, pendingEstimatedWeight, isMobile, isSavingItem]);
 
     if (!pendingLocation) return null;
 
@@ -617,6 +744,33 @@ function PendingPlacementOverlay({
                     +
                 </button>
             </div>
+            {pendingItemType ? (
+                <div style={{ marginBottom: "10px" }}>
+                    <label style={{ fontSize: "0.8rem", color: "#475569", display: "block" }}>
+                        Estimated weight per item (kg)
+                    </label>
+                    <input
+                        type="number"
+                        min="0.1"
+                        step="0.1"
+                        value={pendingEstimatedWeight}
+                        onChange={(event) => setPendingEstimatedWeight(event.target.value)}
+                        disabled={isSavingItem}
+                        style={{
+                            width: "100%",
+                            marginTop: "4px",
+                            border: "1px solid #cbd5e1",
+                            borderRadius: "6px",
+                            padding: "8px",
+                            boxSizing: "border-box",
+                            fontSize: controlFontSize,
+                        }}
+                    />
+                    <div style={{ marginTop: "4px", fontSize: "0.74rem", color: "#64748b", lineHeight: 1.35 }}>
+                        Defaults to {formatWeightKg(getDefaultWeightForType(pendingItemType))} for {TYPE_LABELS[pendingItemType].toLowerCase()}s.
+                    </div>
+                </div>
+            ) : null}
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                 {pendingItemType ? (
                     <>
@@ -655,7 +809,10 @@ function PendingPlacementOverlay({
                             Choose From Gallery
                         </button>
                         <button
-                            onClick={() => setPendingItemType(null)}
+                            onClick={() => {
+                                setPendingItemType(null);
+                                setPendingEstimatedWeight("");
+                            }}
                             disabled={isSavingItem}
                             style={{
                                 border: "1px solid #cbd5e1",
@@ -676,12 +833,16 @@ function PendingPlacementOverlay({
                     <>
                         {[
                             { key: "bike", label: "🚲 Bike" },
+                            { key: "motorbike", label: "🏍️ Motorbike" },
                             { key: "trolley", label: "🛒 Trolley" },
                             { key: "misc", label: "🧰 Misc" },
                         ].map((option) => (
                             <button
                                 key={option.key}
-                                onClick={() => setPendingItemType(option.key)}
+                                onClick={() => {
+                                    setPendingItemType(option.key);
+                                    setPendingEstimatedWeight(String(getDefaultWeightForType(option.key)));
+                                }}
                                 disabled={isSavingItem}
                                 style={{
                                     border: "1px solid #94a3b8",
@@ -703,6 +864,7 @@ function PendingPlacementOverlay({
                 <button
                     onClick={() => {
                         setPendingItemType(null);
+                        setPendingEstimatedWeight("");
                         setPendingLocation(null);
                     }}
                     disabled={isSavingItem}
@@ -940,15 +1102,19 @@ function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impact
     const statsRef = useRef(null);
     const trolleyWeight = ASSUMED_ITEM_WEIGHTS_KG.trolley;
     const bikeWeight = ASSUMED_ITEM_WEIGHTS_KG.bike;
+    const motorbikeWeight = ASSUMED_ITEM_WEIGHTS_KG.motorbike;
     const miscWeight = ASSUMED_ITEM_WEIGHTS_KG.misc;
     const totalTrolley = impactStats.totalByType.trolley;
     const totalBike = impactStats.totalByType.bike;
+    const totalMotorbike = impactStats.totalByType.motorbike;
     const totalMisc = impactStats.totalByType.misc;
     const recoveredTrolley = impactStats.recoveredByType.trolley;
     const recoveredBike = impactStats.recoveredByType.bike;
+    const recoveredMotorbike = impactStats.recoveredByType.motorbike;
     const recoveredMisc = impactStats.recoveredByType.misc;
     const remainingTrolley = impactStats.remainingByType.trolley;
     const remainingBike = impactStats.remainingByType.bike;
+    const remainingMotorbike = impactStats.remainingByType.motorbike;
     const remainingMisc = impactStats.remainingByType.misc;
     const remainingScrapValueMin = impactStats.estimatedRemainingKg * CONSERVATIVE_SCRAP_VALUE_GBP_PER_KG.min;
     const remainingScrapValueMax = impactStats.estimatedRemainingKg * CONSERVATIVE_SCRAP_VALUE_GBP_PER_KG.max;
@@ -972,6 +1138,7 @@ function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impact
         "Total items consist of:",
         `${totalTrolley} trolleys`,
         `${totalBike} bikes`,
+        `${totalMotorbike} motorbikes`,
         `${totalMisc} misc`,
         `Total = ${totals.total} items`,
     ];
@@ -980,6 +1147,7 @@ function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impact
         "Recovered items consist of:",
         `${recoveredTrolley} trolleys`,
         `${recoveredBike} bikes`,
+        `${recoveredMotorbike} motorbikes`,
         `${recoveredMisc} misc`,
         `Total = ${totals.recovered} items`,
     ];
@@ -988,6 +1156,7 @@ function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impact
         "Remaining items consist of:",
         `${remainingTrolley} trolleys`,
         `${remainingBike} bikes`,
+        `${remainingMotorbike} motorbikes`,
         `${remainingMisc} misc`,
         `Total = ${totals.remaining} items`,
     ];
@@ -999,20 +1168,22 @@ function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impact
 
     const remainingWeightTooltipLines = [
         "Estimated remaining weight workings:",
-        `${remainingTrolley} trolleys x ${trolleyWeight}kg = ${remainingTrolley * trolleyWeight}kg`,
-        `${remainingBike} bikes x ${bikeWeight}kg = ${remainingBike * bikeWeight}kg`,
-        `${remainingMisc} misc x ${miscWeight}kg = ${remainingMisc * miscWeight}kg`,
-        `Total = ${Math.round(impactStats.estimatedRemainingKg)}kg`,
+        `${remainingTrolley} trolleys, ${formatWeightKg(impactStats.remainingWeightByType.trolley)} total (${formatWeightKg(trolleyWeight)} default each)`,
+        `${remainingBike} bikes, ${formatWeightKg(impactStats.remainingWeightByType.bike)} total (${formatWeightKg(bikeWeight)} default each)`,
+        `${remainingMotorbike} motorbikes, ${formatWeightKg(impactStats.remainingWeightByType.motorbike)} total (${formatWeightKg(motorbikeWeight)} default each)`,
+        `${remainingMisc} misc, ${formatWeightKg(impactStats.remainingWeightByType.misc)} total (${formatWeightKg(miscWeight)} default each)`,
+        `Total = ${formatWeightKg(Math.round(impactStats.estimatedRemainingKg))}`,
         "Conservative scrap value estimate:",
         `${formatGbp(remainingScrapValueMin)} to ${formatGbp(remainingScrapValueMax)} (£0.08-£0.15 per kg)`,
     ];
 
     const removedWeightTooltipLines = [
         "Estimated removed weight workings:",
-        `${recoveredTrolley} trolleys x ${trolleyWeight}kg = ${recoveredTrolley * trolleyWeight}kg`,
-        `${recoveredBike} bikes x ${bikeWeight}kg = ${recoveredBike * bikeWeight}kg`,
-        `${recoveredMisc} misc x ${miscWeight}kg = ${recoveredMisc * miscWeight}kg`,
-        `Total = ${Math.round(impactStats.estimatedRecoveredKg)}kg`,
+        `${recoveredTrolley} trolleys, ${formatWeightKg(impactStats.recoveredWeightByType.trolley)} total (${formatWeightKg(trolleyWeight)} default each)`,
+        `${recoveredBike} bikes, ${formatWeightKg(impactStats.recoveredWeightByType.bike)} total (${formatWeightKg(bikeWeight)} default each)`,
+        `${recoveredMotorbike} motorbikes, ${formatWeightKg(impactStats.recoveredWeightByType.motorbike)} total (${formatWeightKg(motorbikeWeight)} default each)`,
+        `${recoveredMisc} misc, ${formatWeightKg(impactStats.recoveredWeightByType.misc)} total (${formatWeightKg(miscWeight)} default each)`,
+        `Total = ${formatWeightKg(Math.round(impactStats.estimatedRecoveredKg))}`,
         "Conservative scrap value estimate:",
         `${formatGbp(recoveredScrapValueMin)} to ${formatGbp(recoveredScrapValueMax)} (£0.08-£0.15 per kg)`,
     ];
@@ -1286,6 +1457,7 @@ function FilterControls({
                     >
                         <option value="all">All</option>
                         <option value="bike">Bikes</option>
+                        <option value="motorbike">Motorbikes</option>
                         <option value="trolley">Trolleys</option>
                         <option value="misc">Misc</option>
                     </select>
@@ -1936,6 +2108,7 @@ function SelectedItemDrawer({
     selectedCounts,
     selectedGps,
     selectedMapsUrl,
+    selectedWeight,
     editingItemId,
     editForm,
     isUpdatingItemId,
@@ -2099,6 +2272,17 @@ function SelectedItemDrawer({
                             <div>Total: <strong>{selectedCounts.total}</strong></div>
                             <div>Recovered: <strong>{selectedCounts.recovered}</strong></div>
                             <div>In Water: <strong>{selectedCounts.inWater}</strong></div>
+                            {selectedWeight ? (
+                                <>
+                                    <div>
+                                        Est. weight per item: <strong>{formatWeightKg(selectedWeight.value)}</strong>
+                                        {selectedWeight.source === "default" ? " (default)" : ""}
+                                    </div>
+                                    <div>
+                                        Est. total at location: <strong>{formatWeightKg(selectedWeight.value * selectedCounts.total)}</strong>
+                                    </div>
+                                </>
+                            ) : null}
                             {selectedGps && selectedMapsUrl ? (
                                 <div style={{ marginTop: "4px" }}>
                                     Location: <strong>{selectedGps.latitude.toFixed(6)}, {selectedGps.longitude.toFixed(6)}</strong>{" "}
@@ -2141,10 +2325,23 @@ function SelectedItemDrawer({
                                     <select
                                         value={editForm.type}
                                         onChange={(e) =>
-                                            setEditForm((prev) => ({
-                                                ...prev,
-                                                type: e.target.value,
-                                            }))
+                                            setEditForm((prev) => {
+                                                const nextType = e.target.value;
+                                                const previousDefaultWeight = getDefaultWeightForType(prev.type);
+                                                const nextDefaultWeight = getDefaultWeightForType(nextType);
+                                                const parsedExistingWeight = parseEstimatedWeightKg(prev.estimatedWeight);
+                                                const shouldSyncDefaultWeight =
+                                                    parsedExistingWeight === null ||
+                                                    Math.abs(parsedExistingWeight - previousDefaultWeight) < 0.1;
+
+                                                return {
+                                                    ...prev,
+                                                    type: nextType,
+                                                    estimatedWeight: shouldSyncDefaultWeight
+                                                        ? String(nextDefaultWeight)
+                                                        : prev.estimatedWeight,
+                                                };
+                                            })
                                         }
                                         style={{
                                             width: "100%",
@@ -2155,9 +2352,34 @@ function SelectedItemDrawer({
                                         }}
                                     >
                                         <option value="bike">Bike</option>
+                                        <option value="motorbike">Motorbike</option>
                                         <option value="trolley">Trolley</option>
                                         <option value="misc">Misc</option>
                                     </select>
+                                </div>
+
+                                <div style={{ marginBottom: "8px" }}>
+                                    <label style={{ fontSize: "0.8rem", color: "#475569" }}>Estimated Weight Per Item (kg)</label>
+                                    <input
+                                        type="number"
+                                        min="0.1"
+                                        step="0.1"
+                                        value={editForm.estimatedWeight}
+                                        onChange={(e) =>
+                                            setEditForm((prev) => ({
+                                                ...prev,
+                                                estimatedWeight: e.target.value,
+                                            }))
+                                        }
+                                        style={{
+                                            width: "100%",
+                                            marginTop: "4px",
+                                            border: "1px solid #cbd5e1",
+                                            borderRadius: "6px",
+                                            padding: "8px",
+                                            boxSizing: "border-box",
+                                        }}
+                                    />
                                 </div>
 
                                 <div style={{ marginBottom: "8px" }}>
@@ -2309,6 +2531,9 @@ function SelectedItemDrawer({
                                                 type: normalizeType(selectedItem.type),
                                                 total: selectedCounts.total,
                                                 recovered: selectedCounts.total,
+                                                estimatedWeight: String(selectedWeight?.value || getDefaultWeightForType(selectedItem.type)),
+                                                lat: selectedGps ? String(selectedGps.latitude) : "",
+                                                lng: selectedGps ? String(selectedGps.longitude) : "",
                                             });
                                         }}
                                     >
@@ -2356,7 +2581,7 @@ function SelectedItemDrawer({
 }
 
 function App() {
-    const [items, setItems] = useState([]);
+    const [items, setItems] = useState(() => readStoredJson(ITEMS_STORAGE_KEY, [], Array.isArray));
     const [typeFilter, setTypeFilter] = useState("all");
     const [statusFilter, setStatusFilter] = useState("all");
     const [pendingLocation, setPendingLocation] = useState(null);
@@ -2364,7 +2589,7 @@ function App() {
     const [isSavingItem, setIsSavingItem] = useState(false);
     const [pendingCount, setPendingCount] = useState(1);
     const [editingItemId, setEditingItemId] = useState(null);
-    const [editForm, setEditForm] = useState({ type: "misc", total: 1, recovered: 0, lat: "", lng: "" });
+    const [editForm, setEditForm] = useState({ type: "misc", total: 1, recovered: 0, estimatedWeight: String(getDefaultWeightForType("misc")), lat: "", lng: "" });
     const [isUpdatingItemId, setIsUpdatingItemId] = useState(null);
     const [selectedItemId, setSelectedItemId] = useState(null);
     const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
@@ -2378,16 +2603,24 @@ function App() {
     const [currentUser, setCurrentUser] = useState(null);
     const [isAuthActionLoading, setIsAuthActionLoading] = useState(false);
     const [authError, setAuthError] = useState("");
-    const [localCounts, setLocalCounts] = useState({});
-    const [localGps, setLocalGps] = useState({});
-    const [dbCountFieldSupport, setDbCountFieldSupport] = useState({
-        total: false,
-        recovered: false,
-    });
-    const [dbGpsFieldSupport, setDbGpsFieldSupport] = useState({
-        latitude: null,
-        longitude: null,
-    });
+    const [localCounts, setLocalCounts] = useState(() =>
+        readStoredJson(COUNT_STORAGE_KEY, {}, (value) => value && typeof value === "object" && !Array.isArray(value)),
+    );
+    const [localGps, setLocalGps] = useState(() =>
+        readStoredJson(GPS_STORAGE_KEY, {}, (value) => value && typeof value === "object" && !Array.isArray(value)),
+    );
+    const [localWeights, setLocalWeights] = useState(() =>
+        readStoredJson(WEIGHT_STORAGE_KEY, {}, (value) => value && typeof value === "object" && !Array.isArray(value)),
+    );
+    const [dbCountFieldSupport, setDbCountFieldSupport] = useState(() =>
+        inferDbCountFieldSupport(readStoredJson(ITEMS_STORAGE_KEY, [], Array.isArray)),
+    );
+    const [dbGpsFieldSupport, setDbGpsFieldSupport] = useState(() =>
+        inferDbGpsFieldSupport(readStoredJson(ITEMS_STORAGE_KEY, [], Array.isArray)),
+    );
+    const [dbWeightFieldSupport, setDbWeightFieldSupport] = useState(() =>
+        inferDbWeightFieldSupport(readStoredJson(ITEMS_STORAGE_KEY, [], Array.isArray)),
+    );
     const [isMobile, setIsMobile] = useState(() =>
         typeof window !== "undefined" ? window.innerWidth <= 768 : false,
     );
@@ -2396,11 +2629,10 @@ function App() {
     const [isLiveLocationEnabled, setIsLiveLocationEnabled] = useState(false);
     const [liveLocation, setLiveLocation] = useState(null);
     const [liveLocationError, setLiveLocationError] = useState("");
-    const [isHeadingModeEnabled, setIsHeadingModeEnabled] = useState(false);
-    const [deviceHeading, setDeviceHeading] = useState(null);
-    const [headingError, setHeadingError] = useState("");
+    const [pendingEstimatedWeight, setPendingEstimatedWeight] = useState("");
     const ignoreNextMapClickRef = useRef(false);
     const liveLocationWatchIdRef = useRef(null);
+    const liveLocationBestRef = useRef(null);
     const canManageItems = useMemo(() => canUserManageItems(currentUser), [currentUser]);
 
     const markOverlayInteraction = () => {
@@ -2417,7 +2649,9 @@ function App() {
                 navigator.geolocation.clearWatch(liveLocationWatchIdRef.current);
                 liveLocationWatchIdRef.current = null;
             }
+            liveLocationBestRef.current = null;
             setLiveLocationError("");
+            setLiveLocation(null);
             return undefined;
         }
 
@@ -2427,26 +2661,42 @@ function App() {
             return undefined;
         }
 
-        setLiveLocationError("");
+        liveLocationBestRef.current = null;
+        setLiveLocation(null);
+        setLiveLocationError("Searching for a tighter GPS fix...");
         liveLocationWatchIdRef.current = navigator.geolocation.watchPosition(
             (position) => {
-                setLiveLocation({
-                    latitude: position.coords.latitude,
-                    longitude: position.coords.longitude,
-                    accuracy: position.coords.accuracy ?? null,
-                });
+                const nextSample = buildLiveLocationSample(position);
+
+                if (!nextSample) return;
+                if (shouldReplaceLiveLocation(liveLocationBestRef.current, nextSample)) {
+                    liveLocationBestRef.current = nextSample;
+                    setLiveLocation(nextSample);
+                }
+
+                const bestSample = liveLocationBestRef.current;
+                if (!bestSample) return;
+
+                if (bestSample.accuracy !== null && bestSample.accuracy > 25) {
+                    setLiveLocationError(
+                        `GPS accuracy is still coarse (${Math.round(bestSample.accuracy)}m). Waiting for a better fix...`,
+                    );
+                    return;
+                }
+
+                setLiveLocationError("");
             },
             (error) => {
                 if (error.code === error.PERMISSION_DENIED) {
-                    setLiveLocationError("Location access was denied.");
-                } else {
-                    setLiveLocationError("Unable to fetch live location right now.");
+                    setLiveLocation(null);
                 }
+
+                setLiveLocationError(getLiveLocationErrorMessage(error));
             },
             {
                 enableHighAccuracy: true,
-                maximumAge: 10000,
-                timeout: 20000,
+                maximumAge: 0,
+                timeout: 15000,
             },
         );
 
@@ -2457,69 +2707,6 @@ function App() {
             }
         };
     }, [isLiveLocationEnabled]);
-
-    useEffect(() => {
-        if (!isHeadingModeEnabled) {
-            setHeadingError("");
-            return undefined;
-        }
-
-        if (typeof window === "undefined" || typeof window.DeviceOrientationEvent === "undefined") {
-            setHeadingError("Compass heading is not supported on this device.");
-            setIsHeadingModeEnabled(false);
-            return undefined;
-        }
-
-        const handleOrientation = (event) => {
-            let heading = null;
-
-            if (typeof event.webkitCompassHeading === "number") {
-                heading = event.webkitCompassHeading;
-            } else if (typeof event.alpha === "number") {
-                heading = 360 - event.alpha;
-            }
-
-            if (!Number.isFinite(heading)) return;
-
-            const normalizedHeading = ((heading % 360) + 360) % 360;
-            setDeviceHeading(normalizedHeading);
-        };
-
-        window.addEventListener("deviceorientation", handleOrientation, true);
-
-        return () => {
-            window.removeEventListener("deviceorientation", handleOrientation, true);
-        };
-    }, [isHeadingModeEnabled]);
-
-    async function toggleHeadingMode() {
-        if (isHeadingModeEnabled) {
-            setIsHeadingModeEnabled(false);
-            setDeviceHeading(null);
-            return;
-        }
-
-        if (typeof window === "undefined" || typeof window.DeviceOrientationEvent === "undefined") {
-            setHeadingError("Compass heading is not supported on this device.");
-            return;
-        }
-
-        try {
-            const requestPermission = window.DeviceOrientationEvent?.requestPermission;
-            if (typeof requestPermission === "function") {
-                const permissionState = await requestPermission();
-                if (permissionState !== "granted") {
-                    setHeadingError("Motion permission was denied.");
-                    return;
-                }
-            }
-
-            setHeadingError("");
-            setIsHeadingModeEnabled(true);
-        } catch {
-            setHeadingError("Could not enable compass mode.");
-        }
-    }
 
     useEffect(() => {
         fetch("https://s3-us-west-2.amazonaws.com/config.maptiles.arcgis.com/waybackconfig.json")
@@ -2548,30 +2735,6 @@ function App() {
     }, []);
 
     useEffect(() => {
-        const stored = localStorage.getItem(COUNT_STORAGE_KEY);
-        if (stored) {
-            try {
-                const parsed = JSON.parse(stored);
-                if (parsed && typeof parsed === "object") {
-                    setLocalCounts(parsed);
-                }
-            } catch {
-                // ignore corrupted local storage and continue
-            }
-        }
-
-        const storedGps = localStorage.getItem(GPS_STORAGE_KEY);
-        if (storedGps) {
-            try {
-                const parsedGps = JSON.parse(storedGps);
-                if (parsedGps && typeof parsedGps === "object") {
-                    setLocalGps(parsedGps);
-                }
-            } catch {
-                // ignore corrupted local storage and continue
-            }
-        }
-
         fetchItems();
     }, []);
 
@@ -2610,12 +2773,20 @@ function App() {
     }, []);
 
     useEffect(() => {
+        localStorage.setItem(ITEMS_STORAGE_KEY, JSON.stringify(items));
+    }, [items]);
+
+    useEffect(() => {
         localStorage.setItem(COUNT_STORAGE_KEY, JSON.stringify(localCounts));
     }, [localCounts]);
 
     useEffect(() => {
         localStorage.setItem(GPS_STORAGE_KEY, JSON.stringify(localGps));
     }, [localGps]);
+
+    useEffect(() => {
+        localStorage.setItem(WEIGHT_STORAGE_KEY, JSON.stringify(localWeights));
+    }, [localWeights]);
 
     useEffect(() => {
         const handleResize = () => {
@@ -2745,6 +2916,33 @@ function App() {
         };
     };
 
+    const getItemEstimatedWeight = (item) => {
+        const fromDb =
+            dbWeightFieldSupport !== false && item.estimated_weight_kg !== undefined
+                ? parseEstimatedWeightKg(item.estimated_weight_kg)
+                : null;
+
+        if (fromDb !== null) {
+            return {
+                value: fromDb,
+                source: "custom",
+            };
+        }
+
+        const fromLocal = parseEstimatedWeightKg(localWeights[item.id]);
+        if (fromLocal !== null) {
+            return {
+                value: fromLocal,
+                source: "custom",
+            };
+        }
+
+        return {
+            value: getDefaultWeightForType(item.type),
+            source: "default",
+        };
+    };
+
     async function fetchItems() {
         setIsLoadingItems(true);
         const { data, error } = await supabase.from("items").select("*");
@@ -2754,18 +2952,11 @@ function App() {
             return;
         }
 
-        const first = data?.[0] || {};
-        setDbCountFieldSupport({
-            total: Object.prototype.hasOwnProperty.call(first, "total_count"),
-            recovered: Object.prototype.hasOwnProperty.call(first, "recovered_count"),
-        });
-        if (data && data.length > 0) {
-            setDbGpsFieldSupport({
-                latitude: Object.prototype.hasOwnProperty.call(first, "gps_latitude"),
-                longitude: Object.prototype.hasOwnProperty.call(first, "gps_longitude"),
-            });
-        }
-        setItems(data || []);
+        const nextItems = data || [];
+        setDbCountFieldSupport(inferDbCountFieldSupport(nextItems));
+        setDbGpsFieldSupport(inferDbGpsFieldSupport(nextItems));
+        setDbWeightFieldSupport(inferDbWeightFieldSupport(nextItems));
+        setItems(nextItems);
         setIsLoadingItems(false);
     }
 
@@ -2831,6 +3022,7 @@ function App() {
                 if (isSavingItem) return;
 
                 setPendingItemType(null);
+                setPendingEstimatedWeight("");
                 setPendingLocation({
                     y: e.latlng.lat,
                     x: e.latlng.lng,
@@ -2863,46 +3055,6 @@ function App() {
         return null;
     }
 
-    function MapHeadingRotation() {
-        const map = useMap();
-        const headingRef = useRef(deviceHeading);
-
-        useEffect(() => {
-            headingRef.current = deviceHeading;
-        }, [deviceHeading]);
-
-        useEffect(() => {
-            const mapPane = map.getPane("mapPane");
-            if (!mapPane) return undefined;
-
-            const stripRotate = (transformValue) =>
-                (transformValue || "").replace(/\s*rotate\([^)]*\)/g, "").trim();
-
-            const applyRotation = () => {
-                const baseTransform = stripRotate(mapPane.style.transform);
-
-                if (!isHeadingModeEnabled || typeof headingRef.current !== "number") {
-                    mapPane.style.transform = baseTransform;
-                    return;
-                }
-
-                mapPane.style.transformOrigin = "50% 50%";
-                mapPane.style.transform = `${baseTransform} rotate(${-headingRef.current}deg)`;
-            };
-
-            applyRotation();
-            map.on("move zoom zoomanim", applyRotation);
-
-            return () => {
-                map.off("move zoom zoomanim", applyRotation);
-                const cleanedTransform = stripRotate(mapPane.style.transform);
-                mapPane.style.transform = cleanedTransform;
-            };
-        }, [map, isHeadingModeEnabled, deviceHeading]);
-
-        return null;
-    }
-
     async function handleTypePick(selectedType, imageSource = "gallery") {
         if (!canManageItems) {
             alert("This account is read-only for now.");
@@ -2922,6 +3074,7 @@ function App() {
 
         input.onchange = async (event) => {
             const file = event.target.files?.[0];
+            const estimatedWeightKg = parseEstimatedWeightKg(pendingEstimatedWeight) || getDefaultWeightForType(selectedType);
 
             if (!file) {
                 return;
@@ -2933,6 +3086,7 @@ function App() {
                 const imageGps = await extractGpsFromImage(file);
                 const imageUrl = await uploadImage(file);
                 let gpsSavedToDb = false;
+                let weightSavedToDb = false;
                 // Use EXIF GPS if available, otherwise fall back to the map-click location
                 const gpsSource = imageGps || { latitude: point.y, longitude: point.x };
 
@@ -2946,6 +3100,7 @@ function App() {
 
                 if (dbCountFieldSupport.total) insertPayload.total_count = pendingCount;
                 if (dbCountFieldSupport.recovered) insertPayload.recovered_count = 0;
+                if (dbWeightFieldSupport !== false) insertPayload.estimated_weight_kg = estimatedWeightKg;
                 if (
                     dbGpsFieldSupport.latitude !== false &&
                     dbGpsFieldSupport.longitude !== false
@@ -2964,13 +3119,20 @@ function App() {
                     error &&
                     (error.message?.toLowerCase().includes("gps_latitude") ||
                         error.message?.toLowerCase().includes("gps_longitude"));
+                const weightColumnMissing =
+                    error && error.message?.toLowerCase().includes("estimated_weight_kg");
 
-                if (gpsColumnMissing) {
+                if (gpsColumnMissing || weightColumnMissing) {
                     const retryPayload = { ...insertPayload };
-                    delete retryPayload.gps_latitude;
-                    delete retryPayload.gps_longitude;
-
-                    setDbGpsFieldSupport({ latitude: false, longitude: false });
+                    if (gpsColumnMissing) {
+                        delete retryPayload.gps_latitude;
+                        delete retryPayload.gps_longitude;
+                        setDbGpsFieldSupport({ latitude: false, longitude: false });
+                    }
+                    if (weightColumnMissing) {
+                        delete retryPayload.estimated_weight_kg;
+                        setDbWeightFieldSupport(false);
+                    }
 
                     const retryResult = await supabase
                         .from("items")
@@ -2982,10 +3144,12 @@ function App() {
                     error = retryResult.error;
                 } else if (!error) {
                     gpsSavedToDb = true;
+                    weightSavedToDb = true;
                     setDbGpsFieldSupport((prev) => ({
                         latitude: prev.latitude ?? true,
                         longitude: prev.longitude ?? true,
                     }));
+                    setDbWeightFieldSupport((prev) => prev ?? true);
                 }
 
                 if (error) {
@@ -3010,6 +3174,13 @@ function App() {
                     }));
                 }
 
+                if (data?.id && !weightSavedToDb) {
+                    setLocalWeights((prev) => ({
+                        ...prev,
+                        [data.id]: estimatedWeightKg,
+                    }));
+                }
+
                 fetchItems();
             } catch {
                 alert("Upload failed. Please try again.");
@@ -3017,6 +3188,7 @@ function App() {
                 setIsSavingItem(false);
                 setPendingItemType(null);
                 setPendingLocation(null);
+                setPendingEstimatedWeight("");
                 setPendingCount(1);
             }
         };
@@ -3033,11 +3205,13 @@ function App() {
         const counts = getItemCounts(item);
 
         const gps = getItemGps(item);
+        const estimatedWeight = getItemEstimatedWeight(item);
         setEditingItemId(item.id);
         setEditForm({
             type: normalizeType(item.type),
             total: counts.total,
             recovered: counts.recovered,
+            estimatedWeight: String(estimatedWeight.value),
             lat: gps ? String(gps.latitude) : "",
             lng: gps ? String(gps.longitude) : "",
         });
@@ -3052,6 +3226,7 @@ function App() {
         const total = Math.max(1, clampInt(editForm.total, 1));
         const recovered = Math.min(total, clampInt(editForm.recovered, 0));
         const nextType = normalizeType(editForm.type);
+        const estimatedWeightKg = parseEstimatedWeightKg(editForm.estimatedWeight) || getDefaultWeightForType(nextType);
         const nextRecoveredState = recovered >= total;
 
         const updatePayload = {
@@ -3061,6 +3236,7 @@ function App() {
 
         if (dbCountFieldSupport.total) updatePayload.total_count = total;
         if (dbCountFieldSupport.recovered) updatePayload.recovered_count = recovered;
+        if (dbWeightFieldSupport !== false) updatePayload.estimated_weight_kg = estimatedWeightKg;
 
         const parsedLat = parseGpsNumber(editForm.lat);
         const parsedLng = parseGpsNumber(editForm.lng);
@@ -3076,10 +3252,39 @@ function App() {
 
         setIsUpdatingItemId(itemId);
 
-        const { error } = await supabase
+        let { error } = await supabase
             .from("items")
             .update(updatePayload)
             .eq("id", itemId);
+
+        const gpsColumnMissing =
+            error &&
+            (error.message?.toLowerCase().includes("gps_latitude") ||
+                error.message?.toLowerCase().includes("gps_longitude"));
+        const weightColumnMissing =
+            error && error.message?.toLowerCase().includes("estimated_weight_kg");
+
+        if (gpsColumnMissing || weightColumnMissing) {
+            const retryPayload = { ...updatePayload };
+
+            if (gpsColumnMissing) {
+                delete retryPayload.gps_latitude;
+                delete retryPayload.gps_longitude;
+                setDbGpsFieldSupport({ latitude: false, longitude: false });
+            }
+
+            if (weightColumnMissing) {
+                delete retryPayload.estimated_weight_kg;
+                setDbWeightFieldSupport(false);
+            }
+
+            const retryResult = await supabase
+                .from("items")
+                .update(retryPayload)
+                .eq("id", itemId);
+
+            error = retryResult.error;
+        }
 
         if (error) {
             alert("Unable to save changes.");
@@ -3098,6 +3303,13 @@ function App() {
             setLocalGps((prev) => ({
                 ...prev,
                 [itemId]: { latitude: parsedLat, longitude: parsedLng },
+            }));
+        }
+
+        if (dbWeightFieldSupport === false || weightColumnMissing) {
+            setLocalWeights((prev) => ({
+                ...prev,
+                [itemId]: estimatedWeightKg,
             }));
         }
 
@@ -3135,6 +3347,14 @@ function App() {
 
         setLocalGps((prev) => {
             if (!prev[itemId]) return prev;
+
+            const next = { ...prev };
+            delete next[itemId];
+            return next;
+        });
+
+        setLocalWeights((prev) => {
+            if (!Object.prototype.hasOwnProperty.call(prev, itemId)) return prev;
 
             const next = { ...prev };
             delete next[itemId];
@@ -3186,26 +3406,32 @@ function App() {
         (acc, item) => {
             const counts = getItemCounts(item);
             const type = normalizeType(item.type);
-            const assumedWeight = ASSUMED_ITEM_WEIGHTS_KG[type] || ASSUMED_ITEM_WEIGHTS_KG.misc;
+            const estimatedWeight = getItemEstimatedWeight(item).value;
 
             acc.totalByType[type] += counts.total;
-            acc.estimatedRecoveredKg += counts.recovered * assumedWeight;
-            acc.estimatedRemainingKg += counts.inWater * assumedWeight;
+            acc.estimatedRecoveredKg += counts.recovered * estimatedWeight;
+            acc.estimatedRemainingKg += counts.inWater * estimatedWeight;
             acc.recoveredByType[type] += counts.recovered;
             acc.remainingByType[type] += counts.inWater;
+            acc.totalWeightByType[type] += counts.total * estimatedWeight;
+            acc.recoveredWeightByType[type] += counts.recovered * estimatedWeight;
+            acc.remainingWeightByType[type] += counts.inWater * estimatedWeight;
             return acc;
         },
         {
-            totalByType: { trolley: 0, bike: 0, misc: 0 },
+            totalByType: { trolley: 0, bike: 0, motorbike: 0, misc: 0 },
             estimatedRecoveredKg: 0,
             estimatedRemainingKg: 0,
-            recoveredByType: { trolley: 0, bike: 0, misc: 0 },
-            remainingByType: { trolley: 0, bike: 0, misc: 0 },
+            recoveredByType: { trolley: 0, bike: 0, motorbike: 0, misc: 0 },
+            remainingByType: { trolley: 0, bike: 0, motorbike: 0, misc: 0 },
+            totalWeightByType: { trolley: 0, bike: 0, motorbike: 0, misc: 0 },
+            recoveredWeightByType: { trolley: 0, bike: 0, motorbike: 0, misc: 0 },
+            remainingWeightByType: { trolley: 0, bike: 0, motorbike: 0, misc: 0 },
         },
     );
 
         return baseStats;
-    }, [filteredItems, localCounts, dbCountFieldSupport]);
+    }, [filteredItems, localCounts, dbCountFieldSupport, localWeights, dbWeightFieldSupport]);
 
     const tideChartData = useMemo(
         () => buildTideChartData(lancasterTideRows, lancasterTideUpdatedAt),
@@ -3230,6 +3456,10 @@ function App() {
     const selectedMapsUrl = useMemo(
         () => (selectedGps ? createMapsUrl(selectedGps.latitude, selectedGps.longitude) : null),
         [selectedGps],
+    );
+    const selectedWeight = useMemo(
+        () => (selectedItem ? getItemEstimatedWeight(selectedItem) : null),
+        [selectedItem, localWeights, dbWeightFieldSupport],
     );
 
     return (
@@ -3317,7 +3547,6 @@ function App() {
                     )}
                     <MapEvents />
                     <LiveLocationAutoCenter />
-                    <MapHeadingRotation />
 
                     {isLiveLocationEnabled && liveLocation && (
                         <CircleMarker
@@ -3344,11 +3573,13 @@ function App() {
                         pendingLocation={pendingLocation}
                         pendingItemType={pendingItemType}
                         pendingCount={pendingCount}
+                        pendingEstimatedWeight={pendingEstimatedWeight}
                         isSavingItem={isSavingItem}
                         isMobile={isMobile}
                         controlFontSize={controlFontSize}
                         touchButtonSize={touchButtonSize}
                         setPendingCount={setPendingCount}
+                        setPendingEstimatedWeight={setPendingEstimatedWeight}
                         setPendingItemType={setPendingItemType}
                         setPendingLocation={setPendingLocation}
                         handleTypePick={handleTypePick}
@@ -3396,87 +3627,41 @@ function App() {
                         alignItems: "flex-end",
                     }}
                 >
-                    <div style={{ display: "flex", gap: "6px" }}>
-                        <button
-                            type="button"
-                            onClick={() => setIsLiveLocationEnabled((prev) => !prev)}
-                            title={isLiveLocationEnabled ? "Hide live location" : "Show live location"}
-                            aria-label={isLiveLocationEnabled ? "Hide live location" : "Show live location"}
+                    <button
+                        type="button"
+                        onClick={() => setIsLiveLocationEnabled((prev) => !prev)}
+                        title={isLiveLocationEnabled ? "Hide live location" : "Show live location"}
+                        aria-label={isLiveLocationEnabled ? "Hide live location" : "Show live location"}
+                        style={{
+                            width: isMobile ? "34px" : "30px",
+                            height: isMobile ? "34px" : "30px",
+                            border: "1px solid #cbd5e1",
+                            background: "rgba(255,255,255,0.97)",
+                            color: "#0f172a",
+                            borderRadius: "6px",
+                            padding: 0,
+                            cursor: "pointer",
+                            boxShadow: "0 1px 4px rgba(0,0,0,0.16)",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                        }}
+                    >
+                        <span
                             style={{
-                                width: isMobile ? "34px" : "30px",
-                                height: isMobile ? "34px" : "30px",
-                                border: "1px solid #cbd5e1",
-                                background: "rgba(255,255,255,0.97)",
-                                color: "#0f172a",
-                                borderRadius: "6px",
-                                padding: 0,
-                                cursor: "pointer",
-                                boxShadow: "0 1px 4px rgba(0,0,0,0.16)",
-                                display: "inline-flex",
-                                alignItems: "center",
-                                justifyContent: "center",
+                                width: "12px",
+                                height: "12px",
+                                borderRadius: "999px",
+                                border: "2px solid",
+                                borderColor: isLiveLocationEnabled ? "#0284c7" : "#64748b",
+                                background: "transparent",
+                                boxShadow: isLiveLocationEnabled
+                                    ? "inset 0 0 0 3px #0ea5e9"
+                                    : "none",
+                                transition: "all 0.2s ease",
                             }}
-                        >
-                            <span
-                                style={{
-                                    width: "12px",
-                                    height: "12px",
-                                    borderRadius: "999px",
-                                    border: "2px solid",
-                                    borderColor: isLiveLocationEnabled ? "#0284c7" : "#64748b",
-                                    background: "transparent",
-                                    boxShadow: isLiveLocationEnabled
-                                        ? "inset 0 0 0 3px #0ea5e9"
-                                        : "none",
-                                    transition: "all 0.2s ease",
-                                }}
-                            />
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={toggleHeadingMode}
-                            title={isHeadingModeEnabled ? "Disable compass orientation" : "Enable compass orientation"}
-                            aria-label={isHeadingModeEnabled ? "Disable compass orientation" : "Enable compass orientation"}
-                            style={{
-                                width: isMobile ? "34px" : "30px",
-                                height: isMobile ? "34px" : "30px",
-                                border: "1px solid #cbd5e1",
-                                background: "rgba(255,255,255,0.97)",
-                                color: isHeadingModeEnabled ? "#0284c7" : "#475569",
-                                borderRadius: "6px",
-                                padding: 0,
-                                cursor: "pointer",
-                                boxShadow: "0 1px 4px rgba(0,0,0,0.16)",
-                                display: "inline-flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                fontSize: "0.78rem",
-                                fontWeight: 700,
-                                lineHeight: 1,
-                            }}
-                        >
-                            N
-                        </button>
-                    </div>
-
-                    {headingError && (
-                        <div
-                            style={{
-                                background: "rgba(254,226,226,0.96)",
-                                border: "1px solid #fecaca",
-                                borderRadius: "6px",
-                                padding: "4px 6px",
-                                boxShadow: "0 2px 6px rgba(0,0,0,0.12)",
-                                fontSize: "0.68rem",
-                                color: "#991b1b",
-                                lineHeight: 1.25,
-                                maxWidth: isMobile ? "150px" : "170px",
-                            }}
-                        >
-                            {headingError}
-                        </div>
-                    )}
+                        />
+                    </button>
 
                     {liveLocationError && (
                         <div
@@ -3547,6 +3732,7 @@ function App() {
                 selectedCounts={selectedCounts}
                 selectedGps={selectedGps}
                 selectedMapsUrl={selectedMapsUrl}
+                selectedWeight={selectedWeight}
                 editingItemId={editingItemId}
                 editForm={editForm}
                 isUpdatingItemId={isUpdatingItemId}
