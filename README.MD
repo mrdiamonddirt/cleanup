@@ -1,6 +1,10 @@
 # 🌊 River Bank Cleanup Tracker
 
-An interactive mapping tool designed to track and manage environmental cleanup efforts along a local river bank.
+An interactive mapping tool built to track and coordinate a real, ongoing cleanup effort on a stretch of my local river — the River Lune. This project exists in partnership with the physical cleanup work itself: the app is actively used to log debris, monitor what's been recovered, and plan future sessions around the tides.
+
+The goal is simple: pull trolleys, bikes, and other rubbish out of the river and dispose of them responsibly — and show that anyone, including kids, can make a meaningful difference to their local environment. If the mapped stretch of river runs out of locations to log, the project scope will expand to cover more of the river.
+
+> *Created to demonstrate how accessible environmental action can be — both the technical side and the getting-out-there side.*
 
 ## 🛠️ Tech Stack
 - **Frontend:** React, Vite, Leaflet.js
