@@ -2342,9 +2342,7 @@ function App() {
     const [isUpdatingItemId, setIsUpdatingItemId] = useState(null);
     const [selectedItemId, setSelectedItemId] = useState(null);
     const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
-    const [isTidePlannerCollapsed, setIsTidePlannerCollapsed] = useState(() =>
-        typeof window !== "undefined" ? window.innerWidth <= 768 : false,
-    );
+    const [isTidePlannerCollapsed, setIsTidePlannerCollapsed] = useState(true);
     const [lancasterTideRows, setLancasterTideRows] = useState([]);
     const [isLoadingLancasterTides, setIsLoadingLancasterTides] = useState(false);
     const [lancasterTideError, setLancasterTideError] = useState("");
