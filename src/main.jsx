@@ -26,6 +26,7 @@ L.Marker.prototype.options.icon = DefaultIcon;
 // ------------------------
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || "";
+const HAS_MAPBOX_TOKEN = Boolean(MAPBOX_TOKEN && MAPBOX_TOKEN.trim());
 // River Lune, Lancaster — adjust if needed
 const RIVER_LUNE_CENTER = [54.0495, -2.7995];
 const RIVER_LUNE_ZOOM = 15;
@@ -528,6 +529,8 @@ function PendingPlacementOverlay({
     pendingCount,
     pendingEstimatedWeight,
     isSavingItem,
+    isPickingImage,
+    uploadProgressText,
     isMobile,
     controlFontSize,
     touchButtonSize,
@@ -541,6 +544,7 @@ function PendingPlacementOverlay({
     const map = useMap();
     const panelRef = useRef(null);
     const rafRef = useRef(null);
+    const isBusy = isSavingItem || isPickingImage;
     const [panelPosition, setPanelPosition] = useState({
         left: 12,
         top: 12,
@@ -630,7 +634,7 @@ function PendingPlacementOverlay({
             map.off("zoom", scheduleUpdate);
             map.off("resize", scheduleUpdate);
         };
-    }, [map, pendingLocation, pendingItemType, pendingCount, pendingEstimatedWeight, isMobile, isSavingItem]);
+    }, [map, pendingLocation, pendingItemType, pendingCount, pendingEstimatedWeight, isMobile, isBusy]);
 
     if (!pendingLocation) return null;
 
@@ -712,7 +716,7 @@ function PendingPlacementOverlay({
                 </span>
                 <button
                     onClick={() => setPendingCount((prev) => Math.max(1, prev - 1))}
-                    disabled={isSavingItem}
+                    disabled={isBusy}
                     style={{
                         border: "1px solid #94a3b8",
                         background: "#fff",
@@ -720,7 +724,7 @@ function PendingPlacementOverlay({
                         width: touchButtonSize,
                         height: touchButtonSize,
                         fontWeight: 700,
-                        cursor: isSavingItem ? "not-allowed" : "pointer",
+                        cursor: isBusy ? "not-allowed" : "pointer",
                     }}
                 >
                     -
@@ -730,7 +734,7 @@ function PendingPlacementOverlay({
                 </strong>
                 <button
                     onClick={() => setPendingCount((prev) => prev + 1)}
-                    disabled={isSavingItem}
+                    disabled={isBusy}
                     style={{
                         border: "1px solid #94a3b8",
                         background: "#fff",
@@ -738,7 +742,7 @@ function PendingPlacementOverlay({
                         width: touchButtonSize,
                         height: touchButtonSize,
                         fontWeight: 700,
-                        cursor: isSavingItem ? "not-allowed" : "pointer",
+                        cursor: isBusy ? "not-allowed" : "pointer",
                     }}
                 >
                     +
@@ -755,7 +759,7 @@ function PendingPlacementOverlay({
                         step="0.1"
                         value={pendingEstimatedWeight}
                         onChange={(event) => setPendingEstimatedWeight(event.target.value)}
-                        disabled={isSavingItem}
+                        disabled={isBusy}
                         style={{
                             width: "100%",
                             marginTop: "4px",
@@ -776,7 +780,7 @@ function PendingPlacementOverlay({
                     <>
                         <button
                             onClick={() => handleTypePick(pendingItemType, "camera")}
-                            disabled={isSavingItem}
+                            disabled={isBusy}
                             style={{
                                 border: "1px solid #2563eb",
                                 background: "#eff6ff",
@@ -785,15 +789,15 @@ function PendingPlacementOverlay({
                                 borderRadius: "8px",
                                 fontSize: controlFontSize,
                                 fontWeight: 700,
-                                cursor: isSavingItem ? "not-allowed" : "pointer",
-                                opacity: isSavingItem ? 0.6 : 1,
+                                cursor: isBusy ? "not-allowed" : "pointer",
+                                opacity: isBusy ? 0.6 : 1,
                             }}
                         >
                             Use Camera
                         </button>
                         <button
                             onClick={() => handleTypePick(pendingItemType, "gallery")}
-                            disabled={isSavingItem}
+                            disabled={isBusy}
                             style={{
                                 border: "1px solid #94a3b8",
                                 background: "#fff",
@@ -802,8 +806,8 @@ function PendingPlacementOverlay({
                                 borderRadius: "8px",
                                 fontSize: controlFontSize,
                                 fontWeight: 700,
-                                cursor: isSavingItem ? "not-allowed" : "pointer",
-                                opacity: isSavingItem ? 0.6 : 1,
+                                cursor: isBusy ? "not-allowed" : "pointer",
+                                opacity: isBusy ? 0.6 : 1,
                             }}
                         >
                             Choose From Gallery
@@ -813,7 +817,7 @@ function PendingPlacementOverlay({
                                 setPendingItemType(null);
                                 setPendingEstimatedWeight("");
                             }}
-                            disabled={isSavingItem}
+                            disabled={isBusy}
                             style={{
                                 border: "1px solid #cbd5e1",
                                 background: "transparent",
@@ -822,8 +826,8 @@ function PendingPlacementOverlay({
                                 borderRadius: "8px",
                                 fontSize: controlFontSize,
                                 fontWeight: 600,
-                                cursor: isSavingItem ? "not-allowed" : "pointer",
-                                opacity: isSavingItem ? 0.6 : 1,
+                                cursor: isBusy ? "not-allowed" : "pointer",
+                                opacity: isBusy ? 0.6 : 1,
                             }}
                         >
                             Back
@@ -843,7 +847,7 @@ function PendingPlacementOverlay({
                                     setPendingItemType(option.key);
                                     setPendingEstimatedWeight(String(getDefaultWeightForType(option.key)));
                                 }}
-                                disabled={isSavingItem}
+                                disabled={isBusy}
                                 style={{
                                     border: "1px solid #94a3b8",
                                     background: "#fff",
@@ -852,8 +856,8 @@ function PendingPlacementOverlay({
                                     borderRadius: "8px",
                                     fontSize: controlFontSize,
                                     fontWeight: 700,
-                                    cursor: isSavingItem ? "not-allowed" : "pointer",
-                                    opacity: isSavingItem ? 0.6 : 1,
+                                    cursor: isBusy ? "not-allowed" : "pointer",
+                                    opacity: isBusy ? 0.6 : 1,
                                 }}
                             >
                                 {option.label}
@@ -867,7 +871,7 @@ function PendingPlacementOverlay({
                         setPendingEstimatedWeight("");
                         setPendingLocation(null);
                     }}
-                    disabled={isSavingItem}
+                    disabled={isBusy}
                     style={{
                         border: "1px solid #cbd5e1",
                         background: "transparent",
@@ -876,14 +880,14 @@ function PendingPlacementOverlay({
                         borderRadius: "8px",
                         fontSize: controlFontSize,
                         fontWeight: 600,
-                        cursor: isSavingItem ? "not-allowed" : "pointer",
-                        opacity: isSavingItem ? 0.6 : 1,
+                        cursor: isBusy ? "not-allowed" : "pointer",
+                        opacity: isBusy ? 0.6 : 1,
                     }}
                 >
                     Cancel
                 </button>
             </div>
-            {isSavingItem && (
+            {(isBusy || uploadProgressText) && (
                 <div
                     style={{
                         marginTop: "8px",
@@ -891,7 +895,7 @@ function PendingPlacementOverlay({
                         color: "#64748b",
                     }}
                 >
-                    Uploading and saving item...
+                    {uploadProgressText || "Uploading and saving item..."}
                 </div>
             )}
         </div>
@@ -2587,6 +2591,8 @@ function App() {
     const [pendingLocation, setPendingLocation] = useState(null);
     const [pendingItemType, setPendingItemType] = useState(null);
     const [isSavingItem, setIsSavingItem] = useState(false);
+    const [isPickingImage, setIsPickingImage] = useState(false);
+    const [uploadProgressText, setUploadProgressText] = useState("");
     const [pendingCount, setPendingCount] = useState(1);
     const [editingItemId, setEditingItemId] = useState(null);
     const [editForm, setEditForm] = useState({ type: "misc", total: 1, recovered: 0, estimatedWeight: String(getDefaultWeightForType("misc")), lat: "", lng: "" });
@@ -2730,6 +2736,8 @@ function App() {
                     .sort((a, b) => b.releaseNum - a.releaseNum)
                     .slice(0, 80);
                 setWaybackReleases(sorted);
+                // Default to the latest World Imagery snapshot
+                if (sorted.length > 0) setSelectedWaybackId(sorted[0].releaseNum);
             })
             .catch(() => {});
     }, []);
@@ -2949,7 +2957,7 @@ function App() {
 
         if (error) {
             setIsLoadingItems(false);
-            return;
+            return false;
         }
 
         const nextItems = data || [];
@@ -2958,6 +2966,7 @@ function App() {
         setDbWeightFieldSupport(inferDbWeightFieldSupport(nextItems));
         setItems(nextItems);
         setIsLoadingItems(false);
+        return true;
     }
 
     async function uploadImage(file) {
@@ -3061,7 +3070,7 @@ function App() {
             return;
         }
 
-        if (!pendingLocation || isSavingItem) return;
+        if (!pendingLocation || isSavingItem || isPickingImage) return;
 
         const input = document.createElement("input");
         input.type = "file";
@@ -3071,19 +3080,39 @@ function App() {
         }
 
         const point = pendingLocation;
+        setUploadProgressText(imageSource === "camera" ? "Opening camera..." : "Opening gallery...");
+        setIsPickingImage(true);
+
+        const resetPickerState = () => {
+            setIsPickingImage(false);
+        };
+
+        const handleWindowFocus = () => {
+            window.setTimeout(() => {
+                resetPickerState();
+            }, 250);
+        };
+
+        window.addEventListener("focus", handleWindowFocus, { once: true });
 
         input.onchange = async (event) => {
             const file = event.target.files?.[0];
             const estimatedWeightKg = parseEstimatedWeightKg(pendingEstimatedWeight) || getDefaultWeightForType(selectedType);
+            let saveSucceeded = false;
+            resetPickerState();
 
             if (!file) {
+                setUploadProgressText("No image selected.");
+                window.setTimeout(() => setUploadProgressText(""), 1500);
                 return;
             }
 
             setIsSavingItem(true);
+            setUploadProgressText("Reading photo details...");
 
             try {
                 const imageGps = await extractGpsFromImage(file);
+                setUploadProgressText("Uploading photo...");
                 const imageUrl = await uploadImage(file);
                 let gpsSavedToDb = false;
                 let weightSavedToDb = false;
@@ -3153,6 +3182,7 @@ function App() {
                 }
 
                 if (error) {
+                    setUploadProgressText("Could not save item. Please try again.");
                     alert("Could not save item. Please try again.");
                     return;
                 }
@@ -3181,16 +3211,30 @@ function App() {
                     }));
                 }
 
-                fetchItems();
+                setUploadProgressText("Saved. Refreshing map...");
+                await fetchItems();
+                saveSucceeded = true;
+                setUploadProgressText("");
             } catch {
+                setUploadProgressText("Upload failed. Please try again.");
                 alert("Upload failed. Please try again.");
             } finally {
                 setIsSavingItem(false);
-                setPendingItemType(null);
-                setPendingLocation(null);
-                setPendingEstimatedWeight("");
-                setPendingCount(1);
+                resetPickerState();
+
+                if (saveSucceeded) {
+                    setPendingItemType(null);
+                    setPendingLocation(null);
+                    setPendingEstimatedWeight("");
+                    setPendingCount(1);
+                }
             }
+        };
+
+        input.oncancel = () => {
+            resetPickerState();
+            setUploadProgressText("No image selected.");
+            window.setTimeout(() => setUploadProgressText(""), 1500);
         };
 
         input.click();
@@ -3535,7 +3579,7 @@ function App() {
                             attribution='&copy; <a href="https://www.arcgis.com/">Esri</a> Wayback Imagery'
                             maxZoom={21}
                         />
-                    ) : (
+                    ) : HAS_MAPBOX_TOKEN ? (
                         <TileLayer
                             key="mapbox-live"
                             url={`https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`}
@@ -3543,6 +3587,13 @@ function App() {
                             tileSize={512}
                             zoomOffset={-1}
                             maxZoom={22}
+                        />
+                    ) : (
+                        <TileLayer
+                            key="osm-fallback"
+                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                            maxZoom={19}
                         />
                     )}
                     <MapEvents />
@@ -3575,6 +3626,8 @@ function App() {
                         pendingCount={pendingCount}
                         pendingEstimatedWeight={pendingEstimatedWeight}
                         isSavingItem={isSavingItem}
+                        isPickingImage={isPickingImage}
+                        uploadProgressText={uploadProgressText}
                         isMobile={isMobile}
                         controlFontSize={controlFontSize}
                         touchButtonSize={touchButtonSize}
@@ -3716,7 +3769,7 @@ function App() {
                                 maxWidth: "160px",
                             }}
                         >
-                            <option value="">Live (Mapbox)</option>
+                            <option value="">Mapbox (Live)</option>
                             {waybackReleases.map((r) => (
                                 <option key={r.releaseNum} value={r.releaseNum}>
                                     {r.releaseName}
