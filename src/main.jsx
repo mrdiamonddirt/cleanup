@@ -50,6 +50,185 @@ const parseGpsNumber = (value) => {
     return parsed;
 };
 
+const parseLancasterTideDate = (timeText, fallbackYear = new Date().getFullYear()) => {
+    if (!timeText) return null;
+
+    const match = timeText.match(
+        /^(\d{1,2}):(\d{2})\s*(AM|PM)\s*\((?:[A-Za-z]{3}\s+)?(\d{1,2})\s+([A-Za-z]+)(?:\s+(\d{4}))?\)$/i,
+    );
+
+    if (!match) return null;
+
+    let [, rawHours, rawMinutes, period, rawDay, rawMonth, rawYear] = match;
+    let hours = Number.parseInt(rawHours, 10);
+    const minutes = Number.parseInt(rawMinutes, 10);
+    const day = Number.parseInt(rawDay, 10);
+    const year = Number.parseInt(rawYear || String(fallbackYear), 10);
+    const monthIndex = new Date(`${rawMonth} 1, ${year}`).getMonth();
+
+    if (!Number.isInteger(hours) || !Number.isInteger(minutes) || !Number.isInteger(day)) {
+        return null;
+    }
+
+    if (Number.isNaN(monthIndex)) return null;
+
+    if (hours === 12 && /^AM$/i.test(period)) hours = 0;
+    else if (hours === 12 && /^PM$/i.test(period)) hours = 12;
+    else if (hours === 0 && /^PM$/i.test(period)) hours = 12;
+    else if (/^PM$/i.test(period)) hours += 12;
+
+    return new Date(year, monthIndex, day, hours, minutes, 0, 0);
+};
+
+const parseTideHeightMeters = (heightText) => {
+    if (!heightText) return null;
+
+    const match = heightText.match(/-?\d+(?:\.\d+)?/);
+    if (!match) return null;
+
+    const parsed = Number.parseFloat(match[0]);
+    return Number.isFinite(parsed) ? parsed : null;
+};
+
+const formatTideTime = (date) => {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
+
+    return new Intl.DateTimeFormat("en-GB", {
+        weekday: "short",
+        hour: "numeric",
+        minute: "2-digit",
+    }).format(date);
+};
+
+const formatTideDay = (date) => {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
+
+    return new Intl.DateTimeFormat("en-GB", {
+        day: "numeric",
+        month: "short",
+    }).format(date);
+};
+
+const buildTideChartData = (rows, updatedAt) => {
+    if (!Array.isArray(rows) || rows.length < 2) return null;
+
+    const fallbackYear = updatedAt ? new Date(updatedAt).getFullYear() : new Date().getFullYear();
+    const parsedRows = rows
+        .map((row, index) => {
+            const date = parseLancasterTideDate(row.time, fallbackYear);
+            const height = parseTideHeightMeters(row.height);
+
+            if (!date || height === null) return null;
+
+            return {
+                ...row,
+                index,
+                date,
+                height,
+                isLowTide: /low tide/i.test(row.type),
+            };
+        })
+        .filter(Boolean)
+        .sort((left, right) => left.date - right.date);
+
+    if (parsedRows.length < 2) return null;
+
+    const width = 760;
+    const height = 280;
+    const padding = { top: 26, right: 18, bottom: 58, left: 18 };
+    const chartWidth = width - padding.left - padding.right;
+    const chartHeight = height - padding.top - padding.bottom;
+
+    const times = parsedRows.map((row) => row.date.getTime());
+    const heights = parsedRows.map((row) => row.height);
+    const minTime = Math.min(...times);
+    const maxTime = Math.max(...times);
+    const minHeight = Math.min(...heights);
+    const maxHeight = Math.max(...heights);
+    const medianHeight = (minHeight + maxHeight) / 2;
+    const heightRange = Math.max(maxHeight - minHeight, 1);
+    const verticalPadding = Math.max(heightRange * 0.12, 0.4);
+    const chartMinHeight = minHeight - verticalPadding;
+    const chartMaxHeight = maxHeight + verticalPadding;
+    const visibleHeightRange = chartMaxHeight - chartMinHeight;
+
+    const getX = (time) => {
+        if (maxTime === minTime) return padding.left + chartWidth / 2;
+        const ratio = (time - minTime) / (maxTime - minTime);
+        return padding.left + ratio * chartWidth;
+    };
+
+    const getY = (value) => {
+        if (visibleHeightRange === 0) return padding.top + chartHeight / 2;
+        const ratio = (value - chartMinHeight) / visibleHeightRange;
+        return padding.top + chartHeight - ratio * chartHeight;
+    };
+
+    const points = parsedRows.map((row) => ({
+        ...row,
+        x: getX(row.date.getTime()),
+        y: getY(row.height),
+    }));
+
+    const curvePath = points.reduce((path, point, index) => {
+        if (index === 0) {
+            return `M ${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
+        }
+
+        const previousPoint = points[index - 1];
+        const controlX = previousPoint.x + (point.x - previousPoint.x) / 2;
+
+        return `${path} C ${controlX.toFixed(2)} ${previousPoint.y.toFixed(2)}, ${controlX.toFixed(2)} ${point.y.toFixed(2)}, ${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
+    }, "");
+
+    const areaPath = `${curvePath} L ${points[points.length - 1].x.toFixed(2)} ${(padding.top + chartHeight).toFixed(2)} L ${points[0].x.toFixed(2)} ${(padding.top + chartHeight).toFixed(2)} Z`;
+
+    const now = new Date();
+    let currentMarker = null;
+
+    if (now.getTime() >= minTime && now.getTime() <= maxTime) {
+        for (let index = 0; index < parsedRows.length - 1; index += 1) {
+            const start = parsedRows[index];
+            const end = parsedRows[index + 1];
+            const startTime = start.date.getTime();
+            const endTime = end.date.getTime();
+
+            if (now.getTime() < startTime || now.getTime() > endTime) continue;
+
+            const segmentProgress = (now.getTime() - startTime) / (endTime - startTime || 1);
+            const easedProgress = (1 - Math.cos(Math.PI * segmentProgress)) / 2;
+            const currentHeight = start.height + (end.height - start.height) * easedProgress;
+
+            currentMarker = {
+                time: now,
+                height: currentHeight,
+                x: getX(now.getTime()),
+                y: getY(currentHeight),
+                previous: start,
+                next: end,
+            };
+            break;
+        }
+    }
+
+    const nextTide = parsedRows.find((row) => row.date.getTime() >= now.getTime()) || null;
+    const previousTide = [...parsedRows].reverse().find((row) => row.date.getTime() <= now.getTime()) || null;
+
+    return {
+        width,
+        height,
+        padding,
+        baselineY: padding.top + chartHeight,
+        medianY: getY(medianHeight),
+        points,
+        curvePath,
+        areaPath,
+        currentMarker,
+        nextTide,
+        previousTide,
+    };
+};
+
 const extractGpsFromImage = async (file) => {
     try {
         const gps = await exifr.gps(file);
@@ -150,6 +329,7 @@ function App() {
     const [typeFilter, setTypeFilter] = useState("all");
     const [statusFilter, setStatusFilter] = useState("all");
     const [pendingLocation, setPendingLocation] = useState(null);
+    const [pendingItemType, setPendingItemType] = useState(null);
     const [isSavingItem, setIsSavingItem] = useState(false);
     const [pendingCount, setPendingCount] = useState(1);
     const [editingItemId, setEditingItemId] = useState(null);
@@ -381,6 +561,7 @@ function App() {
             click: async (e) => {
                 if (isSavingItem) return;
 
+                setPendingItemType(null);
                 setPendingLocation({
                     y: e.latlng.lat,
                     x: e.latlng.lng,
@@ -390,13 +571,15 @@ function App() {
         return null;
     }
 
-    async function handleTypePick(selectedType) {
+    async function handleTypePick(selectedType, imageSource = "gallery") {
         if (!pendingLocation || isSavingItem) return;
 
         const input = document.createElement("input");
         input.type = "file";
         input.accept = "image/*";
-        input.capture = "environment";
+        if (imageSource === "camera") {
+            input.capture = "environment";
+        }
 
         const point = pendingLocation;
 
@@ -404,7 +587,6 @@ function App() {
             const file = event.target.files?.[0];
 
             if (!file) {
-                setPendingLocation(null);
                 return;
             }
 
@@ -495,6 +677,7 @@ function App() {
                 alert("Upload failed. Please try again.");
             } finally {
                 setIsSavingItem(false);
+                setPendingItemType(null);
                 setPendingLocation(null);
                 setPendingCount(1);
             }
@@ -623,6 +806,8 @@ function App() {
         { total: 0, recovered: 0, remaining: 0 },
     );
 
+    const tideChartData = buildTideChartData(lancasterTideRows, lancasterTideUpdatedAt);
+
     const mapHeight = isMobile ? "58svh" : "calc(100vh - 250px)";
     const controlFontSize = isMobile ? "0.95rem" : "0.85rem";
     const touchButtonSize = isMobile ? "38px" : "30px";
@@ -670,7 +855,9 @@ function App() {
                             marginBottom: "8px",
                         }}
                     >
-                        Choose item type for this location
+                        {pendingItemType
+                            ? `Add a photo for this ${TYPE_LABELS[pendingItemType] || "item"}`
+                            : "Choose item type for this location"}
                     </div>
                     <div
                         style={{
@@ -719,32 +906,93 @@ function App() {
                         </button>
                     </div>
                     <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                        {[
-                            { key: "bike", label: "🚲 Bike" },
-                            { key: "trolley", label: "🛒 Trolley" },
-                            { key: "misc", label: "🧰 Misc" },
-                        ].map((option) => (
-                            <button
-                                key={option.key}
-                                onClick={() => handleTypePick(option.key)}
-                                disabled={isSavingItem}
-                                style={{
-                                    border: "1px solid #94a3b8",
-                                    background: "#fff",
-                                    color: "#0f172a",
-                                    padding: isMobile ? "10px 14px" : "8px 12px",
-                                    borderRadius: "8px",
-                                    fontSize: controlFontSize,
-                                    fontWeight: 700,
-                                    cursor: isSavingItem ? "not-allowed" : "pointer",
-                                    opacity: isSavingItem ? 0.6 : 1,
-                                }}
-                            >
-                                {option.label}
-                            </button>
-                        ))}
+                        {pendingItemType ? (
+                            <>
+                                <button
+                                    onClick={() => handleTypePick(pendingItemType, "camera")}
+                                    disabled={isSavingItem}
+                                    style={{
+                                        border: "1px solid #2563eb",
+                                        background: "#eff6ff",
+                                        color: "#1d4ed8",
+                                        padding: isMobile ? "10px 14px" : "8px 12px",
+                                        borderRadius: "8px",
+                                        fontSize: controlFontSize,
+                                        fontWeight: 700,
+                                        cursor: isSavingItem ? "not-allowed" : "pointer",
+                                        opacity: isSavingItem ? 0.6 : 1,
+                                    }}
+                                >
+                                    Use Camera
+                                </button>
+                                <button
+                                    onClick={() => handleTypePick(pendingItemType, "gallery")}
+                                    disabled={isSavingItem}
+                                    style={{
+                                        border: "1px solid #94a3b8",
+                                        background: "#fff",
+                                        color: "#0f172a",
+                                        padding: isMobile ? "10px 14px" : "8px 12px",
+                                        borderRadius: "8px",
+                                        fontSize: controlFontSize,
+                                        fontWeight: 700,
+                                        cursor: isSavingItem ? "not-allowed" : "pointer",
+                                        opacity: isSavingItem ? 0.6 : 1,
+                                    }}
+                                >
+                                    Choose From Gallery
+                                </button>
+                                <button
+                                    onClick={() => setPendingItemType(null)}
+                                    disabled={isSavingItem}
+                                    style={{
+                                        border: "1px solid #cbd5e1",
+                                        background: "transparent",
+                                        color: "#475569",
+                                        padding: isMobile ? "10px 14px" : "8px 12px",
+                                        borderRadius: "8px",
+                                        fontSize: controlFontSize,
+                                        fontWeight: 600,
+                                        cursor: isSavingItem ? "not-allowed" : "pointer",
+                                        opacity: isSavingItem ? 0.6 : 1,
+                                    }}
+                                >
+                                    Back
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                {[
+                                    { key: "bike", label: "🚲 Bike" },
+                                    { key: "trolley", label: "🛒 Trolley" },
+                                    { key: "misc", label: "🧰 Misc" },
+                                ].map((option) => (
+                                    <button
+                                        key={option.key}
+                                        onClick={() => setPendingItemType(option.key)}
+                                        disabled={isSavingItem}
+                                        style={{
+                                            border: "1px solid #94a3b8",
+                                            background: "#fff",
+                                            color: "#0f172a",
+                                            padding: isMobile ? "10px 14px" : "8px 12px",
+                                            borderRadius: "8px",
+                                            fontSize: controlFontSize,
+                                            fontWeight: 700,
+                                            cursor: isSavingItem ? "not-allowed" : "pointer",
+                                            opacity: isSavingItem ? 0.6 : 1,
+                                        }}
+                                    >
+                                        {option.label}
+                                    </button>
+                                ))}
+                            </>
+                        )}
                         <button
-                            onClick={() => setPendingLocation(null)}
+                            onClick={() => {
+                                setPendingItemType(null);
+                                setPendingLocation(null);
+                            }}
                             disabled={isSavingItem}
                             style={{
                                 border: "1px solid #cbd5e1",
@@ -1014,7 +1262,7 @@ function App() {
                             </div>
 
                         <div style={{ fontSize: "0.84rem", color: "#334155", marginBottom: "8px" }}>
-                            Best cleanup window is usually around low tide: target about 90 minutes before and after the low tide rows shown below.
+                            Best cleanup window is usually around low tide: target about 90 minutes before and after the low tide dips shown on the graph.
                         </div>
 
                             {lancasterTideUpdatedAt ? (
@@ -1039,56 +1287,283 @@ function App() {
                             </div>
                         ) : null}
 
-                        {lancasterTideRows.length ? (
+                        {tideChartData ? (
                             <div
                                 style={{
-                                    overflowX: "auto",
                                     border: "1px solid #dbeafe",
                                     borderRadius: "10px",
                                     background: "#ffffff",
                                     marginBottom: "10px",
+                                    padding: isMobile ? "12px" : "14px",
                                 }}
                             >
-                                <table
-                                    style={{
-                                        width: "100%",
-                                        borderCollapse: "collapse",
-                                        fontSize: "0.84rem",
-                                    }}
-                                >
-                                    <thead>
-                                        <tr style={{ background: "#eff6ff", color: "#1e3a8a" }}>
-                                            <th style={{ textAlign: "left", padding: "10px" }}>Tide</th>
-                                            <th style={{ textAlign: "left", padding: "10px" }}>Time</th>
-                                            <th style={{ textAlign: "left", padding: "10px" }}>Height</th>
-                                            <th style={{ textAlign: "left", padding: "10px" }}>Best For</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {lancasterTideRows.map((row, index) => {
-                                            const isLowTide = /low tide/i.test(row.type);
+                                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                                    <div
+                                        style={{
+                                            display: "flex",
+                                            gap: "10px",
+                                            flexWrap: "wrap",
+                                            fontSize: "0.79rem",
+                                            color: "#475569",
+                                        }}
+                                    >
+                                        <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                                            <span
+                                                aria-hidden="true"
+                                                style={{ width: "10px", height: "10px", borderRadius: "999px", background: "#1d4ed8" }}
+                                            />
+                                            Tide curve
+                                        </span>
+                                        <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                                            <span
+                                                aria-hidden="true"
+                                                style={{ width: "10px", height: "10px", borderRadius: "999px", background: "#16a34a" }}
+                                            />
+                                            Low tide window
+                                        </span>
+                                        <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                                            <span
+                                                aria-hidden="true"
+                                                style={{ width: "2px", height: "14px", background: "#dc2626" }}
+                                            />
+                                            Current time
+                                        </span>
+                                    </div>
 
-                                            return (
-                                                <tr
-                                                    key={`${row.type}-${row.time}-${index}`}
-                                                    style={{
-                                                        borderTop: index === 0 ? "none" : "1px solid #e2e8f0",
-                                                        background: isLowTide ? "#f0fdf4" : "#ffffff",
-                                                    }}
-                                                >
-                                                    <td style={{ padding: "10px", fontWeight: 700, color: "#0f172a" }}>
-                                                        {row.type}
-                                                    </td>
-                                                    <td style={{ padding: "10px", color: "#334155" }}>{row.time}</td>
-                                                    <td style={{ padding: "10px", color: "#334155" }}>{row.height}</td>
-                                                    <td style={{ padding: "10px", color: isLowTide ? "#166534" : "#64748b" }}>
-                                                        {isLowTide ? "Best cleanup window" : "Check access / rising water"}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
+                                    <div style={{ width: "100%", overflowX: "auto" }}>
+                                        <svg
+                                            viewBox={`0 0 ${tideChartData.width} ${tideChartData.height}`}
+                                            role="img"
+                                            aria-label="Wave graph of upcoming Lancaster tide highs, lows, and current time"
+                                            style={{ width: "100%", minWidth: isMobile ? "620px" : "100%", height: "auto", display: "block" }}
+                                        >
+                                            <defs>
+                                                <linearGradient id="tideBackdropGradient" x1="0" x2="0" y1="0" y2="1">
+                                                    <stop offset="0%" stopColor="#f8fbff" />
+                                                    <stop offset="100%" stopColor="#eef6ff" />
+                                                </linearGradient>
+                                                <linearGradient id="tideAreaGradient" x1="0" x2="0" y1="0" y2="1">
+                                                    <stop offset="0%" stopColor="#93c5fd" stopOpacity="0.45" />
+                                                    <stop offset="100%" stopColor="#dbeafe" stopOpacity="0.12" />
+                                                </linearGradient>
+                                                <filter id="tideCurveGlow" x="-10%" y="-20%" width="120%" height="140%">
+                                                    <feGaussianBlur stdDeviation="6" result="blur" />
+                                                    <feColorMatrix
+                                                        in="blur"
+                                                        type="matrix"
+                                                        values="0 0 0 0 0.145 0 0 0 0 0.388 0 0 0 0 0.922 0 0 0 0.18 0"
+                                                    />
+                                                </filter>
+                                            </defs>
+
+                                            <rect
+                                                x={tideChartData.padding.left}
+                                                y={tideChartData.padding.top}
+                                                width={tideChartData.width - tideChartData.padding.left - tideChartData.padding.right}
+                                                height={tideChartData.baselineY - tideChartData.padding.top}
+                                                rx="18"
+                                                fill="url(#tideBackdropGradient)"
+                                            />
+
+                                            {[0.25, 0.5, 0.75].map((ratio) => {
+                                                const y = tideChartData.padding.top + (tideChartData.baselineY - tideChartData.padding.top) * ratio;
+
+                                                return (
+                                                    <line
+                                                        key={`h-grid-${ratio}`}
+                                                        x1={tideChartData.padding.left}
+                                                        x2={tideChartData.width - tideChartData.padding.right}
+                                                        y1={y}
+                                                        y2={y}
+                                                        stroke="#dbeafe"
+                                                        strokeWidth="1"
+                                                        strokeDasharray="4 6"
+                                                    />
+                                                );
+                                            })}
+
+                                            <line
+                                                x1={tideChartData.padding.left}
+                                                x2={tideChartData.width - tideChartData.padding.right}
+                                                y1={tideChartData.medianY}
+                                                y2={tideChartData.medianY}
+                                                stroke="#94a3b8"
+                                                strokeWidth="1.5"
+                                                strokeDasharray="8 8"
+                                                opacity="0.8"
+                                            />
+
+                                            <line
+                                                x1={tideChartData.padding.left}
+                                                x2={tideChartData.width - tideChartData.padding.right}
+                                                y1={tideChartData.baselineY}
+                                                y2={tideChartData.baselineY}
+                                                stroke="#cbd5e1"
+                                                strokeWidth="1"
+                                            />
+
+                                            {tideChartData.points.map((point) => (
+                                                <line
+                                                    key={`grid-${point.index}`}
+                                                    x1={point.x}
+                                                    x2={point.x}
+                                                    y1={tideChartData.padding.top}
+                                                    y2={tideChartData.baselineY}
+                                                    stroke="#e2e8f0"
+                                                    strokeDasharray="4 6"
+                                                    strokeWidth="1"
+                                                />
+                                            ))}
+
+                                            <path d={tideChartData.areaPath} fill="url(#tideAreaGradient)" />
+                                            <path
+                                                d={tideChartData.curvePath}
+                                                fill="none"
+                                                stroke="#60a5fa"
+                                                strokeWidth="7"
+                                                strokeLinecap="round"
+                                                opacity="0.1"
+                                                filter="url(#tideCurveGlow)"
+                                            />
+                                            <path
+                                                d={tideChartData.curvePath}
+                                                fill="none"
+                                                stroke="#2563eb"
+                                                strokeWidth="2.5"
+                                                strokeLinecap="round"
+                                            />
+
+                                            {tideChartData.currentMarker ? (
+                                                <g>
+                                                    <line
+                                                        x1={tideChartData.currentMarker.x}
+                                                        x2={tideChartData.currentMarker.x}
+                                                        y1={tideChartData.padding.top}
+                                                        y2={tideChartData.baselineY}
+                                                        stroke="#dc2626"
+                                                        strokeWidth="2"
+                                                        strokeDasharray="6 4"
+                                                    />
+                                                    <circle
+                                                        cx={tideChartData.currentMarker.x}
+                                                        cy={tideChartData.currentMarker.y}
+                                                        r="5"
+                                                        fill="#dc2626"
+                                                        stroke="#ffffff"
+                                                        strokeWidth="2.5"
+                                                    />
+                                                </g>
+                                            ) : null}
+
+                                            {tideChartData.points.map((point) => {
+                                                const timeY = point.isLowTide ? point.y + 22 : point.y - 12;
+
+                                                return (
+                                                    <g key={`point-${point.index}`}>
+                                                        <circle
+                                                            cx={point.x}
+                                                            cy={point.y}
+                                                            r="8"
+                                                            fill={point.isLowTide ? "#16a34a" : "#2563eb"}
+                                                            opacity="0.16"
+                                                        />
+                                                        <circle
+                                                            cx={point.x}
+                                                            cy={point.y}
+                                                            r="4.5"
+                                                            fill={point.isLowTide ? "#16a34a" : "#1d4ed8"}
+                                                            stroke="#ffffff"
+                                                            strokeWidth="2.5"
+                                                        />
+                                                        <text
+                                                            x={point.x}
+                                                            y={timeY}
+                                                            textAnchor="middle"
+                                                            fontSize="9.5"
+                                                            fill="#64748b"
+                                                        >
+                                                            {formatTideTime(point.date).replace(/^[A-Za-z]{3},?\s*/, "")}
+                                                        </text>
+                                                        <text
+                                                            x={point.x}
+                                                            y={tideChartData.height - 18}
+                                                            textAnchor="middle"
+                                                            fontSize="10"
+                                                            fill="#64748b"
+                                                        >
+                                                            {formatTideDay(point.date)}
+                                                        </text>
+                                                    </g>
+                                                );
+                                            })}
+                                        </svg>
+                                    </div>
+
+                                    <div
+                                        style={{
+                                            display: "grid",
+                                            gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))",
+                                            gap: "8px",
+                                        }}
+                                    >
+                                        <div
+                                            style={{
+                                                borderRadius: "10px",
+                                                border: "1px solid #dbeafe",
+                                                background: "#eff6ff",
+                                                padding: "10px 12px",
+                                            }}
+                                        >
+                                            <div style={{ fontSize: "0.73rem", fontWeight: 700, color: "#1d4ed8", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                                                Previous tide
+                                            </div>
+                                            <div style={{ marginTop: "4px", fontSize: "0.9rem", fontWeight: 700, color: "#0f172a" }}>
+                                                {tideChartData.previousTide ? tideChartData.previousTide.type : "Unavailable"}
+                                            </div>
+                                            <div style={{ marginTop: "2px", fontSize: "0.8rem", color: "#475569" }}>
+                                                {tideChartData.previousTide ? `${formatTideTime(tideChartData.previousTide.date)} • ${tideChartData.previousTide.height.toFixed(2)} m` : "No tide before current time in this range."}
+                                            </div>
+                                        </div>
+
+                                        <div
+                                            style={{
+                                                borderRadius: "10px",
+                                                border: "1px solid #fecaca",
+                                                background: "#fef2f2",
+                                                padding: "10px 12px",
+                                            }}
+                                        >
+                                            <div style={{ fontSize: "0.73rem", fontWeight: 700, color: "#b91c1c", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                                                Current time
+                                            </div>
+                                            <div style={{ marginTop: "4px", fontSize: "0.9rem", fontWeight: 700, color: "#0f172a" }}>
+                                                {formatTideTime(tideChartData.currentMarker?.time || new Date())}
+                                            </div>
+                                            <div style={{ marginTop: "2px", fontSize: "0.8rem", color: "#475569" }}>
+                                                {tideChartData.currentMarker ? `Estimated height ${tideChartData.currentMarker.height.toFixed(2)} m between ${tideChartData.currentMarker.previous.type} and ${tideChartData.currentMarker.next.type}.` : "Current time sits outside the saved chart range."}
+                                            </div>
+                                        </div>
+
+                                        <div
+                                            style={{
+                                                borderRadius: "10px",
+                                                border: "1px solid #bbf7d0",
+                                                background: "#f0fdf4",
+                                                padding: "10px 12px",
+                                            }}
+                                        >
+                                            <div style={{ fontSize: "0.73rem", fontWeight: 700, color: "#15803d", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                                                Next tide
+                                            </div>
+                                            <div style={{ marginTop: "4px", fontSize: "0.9rem", fontWeight: 700, color: "#0f172a" }}>
+                                                {tideChartData.nextTide ? tideChartData.nextTide.type : "Unavailable"}
+                                            </div>
+                                            <div style={{ marginTop: "2px", fontSize: "0.8rem", color: "#475569" }}>
+                                                {tideChartData.nextTide ? `${formatTideTime(tideChartData.nextTide.date)} • ${tideChartData.nextTide.height.toFixed(2)} m` : "No upcoming tide in this saved range."}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         ) : null}
 
