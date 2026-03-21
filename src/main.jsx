@@ -38,7 +38,7 @@ const TYPE_LABELS = {
 const ASSUMED_ITEM_WEIGHTS_KG = {
     trolley: 28,
     bike: 15,
-    misc: 3,
+    misc: 30,
 };
 
 const COUNT_STORAGE_KEY = "cleanup-item-counts-v1";
