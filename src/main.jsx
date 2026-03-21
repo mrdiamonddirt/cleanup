@@ -707,58 +707,8 @@ function PendingPlacementOverlay({
     );
 }
 
-function HeroBanner({ isMobile }) {
-    return (
-        <div
-            style={{
-                marginBottom: "10px",
-                padding: isMobile ? "10px 10px 8px" : "12px 14px 10px",
-                borderRadius: "16px",
-                border: "1px solid #dbeafe",
-                background: "linear-gradient(135deg, #f8fbff 0%, #eef6ff 52%, #f8fafc 100%)",
-                boxShadow: "0 10px 30px rgba(37,99,235,0.08)",
-            }}
-        >
-            <div
-                style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    padding: "4px 10px",
-                    borderRadius: "999px",
-                    background: "rgba(255,255,255,0.75)",
-                    border: "1px solid #bfdbfe",
-                    fontSize: "0.72rem",
-                    fontWeight: 700,
-                    letterSpacing: "0.06em",
-                    textTransform: "uppercase",
-                    color: "#1d4ed8",
-                    marginBottom: "8px",
-                }}
-            >
-                <span>River Lune</span>
-                <span style={{ color: "#93c5fd" }}>•</span>
-                <span>Cleanup Tracker</span>
-            </div>
-            <h1
-                style={{
-                    fontSize: isMobile ? "1.55rem" : "1.85rem",
-                    lineHeight: 1.05,
-                    margin: "0 0 6px",
-                    color: "#0f172a",
-                    letterSpacing: "-0.03em",
-                }}
-            >
-                River Lune Cleanup
-            </h1>
-            <p style={{ fontSize: "0.9rem", color: "#475569", margin: 0, lineHeight: 1.4 }}>
-                Tap the map to log debris and open markers for counts, photos, and recovery details.
-            </p>
-        </div>
-    );
-}
-
-function AuthPanel({
+function HeroBanner({
+    isMobile,
     authReady,
     currentUser,
     canManageItems,
@@ -774,70 +724,177 @@ function AuthPanel({
     return (
         <div
             style={{
-                marginBottom: "10px",
-                padding: "10px 12px",
-                borderRadius: "12px",
+                marginBottom: "4px",
+                padding: isMobile ? "10px 10px 8px" : "12px 14px 10px",
+                borderRadius: "16px",
                 border: "1px solid #dbeafe",
-                background: "linear-gradient(180deg, #ffffff, #f8fbff)",
-                boxShadow: "0 6px 18px rgba(15,23,42,0.06)",
+                background: "linear-gradient(135deg, #f8fbff 0%, #eef6ff 52%, #f8fafc 100%)",
+                boxShadow: "0 10px 30px rgba(37,99,235,0.08)",
             }}
         >
             <div
                 style={{
                     display: "flex",
-                    alignItems: "center",
+                    alignItems: "flex-start",
                     justifyContent: "space-between",
-                    gap: "8px",
+                    gap: isMobile ? "10px" : "12px",
                     flexWrap: "wrap",
+                    marginBottom: "2px",
                 }}
             >
-                <div style={{ fontSize: "0.86rem", color: "#334155", lineHeight: 1.4 }}>
-                    {!authReady
-                        ? "Checking authentication status..."
-                        : currentUser
-                          ? canManageItems
-                              ? `Signed in as ${signedInLabel}. You can add, edit, and delete items.`
-                              : `Signed in as ${signedInLabel}. Read-only access for this account.`
-                          : "Signed out. View-only mode is enabled until you sign in with GitHub."}
+                <div
+                    style={{
+                        flex: "1 1 420px",
+                        minWidth: 0,
+                    }}
+                >
+                    <div
+                        style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            padding: "4px 10px",
+                            borderRadius: "999px",
+                            background: "rgba(255,255,255,0.75)",
+                            border: "1px solid #bfdbfe",
+                            fontSize: "0.72rem",
+                            fontWeight: 700,
+                            letterSpacing: "0.06em",
+                            textTransform: "uppercase",
+                            color: "#1d4ed8",
+                        }}
+                    >
+                        <span>River Lune</span>
+                        <span style={{ color: "#93c5fd" }}>•</span>
+                        <span>Cleanup Tracker</span>
+                    </div>
+
+                    <h1
+                        style={{
+                            fontSize: isMobile ? "1.5rem" : "1.82rem",
+                            lineHeight: 1.05,
+                            margin: "8px 0 6px",
+                            color: "#0f172a",
+                            letterSpacing: "-0.03em",
+                        }}
+                    >
+                        River Lune Cleanup
+                    </h1>
+                    <p style={{ fontSize: "0.9rem", color: "#475569", margin: 0, lineHeight: 1.4 }}>
+                        Tap the map to log debris and open markers for counts, photos, and recovery details.
+                    </p>
                 </div>
 
-                {currentUser ? (
-                    <button
-                        onClick={onSignOut}
-                        disabled={!authReady || isAuthActionLoading}
+                <div
+                    style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: isMobile ? "stretch" : "flex-end",
+                        gap: "6px",
+                        flex: isMobile ? "1 1 100%" : "0 0 auto",
+                    }}
+                >
+                    <a
+                        href="https://ko-fi.com/rowdog"
+                        target="_blank"
+                        rel="noreferrer"
                         style={{
-                            border: "1px solid #cbd5e1",
-                            background: "#fff",
-                            color: "#0f172a",
-                            borderRadius: "8px",
-                            padding: "8px 10px",
-                            fontSize: "0.82rem",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: "6px",
+                            border: "1px solid #bfdbfe",
+                            background: "linear-gradient(135deg, #ffffff, #eef6ff)",
+                            color: "#1d4ed8",
+                            borderRadius: "999px",
+                            padding: isMobile ? "7px 11px" : "6px 11px",
+                            fontSize: "0.78rem",
                             fontWeight: 700,
-                            cursor: !authReady || isAuthActionLoading ? "not-allowed" : "pointer",
-                            opacity: !authReady || isAuthActionLoading ? 0.65 : 1,
+                            textDecoration: "none",
+                            boxShadow: "0 6px 16px rgba(29,78,216,0.12)",
+                            whiteSpace: "nowrap",
+                        }}
+                        aria-label="Support cleanup costs on Ko-fi"
+                    >
+                        <span aria-hidden="true">❤</span>
+                        <span>Support The Cleanup</span>
+                    </a>
+
+                    {currentUser ? (
+                        <button
+                            onClick={onSignOut}
+                            disabled={!authReady || isAuthActionLoading}
+                            style={{
+                                border: "1px solid #cbd5e1",
+                                background: "#fff",
+                                color: "#0f172a",
+                                borderRadius: "999px",
+                                padding: isMobile ? "8px 12px" : "7px 12px",
+                                fontSize: "0.78rem",
+                                fontWeight: 700,
+                                cursor: !authReady || isAuthActionLoading ? "not-allowed" : "pointer",
+                                opacity: !authReady || isAuthActionLoading ? 0.65 : 1,
+                                minWidth: isMobile ? "100%" : "182px",
+                            }}
+                        >
+                            Sign Out
+                        </button>
+                    ) : (
+                        <button
+                            onClick={onSignIn}
+                            disabled={!authReady || isAuthActionLoading}
+                            style={{
+                                border: "1px solid #0f172a",
+                                background: "#111827",
+                                color: "#fff",
+                                borderRadius: "999px",
+                                padding: isMobile ? "8px 12px" : "7px 12px",
+                                fontSize: "0.78rem",
+                                fontWeight: 700,
+                                cursor: !authReady || isAuthActionLoading ? "not-allowed" : "pointer",
+                                opacity: !authReady || isAuthActionLoading ? 0.65 : 1,
+                                minWidth: isMobile ? "100%" : "182px",
+                            }}
+                        >
+                            Sign In With GitHub
+                        </button>
+                    )}
+
+                    <div
+                        title={!authReady
+                            ? "Checking authentication and access state"
+                            : canManageItems
+                              ? `Edit mode enabled for ${signedInLabel}`
+                              : currentUser
+                                ? `Signed in as ${signedInLabel} with view-only access`
+                                : "Signed out in view-only mode"
+                        }
+                        style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: "6px",
+                            borderRadius: "999px",
+                            border: `1px solid ${canManageItems ? "#bbf7d0" : "#fde68a"}`,
+                            background: canManageItems ? "#f0fdf4" : "#fffbeb",
+                            color: canManageItems ? "#166534" : "#92400e",
+                            fontSize: "0.74rem",
+                            fontWeight: 700,
+                            padding: "4px 10px",
+                            lineHeight: 1.2,
+                            whiteSpace: "nowrap",
                         }}
                     >
-                        Sign Out
-                    </button>
-                ) : (
-                    <button
-                        onClick={onSignIn}
-                        disabled={!authReady || isAuthActionLoading}
-                        style={{
-                            border: "1px solid #0f172a",
-                            background: "#111827",
-                            color: "#fff",
-                            borderRadius: "8px",
-                            padding: "8px 10px",
-                            fontSize: "0.82rem",
-                            fontWeight: 700,
-                            cursor: !authReady || isAuthActionLoading ? "not-allowed" : "pointer",
-                            opacity: !authReady || isAuthActionLoading ? 0.65 : 1,
-                        }}
-                    >
-                        Sign In With GitHub
-                    </button>
-                )}
+                        <span aria-hidden="true">{canManageItems ? "✓" : "🔒"}</span>
+                        <span>
+                            {!authReady
+                                ? "Checking access"
+                                : canManageItems
+                                  ? "Edit mode"
+                                  : "View-only"}
+                        </span>
+                    </div>
+                </div>
             </div>
 
             {authError ? (
@@ -856,8 +913,9 @@ function SummaryStats({ totals, locationCount, controlFontSize, isMobile }) {
                 display: "flex",
                 flexWrap: "wrap",
                 gap: "8px",
-                marginBottom: "8px",
-                padding: isMobile ? "8px" : "8px 10px",
+                marginTop: "0px",
+                marginBottom: "4px",
+                padding: isMobile ? "6px 8px" : "6px 10px",
                 background: "linear-gradient(180deg, #ffffff, #f8fafc)",
                 borderRadius: "12px",
                 border: "1px solid #e2e8f0",
@@ -897,7 +955,7 @@ function ControlToggles({
                 gap: "10px",
                 flexWrap: "wrap",
                 marginTop: "4px",
-                marginBottom: "8px",
+                marginBottom: areControlsCollapsed && isTidePlannerCollapsed ? "2px" : "8px",
             }}
         >
             <div
@@ -1099,8 +1157,9 @@ function TidePlanner({
     return (
         <div
             style={{
-                marginBottom: "10px",
-                marginTop: "8px",
+                marginBottom: isTidePlannerCollapsed ? "0px" : "10px",
+                marginTop: isTidePlannerCollapsed ? "0px" : "8px",
+                transition: "margin 220ms ease",
             }}
         >
             <div
@@ -2546,9 +2605,8 @@ function App() {
                 margin: "0 auto",
             }}
         >
-            <HeroBanner isMobile={isMobile} />
-
-            <AuthPanel
+            <HeroBanner
+                isMobile={isMobile}
                 authReady={authReady}
                 currentUser={currentUser}
                 canManageItems={canManageItems}

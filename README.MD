@@ -39,3 +39,10 @@ VITE_OWNER_SUPABASE_IDS=
 ```
 
 You can set one or more values in each variable as comma-separated lists. This keeps the current single-owner setup simple while leaving room to expand to additional maintainers later.
+
+## ❤️ Support The Cleanup
+If you want to help cover practical cleanup costs (rope, gloves, bags, and disposal trips), you can support the project here:
+
+- https://ko-fi.com/rowdog
+
+Every donation goes back into getting more rubbish out of the river safely and responsibly.
