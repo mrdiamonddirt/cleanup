@@ -929,9 +929,14 @@ function HeroBanner({
 }
 
 function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impactStats }) {
+    const [activeTooltip, setActiveTooltip] = useState(null);
+    const statsRef = useRef(null);
     const trolleyWeight = ASSUMED_ITEM_WEIGHTS_KG.trolley;
     const bikeWeight = ASSUMED_ITEM_WEIGHTS_KG.bike;
     const miscWeight = ASSUMED_ITEM_WEIGHTS_KG.misc;
+    const totalTrolley = impactStats.totalByType.trolley;
+    const totalBike = impactStats.totalByType.bike;
+    const totalMisc = impactStats.totalByType.misc;
     const recoveredTrolley = impactStats.recoveredByType.trolley;
     const recoveredBike = impactStats.recoveredByType.bike;
     const recoveredMisc = impactStats.recoveredByType.misc;
@@ -939,21 +944,146 @@ function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impact
     const remainingBike = impactStats.remainingByType.bike;
     const remainingMisc = impactStats.remainingByType.misc;
 
-    const removedWeightTooltip = [
-        "Estimated removed weight workings:",
-        `${recoveredTrolley} trolleys x ${trolleyWeight}kg = ${recoveredTrolley * trolleyWeight}kg`,
-        `${recoveredBike} bikes x ${bikeWeight}kg = ${recoveredBike * bikeWeight}kg`,
-        `${recoveredMisc} misc x ${miscWeight}kg = ${recoveredMisc * miscWeight}kg`,
-        `Total = ${Math.round(impactStats.estimatedRecoveredKg)}kg`,
-    ].join("\n");
+    useEffect(() => {
+        if (!activeTooltip) return undefined;
 
-    const remainingWeightTooltip = [
+        const handlePointerDown = (event) => {
+            if (!statsRef.current?.contains(event.target)) {
+                setActiveTooltip(null);
+            }
+        };
+
+        document.addEventListener("pointerdown", handlePointerDown);
+        return () => document.removeEventListener("pointerdown", handlePointerDown);
+    }, [activeTooltip]);
+
+    const totalTooltipLines = [
+        "Total items consist of:",
+        `${totalTrolley} trolleys`,
+        `${totalBike} bikes`,
+        `${totalMisc} misc`,
+        `Total = ${totals.total} items`,
+    ];
+
+    const recoveredTooltipLines = [
+        "Recovered items consist of:",
+        `${recoveredTrolley} trolleys`,
+        `${recoveredBike} bikes`,
+        `${recoveredMisc} misc`,
+        `Total = ${totals.recovered} items`,
+    ];
+
+    const remainingTooltipLines = [
+        "Remaining items consist of:",
+        `${remainingTrolley} trolleys`,
+        `${remainingBike} bikes`,
+        `${remainingMisc} misc`,
+        `Total = ${totals.remaining} items`,
+    ];
+
+    const locationsTooltipLines = [
+        "Locations currently visible:",
+        `${locationCount} mapped points after filters`,
+    ];
+
+    const remainingWeightTooltipLines = [
         "Estimated remaining weight workings:",
         `${remainingTrolley} trolleys x ${trolleyWeight}kg = ${remainingTrolley * trolleyWeight}kg`,
         `${remainingBike} bikes x ${bikeWeight}kg = ${remainingBike * bikeWeight}kg`,
         `${remainingMisc} misc x ${miscWeight}kg = ${remainingMisc * miscWeight}kg`,
         `Total = ${Math.round(impactStats.estimatedRemainingKg)}kg`,
-    ].join("\n");
+    ];
+
+    const removedWeightTooltipLines = [
+        "Estimated removed weight workings:",
+        `${recoveredTrolley} trolleys x ${trolleyWeight}kg = ${recoveredTrolley * trolleyWeight}kg`,
+        `${recoveredBike} bikes x ${bikeWeight}kg = ${recoveredBike * bikeWeight}kg`,
+        `${recoveredMisc} misc x ${miscWeight}kg = ${recoveredMisc * miscWeight}kg`,
+        `Total = ${Math.round(impactStats.estimatedRecoveredKg)}kg`,
+    ];
+
+    const renderStatTile = (id, label, valueNode, tooltipLines, valueColor) => (
+        <button
+            type="button"
+            onClick={() => setActiveTooltip((prev) => (prev === id ? null : id))}
+            onMouseEnter={() => {
+                if (!isMobile) setActiveTooltip(id);
+            }}
+            onMouseLeave={() => {
+                if (!isMobile) setActiveTooltip((prev) => (prev === id ? null : prev));
+            }}
+            style={{
+                position: "relative",
+                width: "100%",
+                border: "1px solid #dbe4ee",
+                background: activeTooltip === id ? "#eff6ff" : "rgba(255,255,255,0.84)",
+                borderRadius: "10px",
+                padding: isMobile ? "8px 10px" : "7px 10px",
+                textAlign: "left",
+                color: "#0f172a",
+                cursor: "help",
+                boxShadow: activeTooltip === id ? "0 10px 24px rgba(37,99,235,0.12)" : "none",
+                minWidth: 0,
+                minHeight: isMobile ? "auto" : "44px",
+            }}
+            aria-expanded={activeTooltip === id}
+            aria-label={`${label}. Tap or hover for breakdown.`}
+        >
+            <span style={{ display: "block", paddingRight: "18px" }}>
+                {label}: <strong style={valueColor ? { color: valueColor } : undefined}>{valueNode}</strong>
+            </span>
+            <span
+                aria-hidden="true"
+                style={{
+                    position: "absolute",
+                    top: "7px",
+                    right: "8px",
+                    width: "16px",
+                    height: "16px",
+                    borderRadius: "999px",
+                    background: activeTooltip === id ? "#2563eb" : "#cbd5e1",
+                    color: activeTooltip === id ? "#fff" : "#334155",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "0.7rem",
+                    fontWeight: 700,
+                }}
+            >
+                i
+            </span>
+            {activeTooltip === id ? (
+                <div
+                    style={{
+                        position: "absolute",
+                        left: 0,
+                        top: "calc(100% + 8px)",
+                        zIndex: 20,
+                        width: isMobile ? "min(260px, calc(100vw - 40px))" : "260px",
+                        maxWidth: "calc(100vw - 40px)",
+                        padding: "10px 11px",
+                        borderRadius: "10px",
+                        border: "1px solid #cbd5e1",
+                        background: "rgba(255,255,255,0.98)",
+                        boxShadow: "0 18px 35px rgba(15,23,42,0.18)",
+                        color: "#334155",
+                        fontSize: "0.78rem",
+                        lineHeight: 1.45,
+                        whiteSpace: "pre-line",
+                    }}
+                >
+                    {tooltipLines.map((line) => (
+                        <div
+                            key={`${id}-${line}`}
+                            style={{ fontWeight: line.endsWith(":") ? 700 : 500, marginBottom: line.endsWith(":") ? "4px" : "0" }}
+                        >
+                            {line}
+                        </div>
+                    ))}
+                </div>
+            ) : null}
+        </button>
+    );
 
     const remainingKgLabel =
         impactStats.estimatedRemainingKg >= 1000
@@ -966,9 +1096,10 @@ function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impact
 
     return (
         <div
+            ref={statsRef}
             style={{
-                display: "flex",
-                flexWrap: "wrap",
+                display: "grid",
+                gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(6, minmax(0, 1fr))",
                 gap: "8px",
                 marginTop: "0px",
                 marginBottom: "4px",
@@ -980,24 +1111,12 @@ function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impact
                 fontSize: controlFontSize,
             }}
         >
-            <div style={{ flex: "1 1 100px" }}>
-                Total Items: <strong>{totals.total}</strong>
-            </div>
-            <div style={{ flex: "1 1 100px" }}>
-                Recovered: <strong style={{ color: "green" }}>{totals.recovered}</strong>
-            </div>
-            <div style={{ flex: "1 1 100px" }}>
-                Remaining: <strong style={{ color: "red" }}>{totals.remaining}</strong>
-            </div>
-            <div style={{ flex: "1 1 100px" }}>
-                Locations: <strong style={{ color: "#2c3e50" }}>{locationCount}</strong>
-            </div>
-            <div style={{ flex: "1 1 140px" }} title={remainingWeightTooltip}>
-                Est. Weight Remaining: <strong style={{ color: "#b45309" }}>{remainingKgLabel}</strong>
-            </div>
-            <div style={{ flex: "1 1 140px" }} title={removedWeightTooltip}>
-                Est. Weight Removed: <strong style={{ color: "#0f766e" }}>{recoveredKgLabel}</strong>
-            </div>
+            {renderStatTile("total-items", "Total Items", totals.total, totalTooltipLines)}
+            {renderStatTile("recovered-items", "Recovered", totals.recovered, recoveredTooltipLines, "green")}
+            {renderStatTile("remaining-items", "Remaining", totals.remaining, remainingTooltipLines, "red")}
+            {renderStatTile("locations", "Locations", locationCount, locationsTooltipLines, "#2c3e50")}
+            {renderStatTile("remaining-weight", "Est. Weight Remaining", remainingKgLabel, remainingWeightTooltipLines, "#b45309")}
+            {renderStatTile("removed-weight", "Est. Weight Removed", recoveredKgLabel, removedWeightTooltipLines, "#0f766e")}
         </div>
     );
 }
@@ -2865,6 +2984,7 @@ function App() {
             const type = normalizeType(item.type);
             const assumedWeight = ASSUMED_ITEM_WEIGHTS_KG[type] || ASSUMED_ITEM_WEIGHTS_KG.misc;
 
+            acc.totalByType[type] += counts.total;
             acc.estimatedRecoveredKg += counts.recovered * assumedWeight;
             acc.estimatedRemainingKg += counts.inWater * assumedWeight;
             acc.recoveredByType[type] += counts.recovered;
@@ -2872,6 +2992,7 @@ function App() {
             return acc;
         },
         {
+            totalByType: { trolley: 0, bike: 0, misc: 0 },
             estimatedRecoveredKg: 0,
             estimatedRemainingKg: 0,
             recoveredByType: { trolley: 0, bike: 0, misc: 0 },
