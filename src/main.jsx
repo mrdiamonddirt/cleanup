@@ -4,6 +4,7 @@ import {
     MapContainer,
     TileLayer,
     Marker,
+    CircleMarker,
     useMap,
     useMapEvents,
 } from "react-leaflet";
@@ -2367,7 +2368,14 @@ function App() {
     );
     const [waybackReleases, setWaybackReleases] = useState([]);
     const [selectedWaybackId, setSelectedWaybackId] = useState(null);
+    const [isLiveLocationEnabled, setIsLiveLocationEnabled] = useState(false);
+    const [liveLocation, setLiveLocation] = useState(null);
+    const [liveLocationError, setLiveLocationError] = useState("");
+    const [isHeadingModeEnabled, setIsHeadingModeEnabled] = useState(false);
+    const [deviceHeading, setDeviceHeading] = useState(null);
+    const [headingError, setHeadingError] = useState("");
     const ignoreNextMapClickRef = useRef(false);
+    const liveLocationWatchIdRef = useRef(null);
     const canManageItems = useMemo(() => canUserManageItems(currentUser), [currentUser]);
 
     const markOverlayInteraction = () => {
@@ -2377,6 +2385,116 @@ function App() {
             ignoreNextMapClickRef.current = false;
         }, 0);
     };
+
+    useEffect(() => {
+        if (!isLiveLocationEnabled) {
+            if (liveLocationWatchIdRef.current !== null && "geolocation" in navigator) {
+                navigator.geolocation.clearWatch(liveLocationWatchIdRef.current);
+                liveLocationWatchIdRef.current = null;
+            }
+            setLiveLocationError("");
+            return undefined;
+        }
+
+        if (!("geolocation" in navigator)) {
+            setLiveLocationError("Live location is not supported by this browser.");
+            setIsLiveLocationEnabled(false);
+            return undefined;
+        }
+
+        setLiveLocationError("");
+        liveLocationWatchIdRef.current = navigator.geolocation.watchPosition(
+            (position) => {
+                setLiveLocation({
+                    latitude: position.coords.latitude,
+                    longitude: position.coords.longitude,
+                    accuracy: position.coords.accuracy ?? null,
+                });
+            },
+            (error) => {
+                if (error.code === error.PERMISSION_DENIED) {
+                    setLiveLocationError("Location access was denied.");
+                } else {
+                    setLiveLocationError("Unable to fetch live location right now.");
+                }
+            },
+            {
+                enableHighAccuracy: true,
+                maximumAge: 10000,
+                timeout: 20000,
+            },
+        );
+
+        return () => {
+            if (liveLocationWatchIdRef.current !== null && "geolocation" in navigator) {
+                navigator.geolocation.clearWatch(liveLocationWatchIdRef.current);
+                liveLocationWatchIdRef.current = null;
+            }
+        };
+    }, [isLiveLocationEnabled]);
+
+    useEffect(() => {
+        if (!isHeadingModeEnabled) {
+            setHeadingError("");
+            return undefined;
+        }
+
+        if (typeof window === "undefined" || typeof window.DeviceOrientationEvent === "undefined") {
+            setHeadingError("Compass heading is not supported on this device.");
+            setIsHeadingModeEnabled(false);
+            return undefined;
+        }
+
+        const handleOrientation = (event) => {
+            let heading = null;
+
+            if (typeof event.webkitCompassHeading === "number") {
+                heading = event.webkitCompassHeading;
+            } else if (typeof event.alpha === "number") {
+                heading = 360 - event.alpha;
+            }
+
+            if (!Number.isFinite(heading)) return;
+
+            const normalizedHeading = ((heading % 360) + 360) % 360;
+            setDeviceHeading(normalizedHeading);
+        };
+
+        window.addEventListener("deviceorientation", handleOrientation, true);
+
+        return () => {
+            window.removeEventListener("deviceorientation", handleOrientation, true);
+        };
+    }, [isHeadingModeEnabled]);
+
+    async function toggleHeadingMode() {
+        if (isHeadingModeEnabled) {
+            setIsHeadingModeEnabled(false);
+            setDeviceHeading(null);
+            return;
+        }
+
+        if (typeof window === "undefined" || typeof window.DeviceOrientationEvent === "undefined") {
+            setHeadingError("Compass heading is not supported on this device.");
+            return;
+        }
+
+        try {
+            const requestPermission = window.DeviceOrientationEvent?.requestPermission;
+            if (typeof requestPermission === "function") {
+                const permissionState = await requestPermission();
+                if (permissionState !== "granted") {
+                    setHeadingError("Motion permission was denied.");
+                    return;
+                }
+            }
+
+            setHeadingError("");
+            setIsHeadingModeEnabled(true);
+        } catch {
+            setHeadingError("Could not enable compass mode.");
+        }
+    }
 
     useEffect(() => {
         fetch("https://s3-us-west-2.amazonaws.com/config.maptiles.arcgis.com/waybackconfig.json")
@@ -2694,6 +2812,69 @@ function App() {
                 });
             },
         });
+        return null;
+    }
+
+    function LiveLocationAutoCenter() {
+        const map = useMap();
+        const hasCenteredRef = useRef(false);
+
+        useEffect(() => {
+            if (!isLiveLocationEnabled) {
+                hasCenteredRef.current = false;
+                return;
+            }
+
+            if (!liveLocation || hasCenteredRef.current) return;
+
+            map.flyTo(
+                [liveLocation.latitude, liveLocation.longitude],
+                Math.max(map.getZoom(), 16),
+                { duration: 0.8 },
+            );
+            hasCenteredRef.current = true;
+        }, [map, liveLocation]);
+
+        return null;
+    }
+
+    function MapHeadingRotation() {
+        const map = useMap();
+        const headingRef = useRef(deviceHeading);
+
+        useEffect(() => {
+            headingRef.current = deviceHeading;
+        }, [deviceHeading]);
+
+        useEffect(() => {
+            const mapPane = map.getPane("mapPane");
+            if (!mapPane) return undefined;
+
+            const stripRotate = (transformValue) =>
+                (transformValue || "").replace(/\s*rotate\([^)]*\)/g, "").trim();
+
+            const applyRotation = () => {
+                const baseTransform = stripRotate(mapPane.style.transform);
+
+                if (!isHeadingModeEnabled || typeof headingRef.current !== "number") {
+                    mapPane.style.transform = baseTransform;
+                    return;
+                }
+
+                mapPane.style.transformOrigin = "50% 50%";
+                mapPane.style.transform = `${baseTransform} rotate(${-headingRef.current}deg)`;
+            };
+
+            applyRotation();
+            map.on("move zoom zoomanim", applyRotation);
+
+            return () => {
+                map.off("move zoom zoomanim", applyRotation);
+                const cleanedTransform = stripRotate(mapPane.style.transform);
+                mapPane.style.transform = cleanedTransform;
+            };
+        }, [map, isHeadingModeEnabled, deviceHeading]);
+
         return null;
     }
 
@@ -3110,6 +3291,21 @@ function App() {
                         />
                     )}
                     <MapEvents />
+                    <LiveLocationAutoCenter />
+                    <MapHeadingRotation />
+
+                    {isLiveLocationEnabled && liveLocation && (
+                        <CircleMarker
+                            center={[liveLocation.latitude, liveLocation.longitude]}
+                            radius={8}
+                            pathOptions={{
+                                color: "#0284c7",
+                                fillColor: "#38bdf8",
+                                fillOpacity: 0.75,
+                                weight: 2,
+                            }}
+                        />
+                    )}
 
                     {pendingLocation && (
                         <Marker
@@ -3162,6 +3358,119 @@ function App() {
                     setStatusFilter={setStatusFilter}
                     isOverlay
                 />
+
+                <div
+                    style={{
+                        position: "absolute",
+                        bottom: "20px",
+                        right: "5px",
+                        zIndex: 1000,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "5px",
+                        alignItems: "flex-end",
+                    }}
+                >
+                    <div style={{ display: "flex", gap: "6px" }}>
+                        <button
+                            type="button"
+                            onClick={() => setIsLiveLocationEnabled((prev) => !prev)}
+                            title={isLiveLocationEnabled ? "Hide live location" : "Show live location"}
+                            aria-label={isLiveLocationEnabled ? "Hide live location" : "Show live location"}
+                            style={{
+                                width: isMobile ? "34px" : "30px",
+                                height: isMobile ? "34px" : "30px",
+                                border: "1px solid #cbd5e1",
+                                background: "rgba(255,255,255,0.97)",
+                                color: "#0f172a",
+                                borderRadius: "6px",
+                                padding: 0,
+                                cursor: "pointer",
+                                boxShadow: "0 1px 4px rgba(0,0,0,0.16)",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                            }}
+                        >
+                            <span
+                                style={{
+                                    width: "12px",
+                                    height: "12px",
+                                    borderRadius: "999px",
+                                    border: "2px solid",
+                                    borderColor: isLiveLocationEnabled ? "#0284c7" : "#64748b",
+                                    background: "transparent",
+                                    boxShadow: isLiveLocationEnabled
+                                        ? "inset 0 0 0 3px #0ea5e9"
+                                        : "none",
+                                    transition: "all 0.2s ease",
+                                }}
+                            />
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={toggleHeadingMode}
+                            title={isHeadingModeEnabled ? "Disable compass orientation" : "Enable compass orientation"}
+                            aria-label={isHeadingModeEnabled ? "Disable compass orientation" : "Enable compass orientation"}
+                            style={{
+                                width: isMobile ? "34px" : "30px",
+                                height: isMobile ? "34px" : "30px",
+                                border: "1px solid #cbd5e1",
+                                background: "rgba(255,255,255,0.97)",
+                                color: isHeadingModeEnabled ? "#0284c7" : "#475569",
+                                borderRadius: "6px",
+                                padding: 0,
+                                cursor: "pointer",
+                                boxShadow: "0 1px 4px rgba(0,0,0,0.16)",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontSize: "0.78rem",
+                                fontWeight: 700,
+                                lineHeight: 1,
+                            }}
+                        >
+                            N
+                        </button>
+                    </div>
+
+                    {headingError && (
+                        <div
+                            style={{
+                                background: "rgba(254,226,226,0.96)",
+                                border: "1px solid #fecaca",
+                                borderRadius: "6px",
+                                padding: "4px 6px",
+                                boxShadow: "0 2px 6px rgba(0,0,0,0.12)",
+                                fontSize: "0.68rem",
+                                color: "#991b1b",
+                                lineHeight: 1.25,
+                                maxWidth: isMobile ? "150px" : "170px",
+                            }}
+                        >
+                            {headingError}
+                        </div>
+                    )}
+
+                    {liveLocationError && (
+                        <div
+                            style={{
+                                background: "rgba(254,226,226,0.96)",
+                                border: "1px solid #fecaca",
+                                borderRadius: "6px",
+                                padding: "4px 6px",
+                                boxShadow: "0 2px 6px rgba(0,0,0,0.12)",
+                                fontSize: "0.68rem",
+                                color: "#991b1b",
+                                lineHeight: 1.25,
+                                maxWidth: isMobile ? "150px" : "170px",
+                            }}
+                        >
+                            {liveLocationError}
+                        </div>
+                    )}
+                </div>
 
                 {/* Imagery date selector — bottom-left of map */}
                 {waybackReleases.length > 0 && (
