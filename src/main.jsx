@@ -2,9 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom/client";
 import {
     MapContainer,
-    ImageOverlay,
+    TileLayer,
     Marker,
-    Popup,
     useMap,
     useMapEvents,
 } from "react-leaflet";
@@ -25,15 +24,21 @@ let DefaultIcon = L.icon({
 L.Marker.prototype.options.icon = DefaultIcon;
 // ------------------------
 
-const bounds = [
-    [0, 0],
-    [830, 1687],
-];
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || "";
+// River Lune, Lancaster — adjust if needed
+const RIVER_LUNE_CENTER = [54.0495, -2.7995];
+const RIVER_LUNE_ZOOM = 15;
 
 const TYPE_LABELS = {
     bike: "Bike",
     trolley: "Trolley",
     misc: "Misc",
+};
+
+const ASSUMED_ITEM_WEIGHTS_KG = {
+    trolley: 28,
+    bike: 15,
+    misc: 3,
 };
 
 const COUNT_STORAGE_KEY = "cleanup-item-counts-v1";
@@ -175,9 +180,9 @@ const buildTideChartData = (rows, updatedAt) => {
 
     if (parsedRows.length < 2) return null;
 
-    const width = 760;
-    const height = 248;
-    const padding = { top: 18, right: 14, bottom: 46, left: 14 };
+    const width = 640;
+    const height = 196;
+    const padding = { top: 8, right: 12, bottom: 16, left: 12 };
     const chartWidth = width - padding.left - padding.right;
     const chartHeight = height - padding.top - padding.bottom;
 
@@ -255,6 +260,22 @@ const buildTideChartData = (rows, updatedAt) => {
 
     const nextTide = parsedRows.find((row) => row.date.getTime() >= now.getTime()) || null;
     const previousTide = [...parsedRows].reverse().find((row) => row.date.getTime() <= now.getTime()) || null;
+    const cleanupWindows = parsedRows
+        .filter((row) => row.isLowTide)
+        .map((row) => {
+            const centerTime = row.date.getTime();
+            const startTime = Math.max(minTime, centerTime - 90 * 60 * 1000);
+            const endTime = Math.min(maxTime, centerTime + 90 * 60 * 1000);
+
+            return {
+                index: row.index,
+                startTime,
+                endTime,
+                xStart: getX(startTime),
+                xEnd: getX(endTime),
+                lowTideX: getX(centerTime),
+            };
+        });
 
     return {
         width,
@@ -268,6 +289,7 @@ const buildTideChartData = (rows, updatedAt) => {
         currentMarker,
         nextTide,
         previousTide,
+        cleanupWindows,
     };
 };
 
@@ -906,7 +928,42 @@ function HeroBanner({
     );
 }
 
-function SummaryStats({ totals, locationCount, controlFontSize, isMobile }) {
+function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impactStats }) {
+    const trolleyWeight = ASSUMED_ITEM_WEIGHTS_KG.trolley;
+    const bikeWeight = ASSUMED_ITEM_WEIGHTS_KG.bike;
+    const miscWeight = ASSUMED_ITEM_WEIGHTS_KG.misc;
+    const recoveredTrolley = impactStats.recoveredByType.trolley;
+    const recoveredBike = impactStats.recoveredByType.bike;
+    const recoveredMisc = impactStats.recoveredByType.misc;
+    const remainingTrolley = impactStats.remainingByType.trolley;
+    const remainingBike = impactStats.remainingByType.bike;
+    const remainingMisc = impactStats.remainingByType.misc;
+
+    const removedWeightTooltip = [
+        "Estimated removed weight workings:",
+        `${recoveredTrolley} trolleys x ${trolleyWeight}kg = ${recoveredTrolley * trolleyWeight}kg`,
+        `${recoveredBike} bikes x ${bikeWeight}kg = ${recoveredBike * bikeWeight}kg`,
+        `${recoveredMisc} misc x ${miscWeight}kg = ${recoveredMisc * miscWeight}kg`,
+        `Total = ${Math.round(impactStats.estimatedRecoveredKg)}kg`,
+    ].join("\n");
+
+    const remainingWeightTooltip = [
+        "Estimated remaining weight workings:",
+        `${remainingTrolley} trolleys x ${trolleyWeight}kg = ${remainingTrolley * trolleyWeight}kg`,
+        `${remainingBike} bikes x ${bikeWeight}kg = ${remainingBike * bikeWeight}kg`,
+        `${remainingMisc} misc x ${miscWeight}kg = ${remainingMisc * miscWeight}kg`,
+        `Total = ${Math.round(impactStats.estimatedRemainingKg)}kg`,
+    ].join("\n");
+
+    const remainingKgLabel =
+        impactStats.estimatedRemainingKg >= 1000
+            ? `${(impactStats.estimatedRemainingKg / 1000).toFixed(2)} t`
+            : `${Math.round(impactStats.estimatedRemainingKg)} kg`;
+    const recoveredKgLabel =
+        impactStats.estimatedRecoveredKg >= 1000
+            ? `${(impactStats.estimatedRecoveredKg / 1000).toFixed(2)} t`
+            : `${Math.round(impactStats.estimatedRecoveredKg)} kg`;
+
     return (
         <div
             style={{
@@ -935,15 +992,19 @@ function SummaryStats({ totals, locationCount, controlFontSize, isMobile }) {
             <div style={{ flex: "1 1 100px" }}>
                 Locations: <strong style={{ color: "#2c3e50" }}>{locationCount}</strong>
             </div>
+            <div style={{ flex: "1 1 140px" }} title={remainingWeightTooltip}>
+                Est. Weight Remaining: <strong style={{ color: "#b45309" }}>{remainingKgLabel}</strong>
+            </div>
+            <div style={{ flex: "1 1 140px" }} title={removedWeightTooltip}>
+                Est. Weight Removed: <strong style={{ color: "#0f766e" }}>{recoveredKgLabel}</strong>
+            </div>
         </div>
     );
 }
 
 function ControlToggles({
     isMobile,
-    areControlsCollapsed,
     isTidePlannerCollapsed,
-    onToggleControls,
     onToggleTidePlanner,
 }) {
     return (
@@ -955,7 +1016,7 @@ function ControlToggles({
                 gap: "10px",
                 flexWrap: "wrap",
                 marginTop: "4px",
-                marginBottom: areControlsCollapsed && isTidePlannerCollapsed ? "2px" : "8px",
+                marginBottom: isTidePlannerCollapsed ? "2px" : "8px",
             }}
         >
             <div
@@ -978,32 +1039,6 @@ function ControlToggles({
                     justifyContent: isMobile ? "flex-start" : "flex-end",
                 }}
             >
-                <button
-                    onClick={onToggleControls}
-                    style={{
-                        border: "1px solid #cbd5e1",
-                        background: "linear-gradient(135deg, #ffffff, #f8fafc)",
-                        color: "#0f172a",
-                        borderRadius: "999px",
-                        padding: isMobile ? "7px 10px" : "5px 10px",
-                        minHeight: "30px",
-                        width: "auto",
-                        fontSize: "0.8rem",
-                        fontWeight: 700,
-                        letterSpacing: "0.01em",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: "8px",
-                        boxShadow: "0 4px 16px rgba(15,23,42,0.08)",
-                        cursor: "pointer",
-                    }}
-                    aria-expanded={!areControlsCollapsed}
-                    aria-label={areControlsCollapsed ? "Show filters and stats" : "Hide filters and stats"}
-                >
-                    <span>{areControlsCollapsed ? "Show Filters" : "Hide Filters"}</span>
-                    <span style={{ fontSize: "0.9em" }}>{areControlsCollapsed ? "▾" : "▴"}</span>
-                </button>
                 <button
                     onClick={onToggleTidePlanner}
                     style={{
@@ -1036,50 +1071,72 @@ function ControlToggles({
 }
 
 function FilterControls({
-    areControlsCollapsed,
     isMobile,
     controlFontSize,
     typeFilter,
     statusFilter,
     setTypeFilter,
     setStatusFilter,
+    isOverlay = false,
 }) {
     return (
         <div
             style={{
-                maxHeight: areControlsCollapsed ? "0px" : "1400px",
-                opacity: areControlsCollapsed ? 0 : 1,
-                transform: areControlsCollapsed ? "translateY(-4px)" : "translateY(0)",
-                overflow: areControlsCollapsed ? "hidden" : "visible",
-                pointerEvents: areControlsCollapsed ? "none" : "auto",
-                transition:
-                    "max-height 260ms ease, opacity 180ms ease, transform 220ms ease",
+                ...(isOverlay
+                    ? {
+                          position: "absolute",
+                          top: isMobile ? "8px" : "10px",
+                          right: isMobile ? "8px" : "10px",
+                          zIndex: 700,
+                          maxWidth: isMobile ? "min(84vw, 240px)" : "250px",
+                      }
+                    : {}),
             }}
         >
             <div
                 style={{
                     display: "flex",
-                    flexWrap: isMobile ? "nowrap" : "wrap",
-                    flexDirection: isMobile ? "column" : "row",
-                    gap: "8px",
-                    marginBottom: "8px",
-                    marginTop: "8px",
-                    alignItems: isMobile ? "stretch" : "center",
+                    flexWrap: isOverlay ? "nowrap" : isMobile ? "nowrap" : "wrap",
+                    flexDirection: isOverlay ? "column" : isMobile ? "column" : "row",
+                    gap: isOverlay ? "7px" : "8px",
+                    marginBottom: isOverlay ? "0" : "8px",
+                    marginTop: isOverlay ? "0" : "8px",
+                    alignItems: isOverlay ? "stretch" : isMobile ? "stretch" : "center",
+                    padding: isOverlay ? (isMobile ? "7px" : "8px") : "0",
+                    borderRadius: isOverlay ? "6px" : "0",
+                    border: isOverlay ? "2px solid rgba(0,0,0,0.2)" : "none",
+                    background: isOverlay ? "rgba(255,255,255,0.97)" : "transparent",
+                    boxShadow: isOverlay ? "0 1px 5px rgba(0,0,0,0.4)" : "none",
                 }}
             >
-                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                    <span style={{ fontSize: controlFontSize, fontWeight: 600 }}>Type:</span>
+                {isOverlay ? (
+                    <div
+                        style={{
+                            fontSize: "0.68rem",
+                            fontWeight: 700,
+                            color: "#475569",
+                            letterSpacing: "0.06em",
+                            textTransform: "uppercase",
+                            marginBottom: "1px",
+                        }}
+                    >
+                        Filters
+                    </div>
+                ) : null}
+
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", flexDirection: isOverlay ? "column" : "row" }}>
+                    <span style={{ fontSize: isOverlay ? "0.72rem" : controlFontSize, fontWeight: 600, alignSelf: isOverlay ? "flex-start" : "auto" }}>Type:</span>
                     <select
                         value={typeFilter}
                         onChange={(e) => setTypeFilter(e.target.value)}
                         style={{
-                            border: "1px solid #cbd5e1",
-                            borderRadius: "8px",
-                            padding: isMobile ? "9px 10px" : "5px 8px",
-                            fontSize: controlFontSize,
+                            border: isOverlay ? "1px solid #9ca3af" : "1px solid #cbd5e1",
+                            borderRadius: isOverlay ? "4px" : "8px",
+                            padding: isOverlay ? "6px 8px" : isMobile ? "9px 10px" : "5px 8px",
+                            fontSize: isOverlay ? "0.78rem" : controlFontSize,
                             background: "#fff",
-                            minHeight: isMobile ? "40px" : "32px",
-                            width: isMobile ? "100%" : "auto",
+                            minHeight: isOverlay ? "30px" : isMobile ? "40px" : "32px",
+                            width: isOverlay ? "100%" : isMobile ? "100%" : "auto",
                         }}
                     >
                         <option value="all">All</option>
@@ -1089,19 +1146,19 @@ function FilterControls({
                     </select>
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                    <span style={{ fontSize: controlFontSize, fontWeight: 600 }}>Status:</span>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", flexDirection: isOverlay ? "column" : "row" }}>
+                    <span style={{ fontSize: isOverlay ? "0.72rem" : controlFontSize, fontWeight: 600, alignSelf: isOverlay ? "flex-start" : "auto" }}>Status:</span>
                     <select
                         value={statusFilter}
                         onChange={(e) => setStatusFilter(e.target.value)}
                         style={{
-                            border: "1px solid #cbd5e1",
-                            borderRadius: "8px",
-                            padding: isMobile ? "9px 10px" : "5px 8px",
-                            fontSize: controlFontSize,
+                            border: isOverlay ? "1px solid #9ca3af" : "1px solid #cbd5e1",
+                            borderRadius: isOverlay ? "4px" : "8px",
+                            padding: isOverlay ? "6px 8px" : isMobile ? "9px 10px" : "5px 8px",
+                            fontSize: isOverlay ? "0.78rem" : controlFontSize,
                             background: "#fff",
-                            minHeight: isMobile ? "40px" : "32px",
-                            width: isMobile ? "100%" : "auto",
+                            minHeight: isOverlay ? "30px" : isMobile ? "40px" : "32px",
+                            width: isOverlay ? "100%" : isMobile ? "100%" : "auto",
                         }}
                     >
                         <option value="all">All</option>
@@ -1154,11 +1211,34 @@ function TidePlanner({
     lancasterTideError,
     tideChartData,
 }) {
+    const [selectedTideIndex, setSelectedTideIndex] = useState(null);
+
+    useEffect(() => {
+        if (!tideChartData?.points?.length) {
+            setSelectedTideIndex(null);
+            return;
+        }
+
+        if (selectedTideIndex !== null) {
+            const selectedStillExists = tideChartData.points.some((point) => point.index === selectedTideIndex);
+            if (selectedStillExists) return;
+        }
+
+        const fallbackPoint = tideChartData.nextTide || tideChartData.points[0];
+        setSelectedTideIndex(fallbackPoint?.index ?? null);
+    }, [tideChartData, selectedTideIndex]);
+
+    const selectedTidePoint =
+        tideChartData?.points?.find((point) => point.index === selectedTideIndex) ||
+        tideChartData?.nextTide ||
+        tideChartData?.points?.[0] ||
+        null;
+
     return (
         <div
             style={{
-                marginBottom: isTidePlannerCollapsed ? "0px" : "10px",
-                marginTop: isTidePlannerCollapsed ? "0px" : "8px",
+                marginBottom: isTidePlannerCollapsed ? "0px" : "8px",
+                marginTop: isTidePlannerCollapsed ? "0px" : "6px",
                 transition: "margin 220ms ease",
             }}
         >
@@ -1175,10 +1255,11 @@ function TidePlanner({
             >
                 <div
                     style={{
-                        padding: isMobile ? "10px" : "10px 12px",
-                        border: "1px solid #cbd5e1",
-                        borderRadius: "10px",
-                        background: "linear-gradient(140deg, #eff6ff, #f8fafc)",
+                        padding: isMobile ? "9px" : "9px 11px",
+                        border: "1px solid #dbe3ee",
+                        borderRadius: "12px",
+                        background: "linear-gradient(160deg, #f8fbff 0%, #f2f7ff 62%, #f8fafc 100%)",
+                        boxShadow: "0 8px 20px rgba(15,23,42,0.06)",
                     }}
                 >
                     <div
@@ -1188,19 +1269,19 @@ function TidePlanner({
                             justifyContent: "space-between",
                             gap: "6px",
                             flexWrap: "wrap",
-                            marginBottom: "6px",
+                            marginBottom: "7px",
                         }}
                     >
-                        <div style={{ fontSize: "0.9rem", fontWeight: 700, color: "#1e293b" }}>
+                        <div style={{ fontSize: "0.86rem", fontWeight: 700, color: "#1e293b" }}>
                             Lancaster, UK
                         </div>
                         <button
                             onClick={fetchLancasterTides}
                             disabled={isLoadingLancasterTides}
                             style={{
-                                border: "1px solid #94a3b8",
+                                border: "1px solid #cbd5e1",
                                 borderRadius: "999px",
-                                padding: "6px 12px",
+                                padding: "5px 11px",
                                 background: "#fff",
                                 fontSize: "0.8rem",
                                 minHeight: "32px",
@@ -1214,12 +1295,12 @@ function TidePlanner({
                         </button>
                     </div>
 
-                    <div style={{ fontSize: "0.82rem", color: "#334155", marginBottom: "6px", lineHeight: 1.35 }}>
+                    <div style={{ fontSize: "0.8rem", color: "#334155", marginBottom: "5px", lineHeight: 1.35 }}>
                         Best cleanup window is usually around low tide: target about 90 minutes before and after the low tide dips shown on the graph.
                     </div>
 
                     {lancasterTideUpdatedAt ? (
-                        <div style={{ fontSize: "0.76rem", color: "#64748b", marginBottom: "6px" }}>
+                        <div style={{ fontSize: "0.74rem", color: "#64748b", marginBottom: "6px" }}>
                             Updated: {new Date(lancasterTideUpdatedAt).toLocaleString()}
                         </div>
                     ) : null}
@@ -1259,18 +1340,18 @@ function TidePlanner({
                     {tideChartData ? (
                         <div
                             style={{
-                                border: "1px solid #dbeafe",
-                                borderRadius: "10px",
+                                border: "1px solid #e2e8f0",
+                                borderRadius: "12px",
                                 background: "#ffffff",
-                                marginBottom: "8px",
-                                padding: isMobile ? "10px" : "10px 12px",
+                                marginBottom: "6px",
+                                padding: isMobile ? "8px" : "8px 10px",
                             }}
                         >
-                            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                                 <div
                                     style={{
                                         display: "flex",
-                                        gap: "8px",
+                                        gap: "6px",
                                         flexWrap: "wrap",
                                         fontSize: "0.75rem",
                                         color: "#475569",
@@ -1281,8 +1362,17 @@ function TidePlanner({
                                         Tide curve
                                     </span>
                                     <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                                        <span aria-hidden="true" style={{ width: "10px", height: "10px", borderRadius: "999px", background: "#16a34a" }} />
-                                        Low tide window
+                                        <span
+                                            aria-hidden="true"
+                                            style={{
+                                                width: "14px",
+                                                height: "10px",
+                                                borderRadius: "4px",
+                                                background: "rgba(22,163,74,0.2)",
+                                                border: "1px solid rgba(22,163,74,0.55)",
+                                            }}
+                                        />
+                                        90 min cleanup window
                                     </span>
                                     <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
                                         <span aria-hidden="true" style={{ width: "2px", height: "14px", background: "#dc2626" }} />
@@ -1290,12 +1380,12 @@ function TidePlanner({
                                     </span>
                                 </div>
 
-                                <div style={{ width: "100%", overflowX: "auto", marginTop: "-1px" }}>
+                                <div style={{ width: "100%", overflowX: "auto", marginTop: "-3px", marginBottom: "-2px" }}>
                                     <svg
                                         viewBox={`0 0 ${tideChartData.width} ${tideChartData.height}`}
                                         role="img"
                                         aria-label="Wave graph of upcoming Lancaster tide highs, lows, and current time"
-                                        style={{ width: "100%", minWidth: isMobile ? "620px" : "100%", height: "auto", display: "block" }}
+                                        style={{ width: "100%", minWidth: isMobile ? "460px" : "100%", height: "auto", display: "block" }}
                                     >
                                         <defs>
                                             <linearGradient id="tideBackdropGradient" x1="0" x2="0" y1="0" y2="1">
@@ -1362,6 +1452,36 @@ function TidePlanner({
                                             strokeWidth="1"
                                         />
 
+                                        {tideChartData.cleanupWindows.map((window) => (
+                                            <g key={`cleanup-window-${window.index}`}>
+                                                <rect
+                                                    x={window.xStart}
+                                                    y={tideChartData.padding.top}
+                                                    width={Math.max(window.xEnd - window.xStart, 1)}
+                                                    height={tideChartData.baselineY - tideChartData.padding.top}
+                                                    fill="rgba(22, 163, 74, 0.11)"
+                                                />
+                                                <line
+                                                    x1={window.xStart}
+                                                    x2={window.xStart}
+                                                    y1={tideChartData.padding.top}
+                                                    y2={tideChartData.baselineY}
+                                                    stroke="rgba(22, 163, 74, 0.6)"
+                                                    strokeWidth="1"
+                                                    strokeDasharray="5 5"
+                                                />
+                                                <line
+                                                    x1={window.xEnd}
+                                                    x2={window.xEnd}
+                                                    y1={tideChartData.padding.top}
+                                                    y2={tideChartData.baselineY}
+                                                    stroke="rgba(22, 163, 74, 0.6)"
+                                                    strokeWidth="1"
+                                                    strokeDasharray="5 5"
+                                                />
+                                            </g>
+                                        ))}
+
                                         {tideChartData.points.map((point) => (
                                             <line
                                                 key={`grid-${point.index}`}
@@ -1416,16 +1536,35 @@ function TidePlanner({
                                         ) : null}
 
                                         {tideChartData.points.map((point) => {
-                                            const timeY = point.isLowTide ? point.y + 22 : point.y - 12;
+                                            const rawTimeY = point.isLowTide ? point.y + 13 : point.y - 8;
+                                            const timeY = Math.max(rawTimeY, tideChartData.padding.top + 9);
+                                            const dateLabelX = Math.min(
+                                                Math.max(point.x, tideChartData.padding.left + 22),
+                                                tideChartData.width - tideChartData.padding.right - 22,
+                                            );
+                                            const isSelected = point.index === selectedTidePoint?.index;
 
                                             return (
-                                                <g key={`point-${point.index}`}>
-                                                    <circle cx={point.x} cy={point.y} r="8" fill={point.isLowTide ? "#16a34a" : "#2563eb"} opacity="0.16" />
-                                                    <circle cx={point.x} cy={point.y} r="4.5" fill={point.isLowTide ? "#16a34a" : "#1d4ed8"} stroke="#ffffff" strokeWidth="2.5" />
-                                                    <text x={point.x} y={timeY} textAnchor="middle" fontSize="9.5" fill="#64748b">
+                                                <g
+                                                    key={`point-${point.index}`}
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    aria-label={`Select ${point.type} at ${formatTideTime(point.date)}`}
+                                                    onClick={() => setSelectedTideIndex(point.index)}
+                                                    onKeyDown={(event) => {
+                                                        if (event.key === "Enter" || event.key === " ") {
+                                                            event.preventDefault();
+                                                            setSelectedTideIndex(point.index);
+                                                        }
+                                                    }}
+                                                    style={{ cursor: "pointer" }}
+                                                >
+                                                    <circle cx={point.x} cy={point.y} r={isSelected ? "8" : "7"} fill={point.isLowTide ? "#16a34a" : "#2563eb"} opacity={isSelected ? "0.3" : "0.16"} />
+                                                    <circle cx={point.x} cy={point.y} r={isSelected ? "5.3" : "4.4"} fill={point.isLowTide ? "#16a34a" : "#1d4ed8"} stroke={isSelected ? "#0f172a" : "#ffffff"} strokeWidth={isSelected ? "2" : "2.5"} />
+                                                    <text x={dateLabelX} y={timeY} textAnchor="middle" fontSize="8.8" fill="#64748b">
                                                         {formatTideTime(point.date).replace(/^[A-Za-z]{3},?\s*/, "")}
                                                     </text>
-                                                    <text x={point.x} y={tideChartData.height - 18} textAnchor="middle" fontSize="10" fill="#64748b">
+                                                    <text x={dateLabelX} y={tideChartData.height - 4} textAnchor="middle" fontSize="9.2" fontWeight="700" fill="#475569">
                                                         {formatTideDay(point.date)}
                                                     </text>
                                                 </g>
@@ -1442,34 +1581,68 @@ function TidePlanner({
                                     }}
                                 >
                                     <div style={{ borderRadius: "10px", border: "1px solid #dbeafe", background: "#eff6ff", padding: "8px 10px" }}>
-                                        <div style={{ fontSize: "0.73rem", fontWeight: 700, color: "#1d4ed8", textTransform: "uppercase", letterSpacing: "0.04em" }}>Previous tide</div>
-                                        <div style={{ marginTop: "4px", fontSize: "0.9rem", fontWeight: 700, color: "#0f172a" }}>
+                                        <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "#1d4ed8", textTransform: "uppercase", letterSpacing: "0.04em" }}>Previous tide</div>
+                                        <div style={{ marginTop: "4px", fontSize: "0.88rem", fontWeight: 700, color: "#0f172a" }}>
                                             {tideChartData.previousTide ? tideChartData.previousTide.type : "Unavailable"}
                                         </div>
-                                        <div style={{ marginTop: "2px", fontSize: "0.8rem", color: "#475569" }}>
+                                        <div style={{ marginTop: "2px", fontSize: "0.78rem", color: "#475569" }}>
                                             {tideChartData.previousTide ? `${formatTideTime(tideChartData.previousTide.date)} • ${tideChartData.previousTide.height.toFixed(2)} m` : "No tide before current time in this range."}
                                         </div>
                                     </div>
 
-                                    <div style={{ borderRadius: "10px", border: "1px solid #fecaca", background: "#fef2f2", padding: "8px 10px" }}>
-                                        <div style={{ fontSize: "0.73rem", fontWeight: 700, color: "#b91c1c", textTransform: "uppercase", letterSpacing: "0.04em" }}>Current time</div>
-                                        <div style={{ marginTop: "4px", fontSize: "0.9rem", fontWeight: 700, color: "#0f172a" }}>
-                                            {formatTideTime(tideChartData.currentMarker?.time || new Date())}
+                                    <div
+                                        style={{
+                                            borderRadius: "10px",
+                                            border: selectedTidePoint?.isLowTide ? "1px solid #86efac" : "1px solid #bfdbfe",
+                                            background: selectedTidePoint?.isLowTide ? "#f0fdf4" : "#eff6ff",
+                                            padding: "8px 10px",
+                                        }}
+                                    >
+                                        <div style={{ fontSize: "0.72rem", fontWeight: 700, color: selectedTidePoint?.isLowTide ? "#15803d" : "#1d4ed8", textTransform: "uppercase", letterSpacing: "0.04em" }}>Selected tide</div>
+                                        <div style={{ marginTop: "4px", fontSize: "0.88rem", fontWeight: 700, color: "#0f172a" }}>
+                                            {selectedTidePoint ? selectedTidePoint.type : "Unavailable"}
                                         </div>
-                                        <div style={{ marginTop: "2px", fontSize: "0.8rem", color: "#475569" }}>
-                                            {tideChartData.currentMarker ? `Estimated height ${tideChartData.currentMarker.height.toFixed(2)} m between ${tideChartData.currentMarker.previous.type} and ${tideChartData.currentMarker.next.type}.` : "Current time sits outside the saved chart range."}
+                                        <div style={{ marginTop: "2px", fontSize: "0.78rem", color: "#475569" }}>
+                                            {selectedTidePoint
+                                                ? `${formatTideTime(selectedTidePoint.date)} • ${selectedTidePoint.height.toFixed(2)} m`
+                                                : "Tap a tide point on the graph for details."}
                                         </div>
                                     </div>
 
-                                    <div style={{ borderRadius: "10px", border: "1px solid #bbf7d0", background: "#f0fdf4", padding: "8px 10px" }}>
-                                        <div style={{ fontSize: "0.73rem", fontWeight: 700, color: "#15803d", textTransform: "uppercase", letterSpacing: "0.04em" }}>Next tide</div>
-                                        <div style={{ marginTop: "4px", fontSize: "0.9rem", fontWeight: 700, color: "#0f172a" }}>
-                                            {tideChartData.nextTide ? tideChartData.nextTide.type : "Unavailable"}
+                                    <div style={{ borderRadius: "10px", border: "1px solid #fecaca", background: "#fef2f2", padding: "8px 10px" }}>
+                                        <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "#b91c1c", textTransform: "uppercase", letterSpacing: "0.04em" }}>Current time</div>
+                                        <div style={{ marginTop: "4px", fontSize: "0.88rem", fontWeight: 700, color: "#0f172a" }}>
+                                            {formatTideTime(tideChartData.currentMarker?.time || new Date())}
                                         </div>
-                                        <div style={{ marginTop: "2px", fontSize: "0.8rem", color: "#475569" }}>
-                                            {tideChartData.nextTide ? `${formatTideTime(tideChartData.nextTide.date)} • ${tideChartData.nextTide.height.toFixed(2)} m` : "No upcoming tide in this saved range."}
+                                        <div style={{ marginTop: "2px", fontSize: "0.78rem", color: "#475569" }}>
+                                            {tideChartData.currentMarker ? `Estimated height ${tideChartData.currentMarker.height.toFixed(2)} m between ${tideChartData.currentMarker.previous.type} and ${tideChartData.currentMarker.next.type}.` : "Current time sits outside the saved chart range."}
                                         </div>
                                     </div>
+                                </div>
+
+                                <div style={{ marginTop: "2px", display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                                    {tideChartData.points.map((point) => {
+                                        const isSelected = point.index === selectedTidePoint?.index;
+
+                                        return (
+                                            <button
+                                                key={`tide-chip-${point.index}`}
+                                                onClick={() => setSelectedTideIndex(point.index)}
+                                                style={{
+                                                    border: isSelected ? "1px solid #1d4ed8" : "1px solid #cbd5e1",
+                                                    background: isSelected ? "#dbeafe" : "#fff",
+                                                    color: "#0f172a",
+                                                    borderRadius: "999px",
+                                                    padding: "4px 9px",
+                                                    fontSize: "0.74rem",
+                                                    fontWeight: 700,
+                                                    cursor: "pointer",
+                                                }}
+                                            >
+                                                {formatTideTime(point.date).replace(/^[A-Za-z]{3},?\s*/, "")}
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         </div>
@@ -1498,12 +1671,12 @@ function TidePlanner({
                             rel="noreferrer"
                             style={{
                                 textDecoration: "none",
-                                border: "1px solid #60a5fa",
+                                border: "1px solid #93c5fd",
                                 color: "#1d4ed8",
                                 background: "#fff",
-                                borderRadius: "8px",
-                                padding: isMobile ? "10px 12px" : "8px 10px",
-                                fontSize: "0.84rem",
+                                borderRadius: "999px",
+                                padding: isMobile ? "9px 12px" : "7px 11px",
+                                fontSize: "0.8rem",
                                 fontWeight: 700,
                             }}
                         >
@@ -1651,19 +1824,30 @@ function SelectedItemDrawer({
             <div
                 style={{
                     position: "fixed",
-                    left: isMobile ? "0" : "auto",
-                    right: isMobile ? "0" : "16px",
-                    bottom: isMobile ? "0" : "16px",
-                    top: isMobile ? "auto" : "70px",
-                    width: isMobile ? "100%" : "360px",
-                    maxHeight: isMobile ? "78svh" : "calc(100vh - 86px)",
+                    // Mobile: full-width bottom sheet
+                    ...(isMobile ? {
+                        left: "0",
+                        right: "0",
+                        bottom: "0",
+                        top: "auto",
+                        width: "100%",
+                        maxHeight: "78svh",
+                        borderTopLeftRadius: "16px",
+                        borderTopRightRadius: "16px",
+                        borderBottomLeftRadius: "0",
+                        borderBottomRightRadius: "0",
+                    } : {
+                        // Desktop: centred modal
+                        top: "50%",
+                        left: "50%",
+                        transform: "translate(-50%, -50%)",
+                        width: "min(700px, calc(100vw - 48px))",
+                        maxHeight: "min(88vh, 760px)",
+                        borderRadius: "14px",
+                    }),
                     overflowY: "auto",
                     background: "#ffffff",
-                    borderTopLeftRadius: isMobile ? "16px" : "12px",
-                    borderTopRightRadius: isMobile ? "16px" : "12px",
-                    borderBottomLeftRadius: isMobile ? "0" : "12px",
-                    borderBottomRightRadius: "12px",
-                    boxShadow: "0 18px 45px rgba(0,0,0,0.28)",
+                    boxShadow: "0 24px 60px rgba(0,0,0,0.32)",
                     zIndex: 999,
                     padding: "14px",
                     boxSizing: "border-box",
@@ -1701,271 +1885,326 @@ function SelectedItemDrawer({
                     </button>
                 </div>
 
-                {selectedItem.image_url ? (
-                    <button
-                        onClick={() => setIsImageViewerOpen(true)}
-                        style={{
-                            border: "none",
-                            background: "transparent",
-                            width: "100%",
-                            padding: 0,
-                            cursor: "zoom-in",
-                            marginBottom: "10px",
-                        }}
-                    >
-                        <img
-                            src={selectedItem.image_url}
-                            alt="Debris evidence"
-                            style={{
-                                width: "100%",
-                                height: "auto",
-                                borderRadius: "10px",
-                                border: "1px solid #ddd",
-                                boxShadow: "0 2px 6px rgba(0,0,0,0.12)",
-                            }}
-                        />
-                    </button>
-                ) : (
-                    <div
-                        style={{
-                            padding: "10px",
-                            color: "#999",
-                            fontSize: "0.8rem",
-                            fontStyle: "italic",
-                            marginBottom: "10px",
-                            border: "1px dashed #cbd5e1",
-                            borderRadius: "8px",
-                        }}
-                    >
-                        No photo attached
-                    </div>
-                )}
-
-                <div
-                    style={{
-                        fontSize: "0.9rem",
-                        color: "#475569",
-                        marginBottom: "10px",
-                        lineHeight: 1.45,
-                    }}
-                >
-                    <div>Spotted: {new Date(selectedItem.created_at).toLocaleDateString()}</div>
-                    <div>Status: {selectedCounts.isRecovered ? "✅ Recovered" : "❌ In Water"}</div>
-                    <div>Total: <strong>{selectedCounts.total}</strong></div>
-                    <div>Recovered: <strong>{selectedCounts.recovered}</strong></div>
-                    <div>In Water: <strong>{selectedCounts.inWater}</strong></div>
-                    <div>
-                        Map Location: <strong>{Number(selectedItem.y).toFixed(2)}, {Number(selectedItem.x).toFixed(2)}</strong>
-                    </div>
-                    {selectedGps && selectedMapsUrl ? (
-                        <div style={{ marginTop: "4px" }}>
-                            Image GPS: <strong>{selectedGps.latitude.toFixed(6)}, {selectedGps.longitude.toFixed(6)}</strong>{" "}
-                            <a
-                                href={selectedMapsUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                style={{ color: "#1d4ed8", fontWeight: 700, textDecoration: "none" }}
-                            >
-                                Open in Maps
-                            </a>
-                        </div>
-                    ) : (
-                        <div style={{ marginTop: "4px" }}>
-                            Image GPS: <strong>Not available</strong>
-                        </div>
-                    )}
-                </div>
-
-                <hr style={{ border: "0.5px solid #eee", margin: "8px 0 12px" }} />
-
-                {!canManageItems ? (
-                    <div
-                        style={{
-                            marginBottom: "12px",
-                            padding: "9px 10px",
-                            borderRadius: "8px",
-                            border: "1px solid #fde68a",
-                            background: "#fffbeb",
-                            color: "#92400e",
-                            fontSize: "0.82rem",
-                        }}
-                    >
-                        Read-only mode: only authorized GitHub accounts can edit or delete locations.
-                    </div>
-                ) : null}
-
-                {canManageItems && editingItemId === selectedItem.id ? (
-                    <div style={{ textAlign: "left" }}>
-                        <div style={{ marginBottom: "8px" }}>
-                            <label style={{ fontSize: "0.8rem", color: "#475569" }}>Type</label>
-                            <select
-                                value={editForm.type}
-                                onChange={(e) =>
-                                    setEditForm((prev) => ({
-                                        ...prev,
-                                        type: e.target.value,
-                                    }))
-                                }
-                                style={{
-                                    width: "100%",
-                                    marginTop: "4px",
-                                    border: "1px solid #cbd5e1",
-                                    borderRadius: "6px",
-                                    padding: "8px",
-                                }}
-                            >
-                                <option value="bike">Bike</option>
-                                <option value="trolley">Trolley</option>
-                                <option value="misc">Misc</option>
-                            </select>
-                        </div>
-
-                        <div style={{ marginBottom: "8px" }}>
-                            <label style={{ fontSize: "0.8rem", color: "#475569" }}>Total at Location</label>
-                            <input
-                                type="number"
-                                min="1"
-                                value={editForm.total}
-                                onChange={(e) =>
-                                    setEditForm((prev) => ({
-                                        ...prev,
-                                        total: clampInt(e.target.value, 1),
-                                    }))
-                                }
-                                style={{
-                                    width: "100%",
-                                    marginTop: "4px",
-                                    border: "1px solid #cbd5e1",
-                                    borderRadius: "6px",
-                                    padding: "8px",
-                                    boxSizing: "border-box",
-                                }}
-                            />
-                        </div>
-
-                        <div style={{ marginBottom: "10px" }}>
-                            <label style={{ fontSize: "0.8rem", color: "#475569" }}>Recovered Count</label>
-                            <input
-                                type="number"
-                                min="0"
-                                max={Math.max(1, clampInt(editForm.total, 1))}
-                                value={editForm.recovered}
-                                onChange={(e) =>
-                                    setEditForm((prev) => {
-                                        const nextTotal = Math.max(1, clampInt(prev.total, 1));
-                                        return {
-                                            ...prev,
-                                            recovered: Math.min(nextTotal, clampInt(e.target.value, 0)),
-                                        };
-                                    })
-                                }
-                                style={{
-                                    width: "100%",
-                                    marginTop: "4px",
-                                    border: "1px solid #cbd5e1",
-                                    borderRadius: "6px",
-                                    padding: "8px",
-                                    boxSizing: "border-box",
-                                }}
-                            />
-                        </div>
-
-                        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                {/* Two-column on desktop, stacked on mobile */}
+                <div style={{
+                    display: isMobile ? "block" : "flex",
+                    gap: "14px",
+                    alignItems: "flex-start",
+                }}>
+                    {/* Left: image */}
+                    <div style={{
+                        flexShrink: 0,
+                        width: isMobile ? "100%" : "220px",
+                        marginBottom: isMobile ? "10px" : 0,
+                    }}>
+                        {selectedItem.image_url ? (
                             <button
-                                onClick={() => saveItemEdits(selectedItem.id)}
-                                disabled={isUpdatingItemId === selectedItem.id}
+                                onClick={() => setIsImageViewerOpen(true)}
                                 style={{
-                                    flex: "1 1 90px",
-                                    padding: "10px",
                                     border: "none",
-                                    background: "#1d4ed8",
-                                    color: "#fff",
-                                    borderRadius: "6px",
-                                    fontWeight: 700,
-                                    cursor: "pointer",
+                                    background: "transparent",
+                                    width: "100%",
+                                    padding: 0,
+                                    cursor: "zoom-in",
+                                    display: "block",
                                 }}
                             >
-                                Save
+                                <img
+                                    src={selectedItem.image_url}
+                                    alt="Debris evidence"
+                                    style={{
+                                        width: "100%",
+                                        height: isMobile ? "auto" : "200px",
+                                        objectFit: "cover",
+                                        borderRadius: "10px",
+                                        border: "1px solid #ddd",
+                                        boxShadow: "0 2px 6px rgba(0,0,0,0.12)",
+                                        display: "block",
+                                    }}
+                                />
                             </button>
-                            <button
-                                onClick={() => setEditingItemId(null)}
-                                disabled={isUpdatingItemId === selectedItem.id}
-                                style={{
-                                    flex: "1 1 90px",
-                                    padding: "10px",
-                                    border: "1px solid #cbd5e1",
-                                    background: "#fff",
-                                    color: "#334155",
-                                    borderRadius: "6px",
-                                    fontWeight: 600,
-                                    cursor: "pointer",
-                                }}
-                            >
-                                Cancel
-                            </button>
-                        </div>
-                    </div>
-                ) : canManageItems ? (
-                    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                        {!selectedCounts.isRecovered && (
-                            <button
-                                style={{
-                                    flex: "1 1 100%",
-                                    marginTop: "5px",
-                                    padding: "10px",
-                                    backgroundColor: "#2ecc71",
-                                    color: "white",
-                                    border: "none",
-                                    borderRadius: "6px",
-                                    fontWeight: "bold",
-                                    cursor: "pointer",
-                                    fontSize: "0.9rem",
-                                }}
-                                onClick={() => {
-                                    setEditingItemId(selectedItem.id);
-                                    setEditForm({
-                                        type: normalizeType(selectedItem.type),
-                                        total: selectedCounts.total,
-                                        recovered: selectedCounts.total,
-                                    });
-                                }}
-                            >
-                                Mark All Recovered
-                            </button>
+                        ) : (
+                            <div style={{
+                                padding: "10px",
+                                color: "#999",
+                                fontSize: "0.8rem",
+                                fontStyle: "italic",
+                                border: "1px dashed #cbd5e1",
+                                borderRadius: "8px",
+                                height: isMobile ? "auto" : "160px",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                            }}>
+                                No photo attached
+                            </div>
                         )}
-                        <button
-                            onClick={() => startEditingItem(selectedItem)}
-                            style={{
-                                flex: "1 1 90px",
-                                padding: "10px",
-                                border: "1px solid #cbd5e1",
-                                background: "#fff",
-                                color: "#0f172a",
-                                borderRadius: "6px",
-                                fontWeight: 600,
-                                cursor: "pointer",
-                            }}
-                        >
-                            Edit
-                        </button>
-                        <button
-                            onClick={() => removeLocation(selectedItem.id)}
-                            disabled={isUpdatingItemId === selectedItem.id}
-                            style={{
-                                flex: "1 1 90px",
-                                padding: "10px",
-                                border: "none",
-                                background: "#dc2626",
-                                color: "#fff",
-                                borderRadius: "6px",
-                                fontWeight: 700,
-                                cursor: "pointer",
-                            }}
-                        >
-                            Delete
-                        </button>
                     </div>
-                ) : null}
+
+                    {/* Right: details + actions */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{
+                            fontSize: "0.9rem",
+                            color: "#475569",
+                            marginBottom: "10px",
+                            lineHeight: 1.45,
+                        }}>
+                            <div>Spotted: {new Date(selectedItem.created_at).toLocaleDateString()}</div>
+                            <div>Status: {selectedCounts.isRecovered ? "✅ Recovered" : "❌ In Water"}</div>
+                            <div>Total: <strong>{selectedCounts.total}</strong></div>
+                            <div>Recovered: <strong>{selectedCounts.recovered}</strong></div>
+                            <div>In Water: <strong>{selectedCounts.inWater}</strong></div>
+                            {selectedGps && selectedMapsUrl ? (
+                                <div style={{ marginTop: "4px" }}>
+                                    Location: <strong>{selectedGps.latitude.toFixed(6)}, {selectedGps.longitude.toFixed(6)}</strong>{" "}
+                                    <a
+                                        href={selectedMapsUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        style={{ color: "#1d4ed8", fontWeight: 700, textDecoration: "none" }}
+                                    >
+                                        Open in Maps
+                                    </a>
+                                </div>
+                            ) : (
+                                <div style={{ marginTop: "4px" }}>
+                                    Location: <strong>Not available</strong>
+                                </div>
+                            )}
+                        </div>
+
+                        <hr style={{ border: "0.5px solid #eee", margin: "8px 0 12px" }} />
+
+                        {!canManageItems ? (
+                            <div style={{
+                                marginBottom: "12px",
+                                padding: "9px 10px",
+                                borderRadius: "8px",
+                                border: "1px solid #fde68a",
+                                background: "#fffbeb",
+                                color: "#92400e",
+                                fontSize: "0.82rem",
+                            }}>
+                                Read-only mode: only authorized GitHub accounts can edit or delete locations.
+                            </div>
+                        ) : null}
+
+                        {canManageItems && editingItemId === selectedItem.id ? (
+                            <div style={{ textAlign: "left" }}>
+                                <div style={{ marginBottom: "8px" }}>
+                                    <label style={{ fontSize: "0.8rem", color: "#475569" }}>Type</label>
+                                    <select
+                                        value={editForm.type}
+                                        onChange={(e) =>
+                                            setEditForm((prev) => ({
+                                                ...prev,
+                                                type: e.target.value,
+                                            }))
+                                        }
+                                        style={{
+                                            width: "100%",
+                                            marginTop: "4px",
+                                            border: "1px solid #cbd5e1",
+                                            borderRadius: "6px",
+                                            padding: "8px",
+                                        }}
+                                    >
+                                        <option value="bike">Bike</option>
+                                        <option value="trolley">Trolley</option>
+                                        <option value="misc">Misc</option>
+                                    </select>
+                                </div>
+
+                                <div style={{ marginBottom: "8px" }}>
+                                    <label style={{ fontSize: "0.8rem", color: "#475569" }}>Total at Location</label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        value={editForm.total}
+                                        onChange={(e) =>
+                                            setEditForm((prev) => ({
+                                                ...prev,
+                                                total: clampInt(e.target.value, 1),
+                                            }))
+                                        }
+                                        style={{
+                                            width: "100%",
+                                            marginTop: "4px",
+                                            border: "1px solid #cbd5e1",
+                                            borderRadius: "6px",
+                                            padding: "8px",
+                                            boxSizing: "border-box",
+                                        }}
+                                    />
+                                </div>
+
+                                <div style={{ marginBottom: "10px" }}>
+                                    <label style={{ fontSize: "0.8rem", color: "#475569" }}>Recovered Count</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        max={Math.max(1, clampInt(editForm.total, 1))}
+                                        value={editForm.recovered}
+                                        onChange={(e) =>
+                                            setEditForm((prev) => {
+                                                const nextTotal = Math.max(1, clampInt(prev.total, 1));
+                                                return {
+                                                    ...prev,
+                                                    recovered: Math.min(nextTotal, clampInt(e.target.value, 0)),
+                                                };
+                                            })
+                                        }
+                                        style={{
+                                            width: "100%",
+                                            marginTop: "4px",
+                                            border: "1px solid #cbd5e1",
+                                            borderRadius: "6px",
+                                            padding: "8px",
+                                            boxSizing: "border-box",
+                                        }}
+                                    />
+                                </div>
+
+                                <div style={{ marginBottom: "10px" }}>
+                                    <label style={{ fontSize: "0.8rem", color: "#475569" }}>Latitude</label>
+                                    <input
+                                        type="number"
+                                        step="any"
+                                        placeholder="e.g. 54.0466"
+                                        value={editForm.lat}
+                                        onChange={(e) =>
+                                            setEditForm((prev) => ({ ...prev, lat: e.target.value }))
+                                        }
+                                        style={{
+                                            width: "100%",
+                                            marginTop: "4px",
+                                            border: "1px solid #cbd5e1",
+                                            borderRadius: "6px",
+                                            padding: "8px",
+                                            boxSizing: "border-box",
+                                        }}
+                                    />
+                                </div>
+
+                                <div style={{ marginBottom: "10px" }}>
+                                    <label style={{ fontSize: "0.8rem", color: "#475569" }}>Longitude</label>
+                                    <input
+                                        type="number"
+                                        step="any"
+                                        placeholder="e.g. -2.8007"
+                                        value={editForm.lng}
+                                        onChange={(e) =>
+                                            setEditForm((prev) => ({ ...prev, lng: e.target.value }))
+                                        }
+                                        style={{
+                                            width: "100%",
+                                            marginTop: "4px",
+                                            border: "1px solid #cbd5e1",
+                                            borderRadius: "6px",
+                                            padding: "8px",
+                                            boxSizing: "border-box",
+                                        }}
+                                    />
+                                </div>
+
+                                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                                    <button
+                                        onClick={() => saveItemEdits(selectedItem.id)}
+                                        disabled={isUpdatingItemId === selectedItem.id}
+                                        style={{
+                                            flex: "1 1 90px",
+                                            padding: "10px",
+                                            border: "none",
+                                            background: "#1d4ed8",
+                                            color: "#fff",
+                                            borderRadius: "6px",
+                                            fontWeight: 700,
+                                            cursor: "pointer",
+                                        }}
+                                    >
+                                        Save
+                                    </button>
+                                    <button
+                                        onClick={() => setEditingItemId(null)}
+                                        disabled={isUpdatingItemId === selectedItem.id}
+                                        style={{
+                                            flex: "1 1 90px",
+                                            padding: "10px",
+                                            border: "1px solid #cbd5e1",
+                                            background: "#fff",
+                                            color: "#334155",
+                                            borderRadius: "6px",
+                                            fontWeight: 600,
+                                            cursor: "pointer",
+                                        }}
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        ) : canManageItems ? (
+                            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                                {!selectedCounts.isRecovered && (
+                                    <button
+                                        style={{
+                                            flex: "1 1 100%",
+                                            marginTop: "5px",
+                                            padding: "10px",
+                                            backgroundColor: "#2ecc71",
+                                            color: "white",
+                                            border: "none",
+                                            borderRadius: "6px",
+                                            fontWeight: "bold",
+                                            cursor: "pointer",
+                                            fontSize: "0.9rem",
+                                        }}
+                                        onClick={() => {
+                                            setEditingItemId(selectedItem.id);
+                                            setEditForm({
+                                                type: normalizeType(selectedItem.type),
+                                                total: selectedCounts.total,
+                                                recovered: selectedCounts.total,
+                                            });
+                                        }}
+                                    >
+                                        Mark All Recovered
+                                    </button>
+                                )}
+                                <button
+                                    onClick={() => startEditingItem(selectedItem)}
+                                    style={{
+                                        flex: "1 1 90px",
+                                        padding: "10px",
+                                        border: "1px solid #cbd5e1",
+                                        background: "#fff",
+                                        color: "#0f172a",
+                                        borderRadius: "6px",
+                                        fontWeight: 600,
+                                        cursor: "pointer",
+                                    }}
+                                >
+                                    Edit
+                                </button>
+                                <button
+                                    onClick={() => removeLocation(selectedItem.id)}
+                                    disabled={isUpdatingItemId === selectedItem.id}
+                                    style={{
+                                        flex: "1 1 90px",
+                                        padding: "10px",
+                                        border: "none",
+                                        background: "#dc2626",
+                                        color: "#fff",
+                                        borderRadius: "6px",
+                                        fontWeight: 700,
+                                        cursor: "pointer",
+                                    }}
+                                >
+                                    Delete
+                                </button>
+                            </div>
+                        ) : null}
+                    </div>
+                </div>
             </div>
         </>
     );
@@ -1980,13 +2219,10 @@ function App() {
     const [isSavingItem, setIsSavingItem] = useState(false);
     const [pendingCount, setPendingCount] = useState(1);
     const [editingItemId, setEditingItemId] = useState(null);
-    const [editForm, setEditForm] = useState({ type: "misc", total: 1, recovered: 0 });
+    const [editForm, setEditForm] = useState({ type: "misc", total: 1, recovered: 0, lat: "", lng: "" });
     const [isUpdatingItemId, setIsUpdatingItemId] = useState(null);
     const [selectedItemId, setSelectedItemId] = useState(null);
     const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
-    const [areControlsCollapsed, setAreControlsCollapsed] = useState(() =>
-        typeof window !== "undefined" ? window.innerWidth <= 768 : false,
-    );
     const [isTidePlannerCollapsed, setIsTidePlannerCollapsed] = useState(() =>
         typeof window !== "undefined" ? window.innerWidth <= 768 : false,
     );
@@ -2012,6 +2248,8 @@ function App() {
     const [isMobile, setIsMobile] = useState(() =>
         typeof window !== "undefined" ? window.innerWidth <= 768 : false,
     );
+    const [waybackReleases, setWaybackReleases] = useState([]);
+    const [selectedWaybackId, setSelectedWaybackId] = useState(null);
     const ignoreNextMapClickRef = useRef(false);
     const canManageItems = useMemo(() => canUserManageItems(currentUser), [currentUser]);
 
@@ -2022,6 +2260,32 @@ function App() {
             ignoreNextMapClickRef.current = false;
         }, 0);
     };
+
+    useEffect(() => {
+        fetch("https://s3-us-west-2.amazonaws.com/config.maptiles.arcgis.com/waybackconfig.json")
+            .then((r) => r.json())
+            .then((data) => {
+                // The config is a plain object keyed by release number:
+                // { "10": { itemTitle: "World Imagery Wayback YYYY-MM-DD", snapshotId: 10, ... }, ... }
+                let list;
+                if (Array.isArray(data)) {
+                    list = data;
+                } else {
+                    list = Object.entries(data).map(([key, val]) => ({
+                        releaseNum: Number(key),
+                        releaseName: val.itemTitle || val.snapshotLabel || `Snapshot ${key}`,
+                        ...val,
+                    }));
+                }
+                // Sort most-recent first; keep up to 80 snapshots
+                const sorted = [...list]
+                    .filter((r) => r.releaseNum)
+                    .sort((a, b) => b.releaseNum - a.releaseNum)
+                    .slice(0, 80);
+                setWaybackReleases(sorted);
+            })
+            .catch(() => {});
+    }, []);
 
     useEffect(() => {
         const stored = localStorage.getItem(COUNT_STORAGE_KEY);
@@ -2346,6 +2610,8 @@ function App() {
                 const imageGps = await extractGpsFromImage(file);
                 const imageUrl = await uploadImage(file);
                 let gpsSavedToDb = false;
+                // Use EXIF GPS if available, otherwise fall back to the map-click location
+                const gpsSource = imageGps || { latitude: point.y, longitude: point.x };
 
                 const insertPayload = {
                     y: point.y,
@@ -2358,12 +2624,11 @@ function App() {
                 if (dbCountFieldSupport.total) insertPayload.total_count = pendingCount;
                 if (dbCountFieldSupport.recovered) insertPayload.recovered_count = 0;
                 if (
-                    imageGps &&
                     dbGpsFieldSupport.latitude !== false &&
                     dbGpsFieldSupport.longitude !== false
                 ) {
-                    insertPayload.gps_latitude = imageGps.latitude;
-                    insertPayload.gps_longitude = imageGps.longitude;
+                    insertPayload.gps_latitude = gpsSource.latitude;
+                    insertPayload.gps_longitude = gpsSource.longitude;
                 }
 
                 let { data, error } = await supabase
@@ -2392,7 +2657,7 @@ function App() {
 
                     data = retryResult.data;
                     error = retryResult.error;
-                } else if (imageGps && !error) {
+                } else if (!error) {
                     gpsSavedToDb = true;
                     setDbGpsFieldSupport((prev) => ({
                         latitude: prev.latitude ?? true,
@@ -2412,12 +2677,12 @@ function App() {
                     }));
                 }
 
-                if (imageGps && data?.id && !gpsSavedToDb) {
+                if (data?.id && !gpsSavedToDb) {
                     setLocalGps((prev) => ({
                         ...prev,
                         [data.id]: {
-                            latitude: imageGps.latitude,
-                            longitude: imageGps.longitude,
+                            latitude: gpsSource.latitude,
+                            longitude: gpsSource.longitude,
                         },
                     }));
                 }
@@ -2444,11 +2709,14 @@ function App() {
 
         const counts = getItemCounts(item);
 
+        const gps = getItemGps(item);
         setEditingItemId(item.id);
         setEditForm({
             type: normalizeType(item.type),
             total: counts.total,
             recovered: counts.recovered,
+            lat: gps ? String(gps.latitude) : "",
+            lng: gps ? String(gps.longitude) : "",
         });
     }
 
@@ -2471,6 +2739,18 @@ function App() {
         if (dbCountFieldSupport.total) updatePayload.total_count = total;
         if (dbCountFieldSupport.recovered) updatePayload.recovered_count = recovered;
 
+        const parsedLat = parseGpsNumber(editForm.lat);
+        const parsedLng = parseGpsNumber(editForm.lng);
+        const hasValidGps =
+            parsedLat !== null && parsedLng !== null &&
+            parsedLat >= -90 && parsedLat <= 90 &&
+            parsedLng >= -180 && parsedLng <= 180;
+
+        if (hasValidGps) {
+            if (dbGpsFieldSupport.latitude !== false) updatePayload.gps_latitude = parsedLat;
+            if (dbGpsFieldSupport.longitude !== false) updatePayload.gps_longitude = parsedLng;
+        }
+
         setIsUpdatingItemId(itemId);
 
         const { error } = await supabase
@@ -2488,6 +2768,13 @@ function App() {
             setLocalCounts((prev) => ({
                 ...prev,
                 [itemId]: { total, recovered },
+            }));
+        }
+
+        if (hasValidGps && dbGpsFieldSupport.latitude === false) {
+            setLocalGps((prev) => ({
+                ...prev,
+                [itemId]: { latitude: parsedLat, longitude: parsedLng },
             }));
         }
 
@@ -2571,6 +2858,30 @@ function App() {
         { total: 0, recovered: 0, remaining: 0 },
     ), [filteredItems, localCounts, dbCountFieldSupport]);
 
+    const impactStats = useMemo(() => {
+        const baseStats = filteredItems.reduce(
+        (acc, item) => {
+            const counts = getItemCounts(item);
+            const type = normalizeType(item.type);
+            const assumedWeight = ASSUMED_ITEM_WEIGHTS_KG[type] || ASSUMED_ITEM_WEIGHTS_KG.misc;
+
+            acc.estimatedRecoveredKg += counts.recovered * assumedWeight;
+            acc.estimatedRemainingKg += counts.inWater * assumedWeight;
+            acc.recoveredByType[type] += counts.recovered;
+            acc.remainingByType[type] += counts.inWater;
+            return acc;
+        },
+        {
+            estimatedRecoveredKg: 0,
+            estimatedRemainingKg: 0,
+            recoveredByType: { trolley: 0, bike: 0, misc: 0 },
+            remainingByType: { trolley: 0, bike: 0, misc: 0 },
+        },
+    );
+
+        return baseStats;
+    }, [filteredItems, localCounts, dbCountFieldSupport]);
+
     const tideChartData = useMemo(
         () => buildTideChartData(lancasterTideRows, lancasterTideUpdatedAt),
         [lancasterTideRows, lancasterTideUpdatedAt],
@@ -2621,24 +2932,13 @@ function App() {
                 locationCount={filteredItems.length}
                 controlFontSize={controlFontSize}
                 isMobile={isMobile}
+                impactStats={impactStats}
             />
 
             <ControlToggles
                 isMobile={isMobile}
-                areControlsCollapsed={areControlsCollapsed}
                 isTidePlannerCollapsed={isTidePlannerCollapsed}
-                onToggleControls={() => setAreControlsCollapsed((prev) => !prev)}
                 onToggleTidePlanner={() => setIsTidePlannerCollapsed((prev) => !prev)}
-            />
-
-            <FilterControls
-                areControlsCollapsed={areControlsCollapsed}
-                isMobile={isMobile}
-                controlFontSize={controlFontSize}
-                typeFilter={typeFilter}
-                statusFilter={statusFilter}
-                setTypeFilter={setTypeFilter}
-                setStatusFilter={setStatusFilter}
             />
 
             <TidePlanner
@@ -2658,61 +2958,136 @@ function App() {
                 isMobile={isMobile}
             />
 
-            <MapContainer
-                crs={L.CRS.Simple}
-                bounds={bounds}
-                // Add these two for better mobile touch:
-                tap={true}
-                touchZoom={true}
-                style={{
-                    height: mapHeight,
-                    minHeight: isMobile ? "360px" : "400px",
-                    width: "100%",
-                    border: "2px solid #333",
-                    borderRadius: "12px", // Rounded corners look better on mobile
-                    zIndex: 0,
-                }}
-            >
-                <ImageOverlay url="river-photo.jpg" bounds={bounds} />
-                <MapEvents />
+            <div style={{ position: "relative" }}>
+                <MapContainer
+                    center={RIVER_LUNE_CENTER}
+                    zoom={RIVER_LUNE_ZOOM}
+                    tap={true}
+                    touchZoom={true}
+                    style={{
+                        height: mapHeight,
+                        minHeight: isMobile ? "360px" : "400px",
+                        width: "100%",
+                        border: "2px solid #333",
+                        borderRadius: "12px",
+                        zIndex: 0,
+                    }}
+                >
+                    {selectedWaybackId ? (
+                        <TileLayer
+                            key={`wayback-${selectedWaybackId}`}
+                            url={`https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/${selectedWaybackId}/{z}/{y}/{x}`}
+                            attribution='&copy; <a href="https://www.arcgis.com/">Esri</a> Wayback Imagery'
+                            maxZoom={21}
+                        />
+                    ) : (
+                        <TileLayer
+                            key="mapbox-live"
+                            url={`https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`}
+                            attribution='&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                            tileSize={512}
+                            zoomOffset={-1}
+                            maxZoom={22}
+                        />
+                    )}
+                    <MapEvents />
 
-                {pendingLocation && (
-                    <Marker
-                        position={[pendingLocation.y, pendingLocation.x]}
-                        icon={pendingPlacementIcon}
-                        interactive={false}
+                    {pendingLocation && (
+                        <Marker
+                            position={[pendingLocation.y, pendingLocation.x]}
+                            icon={pendingPlacementIcon}
+                            interactive={false}
+                        />
+                    )}
+
+                    <PendingPlacementOverlay
+                        pendingLocation={pendingLocation}
+                        pendingItemType={pendingItemType}
+                        pendingCount={pendingCount}
+                        isSavingItem={isSavingItem}
+                        isMobile={isMobile}
+                        controlFontSize={controlFontSize}
+                        touchButtonSize={touchButtonSize}
+                        setPendingCount={setPendingCount}
+                        setPendingItemType={setPendingItemType}
+                        setPendingLocation={setPendingLocation}
+                        handleTypePick={handleTypePick}
+                        markOverlayInteraction={markOverlayInteraction}
                     />
-                )}
 
-                <PendingPlacementOverlay
-                    pendingLocation={pendingLocation}
-                    pendingItemType={pendingItemType}
-                    pendingCount={pendingCount}
-                    isSavingItem={isSavingItem}
+                    {filteredItems.map((item) => {
+                        const gps = getItemGps(item);
+                        if (!gps) return null;
+                        return (
+                            <Marker
+                                key={item.id}
+                                position={[gps.latitude, gps.longitude]}
+                                icon={getIcon(item.type, getItemCounts(item).isRecovered)}
+                                eventHandlers={{
+                                    click: () => {
+                                        setSelectedItemId(item.id);
+                                        setEditingItemId(null);
+                                    },
+                                }}
+                            />
+                        );
+                    })}
+                </MapContainer>
+
+                <FilterControls
                     isMobile={isMobile}
                     controlFontSize={controlFontSize}
-                    touchButtonSize={touchButtonSize}
-                    setPendingCount={setPendingCount}
-                    setPendingItemType={setPendingItemType}
-                    setPendingLocation={setPendingLocation}
-                    handleTypePick={handleTypePick}
-                    markOverlayInteraction={markOverlayInteraction}
+                    typeFilter={typeFilter}
+                    statusFilter={statusFilter}
+                    setTypeFilter={setTypeFilter}
+                    setStatusFilter={setStatusFilter}
+                    isOverlay
                 />
 
-                {filteredItems.map((item) => (
-                    <Marker
-                        key={item.id}
-                        position={[item.y, item.x]}
-                        icon={getIcon(item.type, getItemCounts(item).isRecovered)}
-                        eventHandlers={{
-                            click: () => {
-                                setSelectedItemId(item.id);
-                                setEditingItemId(null);
-                            },
+                {/* Imagery date selector — bottom-left of map */}
+                {waybackReleases.length > 0 && (
+                    <div
+                        style={{
+                            position: "absolute",
+                            bottom: "30px",
+                            left: "10px",
+                            zIndex: 1000,
+                            background: "rgba(255,255,255,0.95)",
+                            border: "1px solid #cbd5e1",
+                            borderRadius: "8px",
+                            padding: "6px 8px",
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
+                            fontSize: "0.78rem",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            maxWidth: isMobile ? "200px" : "260px",
                         }}
-                    />
-                ))}
-            </MapContainer>
+                    >
+                        <span style={{ fontWeight: 700, color: "#334155", whiteSpace: "nowrap" }}>🛰 Imagery:</span>
+                        <select
+                            value={selectedWaybackId ?? ""}
+                            onChange={(e) => setSelectedWaybackId(e.target.value ? Number(e.target.value) : null)}
+                            style={{
+                                border: "1px solid #cbd5e1",
+                                borderRadius: "5px",
+                                padding: "3px 5px",
+                                fontSize: "0.78rem",
+                                background: "#fff",
+                                cursor: "pointer",
+                                maxWidth: "160px",
+                            }}
+                        >
+                            <option value="">Live (Mapbox)</option>
+                            {waybackReleases.map((r) => (
+                                <option key={r.releaseNum} value={r.releaseNum}>
+                                    {r.releaseName}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                )}
+            </div>
 
             <SelectedItemDrawer
                 selectedItem={selectedItem}
