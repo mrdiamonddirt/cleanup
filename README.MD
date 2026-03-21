@@ -20,3 +20,18 @@ To maintain the aspect ratio of the aerial imagery, I implemented a custom `CRS.
 - The Lancaster tide planner reads from [public/lancaster-tides.json](public/lancaster-tides.json)
 - Refresh manually with `npm run update:tides`
 - A scheduled GitHub Actions workflow updates the JSON daily and redeploys the site
+
+## 🔐 Auth (GitHub + Owner Write Access)
+- Sign-in uses Supabase Auth with the GitHub provider.
+- Everyone can view the map data.
+- Only owner accounts can add, edit, or delete locations.
+
+Configure allowlists with Vite env vars:
+
+```env
+VITE_OWNER_GITHUB_LOGINS=mrdiamonddirt
+VITE_OWNER_EMAILS=
+VITE_OWNER_SUPABASE_IDS=
+```
+
+You can set one or more values in each variable as comma-separated lists. This keeps the current single-owner setup simple while leaving room to expand to additional maintainers later.
