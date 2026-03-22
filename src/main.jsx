@@ -2886,8 +2886,6 @@ function FullscreenImageViewer({
     selectedMapsUrl,
     onClose,
 }) {
-    if (!isOpen || !selectedItem?.image_url || !selectedCounts) return null;
-
     const MIN_ZOOM = 1;
     const MAX_ZOOM = 3;
     const ZOOM_STEP = 0.25;
@@ -2902,6 +2900,8 @@ function FullscreenImageViewer({
         setIsDetailsVisible(true);
         setActiveImageIndex(0);
     }, [isOpen, selectedItem?.id]);
+
+    if (!isOpen || !selectedItem?.image_url || !selectedCounts) return null;
 
     const clampZoom = (value) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
     const zoomPercent = Math.round(zoomLevel * 100);
