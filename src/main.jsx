@@ -674,6 +674,289 @@ const getIcon = (type, isRecovered) => {
     });
 };
 
+const formatCoordinate = (value, digits = 6) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return null;
+    return parsed.toFixed(digits);
+};
+
+function DetailBadge({ label, value, tone = "neutral", compact = false }) {
+    const palette = {
+        neutral: {
+            border: "#dbe3ee",
+            background: "#f8fafc",
+            label: "#64748b",
+            value: "#0f172a",
+        },
+        success: {
+            border: "#bbf7d0",
+            background: "#f0fdf4",
+            label: "#15803d",
+            value: "#14532d",
+        },
+        warning: {
+            border: "#fde68a",
+            background: "#fffbeb",
+            label: "#b45309",
+            value: "#78350f",
+        },
+    };
+
+    const colors = palette[tone] || palette.neutral;
+
+    return (
+        <div
+            style={{
+                display: "grid",
+                gap: compact ? "2px" : "3px",
+                minWidth: 0,
+                width: "100%",
+                padding: compact ? "7px 9px" : "8px 10px",
+                borderRadius: "12px",
+                border: `1px solid ${colors.border}`,
+                background: colors.background,
+                boxSizing: "border-box",
+            }}
+        >
+            <span
+                style={{
+                    fontSize: compact ? "0.67rem" : "0.7rem",
+                    fontWeight: 700,
+                    letterSpacing: "0.04em",
+                    textTransform: "uppercase",
+                    color: colors.label,
+                }}
+            >
+                {label}
+            </span>
+            <span
+                style={{
+                    fontSize: compact ? "0.86rem" : "0.92rem",
+                    fontWeight: 700,
+                    color: colors.value,
+                    minWidth: 0,
+                    overflowWrap: "anywhere",
+                }}
+            >
+                {value}
+            </span>
+        </div>
+    );
+}
+
+function LocationDetailsBlock({
+    gps,
+    geoLookup,
+    isResolving,
+    mapsUrl,
+    mapPoint,
+    compact = false,
+    inverted = false,
+}) {
+    const colors = inverted
+        ? {
+              border: "rgba(255,255,255,0.14)",
+              background: "rgba(15,23,42,0.42)",
+              title: "#f8fafc",
+              body: "rgba(241,245,249,0.92)",
+              muted: "rgba(226,232,240,0.74)",
+              chipBorder: "rgba(191,219,254,0.24)",
+              chipBackground: "rgba(255,255,255,0.08)",
+              chipLabel: "rgba(191,219,254,0.9)",
+              chipValue: "#ffffff",
+              rowLabel: "rgba(191,219,254,0.92)",
+              rowValue: "#ffffff",
+              buttonBorder: "rgba(191,219,254,0.28)",
+              buttonBackground: "rgba(255,255,255,0.1)",
+              buttonText: "#e0f2fe",
+          }
+        : {
+              border: "#dbe3ee",
+              background: "linear-gradient(180deg, #fbfdff 0%, #f8fbff 100%)",
+              title: "#0f172a",
+              body: "#334155",
+              muted: "#64748b",
+              chipBorder: "#dbeafe",
+              chipBackground: "#eff6ff",
+              chipLabel: "#1d4ed8",
+              chipValue: "#0f172a",
+              rowLabel: "#475569",
+              rowValue: "#0f172a",
+              buttonBorder: "#cbd5e1",
+              buttonBackground: "#ffffff",
+              buttonText: "#0f172a",
+          };
+
+    const locationTitle = isResolving && !geoLookup ? "Locating nearby area..." : geoLookup?.label || "Lancaster, Lancashire";
+    const gpsText = gps ? `${formatCoordinate(gps.latitude)}, ${formatCoordinate(gps.longitude)}` : null;
+    const mapPointText = mapPoint
+        ? `${formatCoordinate(mapPoint.latitude, 5)}, ${formatCoordinate(mapPoint.longitude, 5)}`
+        : null;
+    const metadata = [
+        geoLookup?.postcode ? { label: "Postcode", value: geoLookup.postcode } : null,
+        geoLookup?.countryCode ? { label: "Country", value: geoLookup.countryCode } : null,
+    ].filter(Boolean);
+
+    if (!gps && !mapPoint) {
+        return (
+            <div
+                style={{
+                    padding: compact ? "10px 11px" : "12px 13px",
+                    borderRadius: "14px",
+                    border: `1px solid ${colors.border}`,
+                    background: colors.background,
+                    color: colors.muted,
+                    fontSize: compact ? "0.78rem" : "0.82rem",
+                }}
+            >
+                Location not available.
+            </div>
+        );
+    }
+
+    return (
+        <div
+            style={{
+                display: "grid",
+                gap: compact ? "8px" : "10px",
+                padding: compact ? "10px 11px" : "12px 13px",
+                borderRadius: "14px",
+                border: `1px solid ${colors.border}`,
+                background: colors.background,
+            }}
+        >
+            <div
+                style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    justifyContent: "space-between",
+                    gap: "10px",
+                    flexWrap: "wrap",
+                }}
+            >
+                <div style={{ display: "grid", gap: "4px", minWidth: 0 }}>
+                    <span
+                        style={{
+                            fontSize: compact ? "0.67rem" : "0.7rem",
+                            fontWeight: 700,
+                            letterSpacing: "0.05em",
+                            textTransform: "uppercase",
+                            color: colors.muted,
+                        }}
+                    >
+                        Location
+                    </span>
+                    <span style={{ fontSize: compact ? "0.88rem" : "0.94rem", fontWeight: 700, color: colors.title }}>
+                        {locationTitle}
+                    </span>
+                </div>
+
+                {mapsUrl ? (
+                    <a
+                        href={mapsUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            minHeight: compact ? "34px" : "36px",
+                            padding: compact ? "0 12px" : "0 13px",
+                            borderRadius: "999px",
+                            border: `1px solid ${colors.buttonBorder}`,
+                            background: colors.buttonBackground,
+                            color: colors.buttonText,
+                            textDecoration: "none",
+                            fontSize: compact ? "0.78rem" : "0.82rem",
+                            fontWeight: 700,
+                            whiteSpace: "nowrap",
+                        }}
+                    >
+                        Open in Maps
+                        <span aria-hidden="true" style={{ fontSize: "0.95em", lineHeight: 1 }}>↗</span>
+                    </a>
+                ) : null}
+            </div>
+
+            {metadata.length ? (
+                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                    {metadata.map((item) => (
+                        <div
+                            key={item.label}
+                            style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "6px",
+                                padding: "5px 9px",
+                                borderRadius: "999px",
+                                border: `1px solid ${colors.chipBorder}`,
+                                background: colors.chipBackground,
+                            }}
+                        >
+                            <span
+                                style={{
+                                    fontSize: compact ? "0.67rem" : "0.69rem",
+                                    fontWeight: 700,
+                                    letterSpacing: "0.04em",
+                                    textTransform: "uppercase",
+                                    color: colors.chipLabel,
+                                }}
+                            >
+                                {item.label}
+                            </span>
+                            <span style={{ fontSize: compact ? "0.76rem" : "0.8rem", fontWeight: 700, color: colors.chipValue }}>
+                                {item.value}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            ) : null}
+
+            <div style={{ display: "grid", gap: "5px" }}>
+                {gpsText ? (
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "baseline" }}>
+                        <span
+                            style={{
+                                minWidth: compact ? "34px" : "40px",
+                                fontSize: compact ? "0.72rem" : "0.75rem",
+                                fontWeight: 700,
+                                letterSpacing: "0.04em",
+                                textTransform: "uppercase",
+                                color: colors.rowLabel,
+                            }}
+                        >
+                            GPS
+                        </span>
+                        <span style={{ fontSize: compact ? "0.8rem" : "0.83rem", color: colors.rowValue }}>
+                            {gpsText}
+                        </span>
+                    </div>
+                ) : null}
+
+                {mapPointText ? (
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "baseline" }}>
+                        <span
+                            style={{
+                                minWidth: compact ? "58px" : "64px",
+                                fontSize: compact ? "0.72rem" : "0.75rem",
+                                fontWeight: 700,
+                                letterSpacing: "0.04em",
+                                textTransform: "uppercase",
+                                color: colors.rowLabel,
+                            }}
+                        >
+                            Map Pin
+                        </span>
+                        <span style={{ fontSize: compact ? "0.8rem" : "0.83rem", color: colors.rowValue }}>
+                            {mapPointText}
+                        </span>
+                    </div>
+                ) : null}
+            </div>
+        </div>
+    );
+}
+
 const pendingPlacementIcon = L.icon({
     iconUrl: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
         <svg xmlns="http://www.w3.org/2000/svg" width="25" height="41" viewBox="0 0 25 41">
@@ -2575,43 +2858,29 @@ function FullscreenImageViewer({
                     lineHeight: 1.45,
                 }}
             >
-                <div>
-                    {TYPE_LABELS[normalizeType(selectedItem.type)]} | {selectedCounts.isRecovered ? "Recovered" : "In Water"}
-                </div>
-                <div>
-                    Spotted: {new Date(selectedItem.created_at).toLocaleString()}
-                </div>
-                <div>
-                    Image Location: {Number(selectedItem.y).toFixed(2)}, {Number(selectedItem.x).toFixed(2)}
-                </div>
-                {selectedGps && selectedMapsUrl ? (
-                    <div>
-                        Image GPS: {selectedGps.latitude.toFixed(6)}, {selectedGps.longitude.toFixed(6)} | {" "}
-                        <a
-                            href={selectedMapsUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            style={{ color: "#93c5fd", fontWeight: 700, textDecoration: "none" }}
-                        >
-                            Open in Maps
-                        </a>
+                <div style={{ display: "grid", gap: "8px" }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center", color: "#ffffff" }}>
+                        <strong style={{ fontSize: "0.96rem" }}>{TYPE_LABELS[normalizeType(selectedItem.type)]}</strong>
+                        <span style={{ color: "rgba(226,232,240,0.82)" }}>•</span>
+                        <span style={{ color: "rgba(241,245,249,0.92)" }}>
+                            {selectedCounts.isRecovered ? "Recovered" : "In Water"}
+                        </span>
                     </div>
-                ) : (
-                    <div>Image GPS: Not available</div>
-                )}
-                {selectedGps ? (
-                    <div>
-                        Area: {isResolvingGeoLookup && !selectedGeoLookup
-                            ? "Locating..."
-                            : selectedGeoLookup?.label || "Lancaster, Lancashire"}
+
+                    <div style={{ color: "rgba(226,232,240,0.86)" }}>
+                        Spotted: {new Date(selectedItem.created_at).toLocaleString()}
                     </div>
-                ) : null}
-                {selectedGps ? (
-                    <div>
-                        Postcode: {selectedGeoLookup?.postcode || "Not found"}
-                        {selectedGeoLookup?.countryCode ? ` | Country: ${selectedGeoLookup.countryCode}` : ""}
-                    </div>
-                ) : null}
+
+                    <LocationDetailsBlock
+                        gps={selectedGps}
+                        geoLookup={selectedGeoLookup}
+                        isResolving={isResolvingGeoLookup}
+                        mapsUrl={selectedMapsUrl}
+                        mapPoint={{ latitude: selectedItem.y, longitude: selectedItem.x }}
+                        compact
+                        inverted
+                    />
+                </div>
             </div>
         </div>
     );
@@ -2644,10 +2913,17 @@ function SelectedItemDrawer({
     shareCopyStatus,
 }) {
     if (!selectedItem || !selectedCounts) return null;
-    const useCompactSheet =
+    const useCompactLayout =
         isMobile || (typeof window !== "undefined" && window.innerWidth <= 1024);
+    const useBottomSheet = isMobile;
     const isEditingThisItem = canManageItems && editingItemId === selectedItem.id;
     const compactNoScroll = false;
+    const statGridColumns = useCompactLayout ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))";
+    const imagePanelHeight = useCompactLayout ? "min(23svh, 180px)" : "208px";
+    const itemTypeLabel = TYPE_LABELS[normalizeType(selectedItem.type)];
+    const itemStatusLabel = selectedCounts.isRecovered ? "Recovered" : "In Water";
+    const shareButtonLabel = copiedShareItemId === selectedItem.id && shareCopyStatus ? "Copied" : "Share";
+    const useDenseDesktopCard = !useBottomSheet && !isEditingThisItem;
 
     const drawerNode = (
         <>
@@ -2665,75 +2941,150 @@ function SelectedItemDrawer({
             />
 
             <div
-                data-drawer-version={useCompactSheet ? "v4-fullscreen" : "v4-desktop"}
+                data-drawer-version={useBottomSheet ? "v5-bottom-sheet" : "v5-desktop-card"}
                 style={{
                     position: "fixed",
-                    // Mobile: full-width bottom sheet
-                    ...(useCompactSheet ? {
-                        inset: "0",
-                        width: "100%",
-                        height: "100dvh",
-                        minHeight: "100dvh",
-                        maxHeight: "none",
-                        borderTopLeftRadius: "0",
-                        borderTopRightRadius: "0",
-                        borderBottomLeftRadius: "0",
-                        borderBottomRightRadius: "0",
+                    ...(useBottomSheet ? {
+                        left: "8px",
+                        right: "8px",
+                        bottom: "max(8px, env(safe-area-inset-bottom, 0px))",
+                        top: "max(10px, env(safe-area-inset-top, 0px) + 8px)",
+                        width: "auto",
+                        maxHeight: "calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 18px)",
+                        borderRadius: "22px",
                     } : {
-                        // Desktop: centred modal
                         top: "50%",
                         left: "50%",
                         transform: "translate(-50%, -50%)",
                         width: "min(700px, calc(100vw - 48px))",
-                        maxHeight: "min(88vh, 760px)",
-                        borderRadius: "14px",
+                        maxHeight: isEditingThisItem ? "min(90vh, 800px)" : "min(88vh, 760px)",
+                        borderRadius: "18px",
                     }),
-                    overflowY: compactNoScroll ? "hidden" : "auto",
+                    overflowY: compactNoScroll ? "hidden" : useBottomSheet || isEditingThisItem ? "auto" : "hidden",
                     background: "#ffffff",
                     boxShadow: "0 24px 60px rgba(0,0,0,0.32)",
                     zIndex: 1500,
-                    padding: useCompactSheet
-                        ? "calc(env(safe-area-inset-top, 0px) + 8px) 12px calc(env(safe-area-inset-bottom, 0px) + 6px)"
-                        : "14px",
+                    padding: useBottomSheet
+                        ? "10px 10px calc(env(safe-area-inset-bottom, 0px) + 10px)"
+                        : useDenseDesktopCard ? "10px" : "12px",
                     boxSizing: "border-box",
                     display: "flex",
                     flexDirection: "column",
+                    border: "1px solid rgba(219, 227, 238, 0.95)",
                 }}
             >
+                {useBottomSheet ? (
+                    <div
+                        aria-hidden="true"
+                        style={{
+                            width: "42px",
+                            height: "5px",
+                            borderRadius: "999px",
+                            background: "#d7dee8",
+                            margin: "0 auto 10px",
+                            flexShrink: 0,
+                        }}
+                    />
+                ) : null}
+
                 <div
                     style={{
                         display: "flex",
-                        alignItems: "center",
+                        alignItems: "flex-start",
                         justifyContent: "space-between",
-                        gap: "8px",
-                        marginBottom: compactNoScroll ? "6px" : "10px",
+                        gap: "12px",
+                        marginBottom: compactNoScroll ? "6px" : useBottomSheet ? "10px" : useDenseDesktopCard ? "6px" : "8px",
+                        padding: useBottomSheet ? "2px 2px 8px" : "2px 2px 8px",
+                        borderBottom: "1px solid rgba(226,232,240,0.92)",
                     }}
                 >
-                    <strong style={{ fontSize: "1.1rem", color: "#1e293b" }}>
-                        {TYPE_LABELS[normalizeType(selectedItem.type)]}
-                    </strong>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <div style={{ minWidth: 0, display: "grid", gap: "4px" }}>
+                        <div
+                            style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "6px",
+                                width: "fit-content",
+                                padding: "4px 9px",
+                                borderRadius: "999px",
+                                background: "#eff6ff",
+                                border: "1px solid #dbeafe",
+                                color: "#1d4ed8",
+                                fontSize: "0.68rem",
+                                fontWeight: 700,
+                                letterSpacing: "0.06em",
+                                textTransform: "uppercase",
+                            }}
+                        >
+                            <span
+                                aria-hidden="true"
+                                style={{
+                                    width: "7px",
+                                    height: "7px",
+                                    borderRadius: "999px",
+                                    background: selectedCounts.isRecovered ? "#22c55e" : "#f59e0b",
+                                    boxShadow: selectedCounts.isRecovered
+                                        ? "0 0 0 4px rgba(34,197,94,0.14)"
+                                        : "0 0 0 4px rgba(245,158,11,0.14)",
+                                }}
+                            />
+                            Cleanup Item
+                        </div>
+                        <strong
+                            style={{
+                                fontSize: useBottomSheet ? "1.12rem" : "1.22rem",
+                                lineHeight: 1.1,
+                                color: "#0f172a",
+                            }}
+                        >
+                            {itemTypeLabel} recovery log
+                        </strong>
+                        <div
+                            style={{
+                                display: "flex",
+                                flexWrap: "wrap",
+                                gap: "8px",
+                                alignItems: "center",
+                                color: "#64748b",
+                                fontSize: useDenseDesktopCard ? "0.77rem" : "0.8rem",
+                            }}
+                        >
+                            <span>{new Date(selectedItem.created_at).toLocaleDateString()}</span>
+                            <span aria-hidden="true" style={{ color: "#cbd5e1" }}>•</span>
+                            <span style={{ color: "#334155", fontWeight: 600 }}>{itemStatusLabel}</span>
+                        </div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
                         {onCopyShareLink ? (
                             <button
                                 onClick={() => onCopyShareLink(selectedItem.id)}
                                 style={{
-                                    border: "1px solid #d1d1d6",
-                                    background: "#f2f2f7",
-                                    color: "#0a84ff",
+                                    border: "1px solid #bfdbfe",
+                                    background: copiedShareItemId === selectedItem.id && shareCopyStatus
+                                        ? "linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)"
+                                        : "linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)",
+                                    color: copiedShareItemId === selectedItem.id && shareCopyStatus ? "#166534" : "#1d4ed8",
                                     borderRadius: "999px",
                                     height: "34px",
                                     padding: "0 14px",
-                                    fontWeight: 600,
+                                    fontWeight: 700,
                                     fontSize: "0.84rem",
                                     letterSpacing: "0.01em",
-                                    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
                                     cursor: "pointer",
                                     display: "inline-flex",
                                     alignItems: "center",
                                     justifyContent: "center",
+                                    gap: "7px",
+                                    boxShadow: copiedShareItemId === selectedItem.id && shareCopyStatus
+                                        ? "0 10px 18px rgba(34,197,94,0.18)"
+                                        : "0 10px 18px rgba(37,99,235,0.14)",
+                                    transition: "transform 160ms ease, box-shadow 160ms ease",
                                 }}
                             >
-                                Share
+                                <span aria-hidden="true" style={{ fontSize: "0.95rem", transform: "translateY(-0.5px)" }}>
+                                    {copiedShareItemId === selectedItem.id && shareCopyStatus ? "✓" : "↗"}
+                                </span>
+                                {shareButtonLabel}
                             </button>
                         ) : null}
                         <button
@@ -2742,13 +3093,16 @@ function SelectedItemDrawer({
                                 setEditingItemId(null);
                             }}
                             style={{
-                                border: "1px solid #cbd5e1",
-                                background: "#fff",
+                                border: "1px solid #dbe3ee",
+                                background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
                                 borderRadius: "999px",
                                 width: "34px",
                                 height: "34px",
                                 fontWeight: 700,
                                 cursor: "pointer",
+                                color: "#475569",
+                                boxShadow: "0 6px 14px rgba(15,23,42,0.08)",
+                                transition: "transform 160ms ease, box-shadow 160ms ease",
                             }}
                             aria-label="Close details"
                         >
@@ -2759,8 +3113,8 @@ function SelectedItemDrawer({
 
                 {/* Two-column on desktop, stacked on mobile */}
                 <div style={{
-                    display: compactNoScroll ? "flex" : useCompactSheet ? "block" : "flex",
-                    gap: compactNoScroll ? "10px" : "14px",
+                    display: compactNoScroll ? "flex" : useCompactLayout ? "block" : "flex",
+                    gap: compactNoScroll ? "10px" : useBottomSheet ? "14px" : useDenseDesktopCard ? "10px" : "12px",
                     alignItems: "flex-start",
                     flex: compactNoScroll ? 1 : "0 0 auto",
                     minHeight: 0,
@@ -2768,34 +3122,59 @@ function SelectedItemDrawer({
                     {/* Left: image */}
                     <div style={{
                         flexShrink: 0,
-                        width: compactNoScroll ? "42%" : useCompactSheet ? "100%" : "220px",
-                        marginBottom: compactNoScroll ? 0 : useCompactSheet ? "8px" : 0,
+                        width: compactNoScroll ? "42%" : useCompactLayout ? "100%" : "240px",
+                        marginBottom: compactNoScroll ? 0 : useCompactLayout ? "8px" : useDenseDesktopCard ? "0" : "0",
                     }}>
                         {selectedItem.image_url ? (
                             <button
                                 onClick={() => setIsImageViewerOpen(true)}
                                 style={{
-                                    border: "none",
-                                    background: "transparent",
+                                    border: "1px solid #dbe3ee",
+                                    background: "linear-gradient(180deg, #f8fbff 0%, #f1f5f9 100%)",
                                     width: "100%",
-                                    padding: 0,
+                                    padding: useBottomSheet ? "8px" : useDenseDesktopCard ? "8px" : "10px",
                                     cursor: "zoom-in",
                                     display: "block",
+                                    borderRadius: useBottomSheet ? "18px" : "16px",
+                                    boxShadow: "0 10px 24px rgba(15,23,42,0.08)",
                                 }}
                             >
-                                <img
-                                    src={selectedItem.image_url}
-                                    alt="Debris evidence"
+                                <div
                                     style={{
                                         width: "100%",
-                                        height: useCompactSheet ? "min(40svh, 260px)" : "200px",
-                                        objectFit: "cover",
-                                        borderRadius: "10px",
-                                        border: "1px solid #ddd",
-                                        boxShadow: "0 2px 6px rgba(0,0,0,0.12)",
-                                        display: "block",
+                                        height: imagePanelHeight,
+                                        borderRadius: useBottomSheet ? "14px" : "12px",
+                                        background: "rgba(255,255,255,0.9)",
+                                        border: "1px solid rgba(203,213,225,0.9)",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        overflow: "hidden",
                                     }}
-                                />
+                                >
+                                    <img
+                                        src={selectedItem.image_url}
+                                        alt="Debris evidence"
+                                        style={{
+                                            width: "100%",
+                                            height: "100%",
+                                            objectFit: "contain",
+                                            display: "block",
+                                        }}
+                                    />
+                                </div>
+                                {useBottomSheet ? (
+                                    <div
+                                        style={{
+                                            marginTop: "6px",
+                                            fontSize: "0.74rem",
+                                            color: "#64748b",
+                                            textAlign: "left",
+                                        }}
+                                    >
+                                        Full image shown. Tap to expand.
+                                    </div>
+                                ) : null}
                             </button>
                         ) : (
                             <div style={{
@@ -2804,8 +3183,8 @@ function SelectedItemDrawer({
                                 fontSize: "0.8rem",
                                 fontStyle: "italic",
                                 border: "1px dashed #cbd5e1",
-                                borderRadius: "8px",
-                                height: isMobile ? "auto" : "160px",
+                                borderRadius: useBottomSheet ? "18px" : "12px",
+                                height: useCompactLayout ? "140px" : "220px",
                                 display: "flex",
                                 alignItems: "center",
                                 justifyContent: "center",
@@ -2818,79 +3197,74 @@ function SelectedItemDrawer({
                     {/* Right: details + actions */}
                     <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", minHeight: 0 }}>
                         <div style={{
-                            fontSize: compactNoScroll ? "0.82rem" : "0.9rem",
-                            color: "#475569",
-                            marginBottom: compactNoScroll ? "6px" : "8px",
-                            lineHeight: compactNoScroll ? 1.35 : 1.45,
+                            display: "grid",
+                            gap: compactNoScroll ? "7px" : useBottomSheet ? "8px" : useDenseDesktopCard ? "7px" : "10px",
+                            marginBottom: compactNoScroll ? "6px" : useBottomSheet ? "6px" : "6px",
                         }}>
-                            <div style={{ display: useCompactSheet ? "grid" : "block", gridTemplateColumns: useCompactSheet ? "1fr 1fr" : "none", gap: useCompactSheet ? "3px 8px" : "0" }}>
-                                <div>Spotted: {new Date(selectedItem.created_at).toLocaleDateString()}</div>
-                                <div>Status: {selectedCounts.isRecovered ? "✅ Recovered" : "❌ In Water"}</div>
-                                <div>Total: <strong>{selectedCounts.total}</strong></div>
-                                <div>Recovered: <strong>{selectedCounts.recovered}</strong></div>
-                                <div>In Water: <strong>{selectedCounts.inWater}</strong></div>
+                            <div style={{ color: "#64748b", fontSize: compactNoScroll ? "0.8rem" : "0.84rem" }}>
+                                Spotted: {new Date(selectedItem.created_at).toLocaleString()}
                             </div>
+
+                            <div style={{ display: "grid", gridTemplateColumns: statGridColumns, gap: "8px", minWidth: 0 }}>
+                                <DetailBadge
+                                    label="Status"
+                                    value={selectedCounts.isRecovered ? "Recovered" : "In Water"}
+                                    tone={selectedCounts.isRecovered ? "success" : "warning"}
+                                    compact={compactNoScroll || useDenseDesktopCard}
+                                />
+                                <DetailBadge label="Total" value={selectedCounts.total} compact={compactNoScroll || useDenseDesktopCard} />
+                                <DetailBadge label="Recovered" value={selectedCounts.recovered} compact={compactNoScroll || useDenseDesktopCard} />
+                                <DetailBadge label="In Water" value={selectedCounts.inWater} compact={compactNoScroll || useDenseDesktopCard} />
+                            </div>
+
                             {selectedWeight ? (
-                                <>
-                                    <div style={{ marginTop: useCompactSheet ? "4px" : "0" }}>
-                                        Est. weight per item: <strong>{formatWeightKg(selectedWeight.value)}</strong>
+                                <div
+                                    style={{
+                                        display: "grid",
+                                        gap: "2px",
+                                        padding: compactNoScroll ? "8px 9px" : useBottomSheet ? "8px 9px" : "10px 11px",
+                                        borderRadius: "12px",
+                                        border: "1px solid #dbe3ee",
+                                        background: "#f8fafc",
+                                        color: "#334155",
+                                        fontSize: compactNoScroll ? "0.78rem" : useBottomSheet ? "0.8rem" : "0.83rem",
+                                        lineHeight: 1.45,
+                                    }}
+                                >
+                                    <div>
+                                        Est. weight per item: <strong style={{ color: "#0f172a" }}>{formatWeightKg(selectedWeight.value)}</strong>
                                         {selectedWeight.source === "default" ? " (default)" : ""}
                                     </div>
                                     <div>
-                                        Est. total at location: <strong>{formatWeightKg(selectedWeight.value * selectedCounts.total)}</strong>
+                                        Est. total at location: <strong style={{ color: "#0f172a" }}>{formatWeightKg(selectedWeight.value * selectedCounts.total)}</strong>
                                     </div>
-                                </>
+                                </div>
                             ) : null}
-                            {selectedGps && selectedMapsUrl ? (
-                                <div style={{ marginTop: "4px" }}>
-                                    Location: <strong>{selectedGps.latitude.toFixed(6)}, {selectedGps.longitude.toFixed(6)}</strong>{" "}
-                                    <a
-                                        href={selectedMapsUrl}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        style={{ color: "#1d4ed8", fontWeight: 700, textDecoration: "none" }}
-                                    >
-                                        Open in Maps
-                                    </a>
-                                </div>
-                            ) : (
-                                <div style={{ marginTop: "4px" }}>
-                                    Location: <strong>Not available</strong>
-                                </div>
-                            )}
+
+                            <LocationDetailsBlock
+                                gps={selectedGps}
+                                geoLookup={selectedGeoLookup}
+                                isResolving={isResolvingGeoLookup}
+                                mapsUrl={selectedMapsUrl}
+                                compact={compactNoScroll || useDenseDesktopCard}
+                            />
+
                             {copiedShareItemId === selectedItem.id && shareCopyStatus ? (
                                 <div style={{ marginTop: "4px", color: "#0f766e", fontWeight: 600, fontSize: "0.78rem" }}>
                                     {shareCopyStatus}
                                 </div>
                             ) : null}
-                            {selectedGps ? (
-                                <div style={{ marginTop: "2px" }}>
-                                    Area: <strong>
-                                        {isResolvingGeoLookup && !selectedGeoLookup
-                                            ? "Locating..."
-                                            : selectedGeoLookup?.label || "Lancaster, Lancashire"}
-                                    </strong>
-                                </div>
-                            ) : null}
-                            {selectedGps ? (
-                                <div style={{ marginTop: "2px" }}>
-                                    Postcode: <strong>{selectedGeoLookup?.postcode || "Not found"}</strong>
-                                    {selectedGeoLookup?.countryCode ? ` | Country: ${selectedGeoLookup.countryCode}` : ""}
-                                </div>
-                            ) : null}
                         </div>
-
-                        <hr style={{ border: "0.5px solid #eee", margin: compactNoScroll ? "4px 0 8px" : "6px 0 10px" }} />
 
                         {!canManageItems ? (
                             <div style={{
-                                marginBottom: compactNoScroll ? "8px" : "12px",
-                                padding: compactNoScroll ? "7px 8px" : "9px 10px",
+                                marginBottom: compactNoScroll ? "8px" : useBottomSheet ? "12px" : "8px",
+                                padding: compactNoScroll ? "7px 8px" : useBottomSheet ? "9px 10px" : "8px 9px",
                                 borderRadius: "8px",
                                 border: "1px solid #fde68a",
                                 background: "#fffbeb",
                                 color: "#92400e",
-                                fontSize: compactNoScroll ? "0.74rem" : "0.82rem",
+                                fontSize: compactNoScroll ? "0.74rem" : useBottomSheet ? "0.82rem" : "0.8rem",
                             }}>
                                 Read-only mode: only authorized GitHub accounts can edit or delete locations.
                             </div>
@@ -3093,7 +3467,7 @@ function SelectedItemDrawer({
                                     <button
                                         style={{
                                             flex: "1 1 100%",
-                                            marginTop: compactNoScroll ? "0" : "5px",
+                                            marginTop: "0",
                                             padding: compactNoScroll ? "8px" : "10px",
                                             backgroundColor: "#2ecc71",
                                             color: "white",

@@ -60,6 +60,14 @@ body {
   color: #0f172a;
 }
 
+body,
+button,
+input,
+select,
+textarea {
+  font-family: var(--sans);
+}
+
 #root {
   min-height: 100svh;
   padding: 10px;
