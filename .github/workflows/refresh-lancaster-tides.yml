@@ -2,7 +2,7 @@ name: Refresh Lancaster Tides
 
 on:
   schedule:
-    - cron: "15 5 * * *"
+    - cron: "15 */6 * * *"
   workflow_dispatch:
 
 permissions:
@@ -11,6 +11,10 @@ permissions:
 jobs:
   refresh-and-deploy:
     runs-on: ubuntu-latest
+    env:
+      SEO_SITE_URL: https://mrdiamonddirt.github.io/cleanup
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
     steps:
       - name: Checkout repository

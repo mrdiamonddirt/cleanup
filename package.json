@@ -5,10 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "npm run generate:seo",
     "build": "vite build",
     "preview": "vite preview",
     "update:tides": "node scripts/update-lancaster-tides.mjs",
-    "predeploy": "npm run build",
+    "generate:seo": "node scripts/generate-seo-pages.mjs",
+    "predeploy": "npm run update:tides && npm run build",
     "deploy": "gh-pages -d dist"
   },
   "devDependencies": {

@@ -56,6 +56,7 @@ const ITEMS_STORAGE_KEY = "cleanup-items-v1";
 const COUNT_STORAGE_KEY = "cleanup-item-counts-v1";
 const GPS_STORAGE_KEY = "cleanup-item-gps-v1";
 const WEIGHT_STORAGE_KEY = "cleanup-item-weights-v1";
+const GEOLOOKUP_STORAGE_KEY = "cleanup-item-geolookup-v1";
 const LANCASTER_TIDE_JSON_URL = `${import.meta.env.BASE_URL}lancaster-tides.json`;
 const LANCASTER_TIDE_CHART_URL =
     "https://www.tide-forecast.com/tide/Lancaster/tide-times";
@@ -108,6 +109,121 @@ const parseEstimatedWeightKg = (value) => {
     return Math.round(parsed * 10) / 10;
 };
 
+const buildShareItemUrl = (itemId) => {
+    if (typeof window === "undefined") return "";
+
+    const normalizedId = String(itemId || "").trim();
+    if (!normalizedId) return "";
+
+    const pathname = window.location.pathname || "/";
+    const shareSegmentIndex = pathname.indexOf("/share/");
+    const basePathRaw = shareSegmentIndex >= 0 ? pathname.slice(0, shareSegmentIndex) : pathname;
+    const basePath = basePathRaw.replace(/\/+$/, "");
+    const prefix = basePath && basePath !== "/" ? basePath : "";
+
+    return `${window.location.origin}${prefix}/share/${encodeURIComponent(normalizedId)}/`;
+};
+
+const readSelectedItemIdFromQuery = () => {
+    if (typeof window === "undefined") return null;
+
+    const selected = new URLSearchParams(window.location.search).get("item");
+    if (selected) {
+        const normalized = selected.trim();
+        if (normalized) return normalized;
+    }
+
+    const pathSegments = window.location.pathname
+        .split("/")
+        .map((segment) => segment.trim())
+        .filter(Boolean);
+
+    let shareItemId = "";
+    for (let i = 0; i < pathSegments.length - 1; i += 1) {
+        if (pathSegments[i].toLowerCase() === "share") {
+            shareItemId = pathSegments[i + 1] || shareItemId;
+        }
+    }
+
+    if (!shareItemId) return null;
+
+    try {
+        const decoded = decodeURIComponent(shareItemId).trim();
+        return decoded || null;
+    } catch {
+        return shareItemId.trim() || null;
+    }
+};
+
+const buildGpsLookupKey = (latitude, longitude) => {
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return "";
+
+    return `${latitude.toFixed(5)},${longitude.toFixed(5)}`;
+};
+
+const formatReverseGeocodeResult = (payload) => {
+    const address = payload?.address || {};
+    const road = address.road || address.pedestrian || address.footway || "";
+    const area =
+        address.suburb ||
+        address.neighbourhood ||
+        address.hamlet ||
+        address.village ||
+        "";
+    const city = address.city || address.town || address.city_district || "Lancaster";
+    const county = address.county || "Lancashire";
+    const countryCode = (address.country_code || "gb").toUpperCase();
+    const postcode = address.postcode || "";
+
+    const parts = [road, area, city, county].filter(Boolean);
+
+    return {
+        label: parts.length ? parts.join(", ") : "Lancaster, Lancashire",
+        postcode,
+        countryCode,
+        source: "nominatim",
+    };
+};
+
+const buildFallbackGeoLookup = () => ({
+    label: "Lancaster, Lancashire",
+    postcode: "",
+    countryCode: "GB",
+    source: "fallback",
+});
+
+const shouldResolveGeoLookup = (geoLookup) => {
+    if (!geoLookup) return true;
+    if (geoLookup.source === "fallback") return true;
+
+    const normalizedLabel = (geoLookup.label || "").trim().toLowerCase();
+    if (!normalizedLabel) return true;
+
+    return normalizedLabel === "lancaster, lancashire" && !geoLookup.postcode;
+};
+
+const fetchReverseGeocodeForGps = async (latitude, longitude) => {
+    const url = new URL("https://nominatim.openstreetmap.org/reverse");
+    url.searchParams.set("format", "jsonv2");
+    url.searchParams.set("lat", String(latitude));
+    url.searchParams.set("lon", String(longitude));
+    url.searchParams.set("zoom", "18");
+    url.searchParams.set("addressdetails", "1");
+
+    const response = await fetch(url.toString(), {
+        headers: {
+            Accept: "application/json",
+        },
+    });
+
+    if (!response.ok) {
+        throw new Error("Reverse geocode request failed");
+    }
+
+    const payload = await response.json();
+    return formatReverseGeocodeResult(payload);
+};
+
 const formatWeightKg = (value) => {
     if (!Number.isFinite(value)) return "0 kg";
     return Number.isInteger(value) ? `${value} kg` : `${value.toFixed(1)} kg`;
@@ -152,6 +268,17 @@ const inferDbWeightFieldSupport = (items) => {
     const first = Array.isArray(items) ? items[0] : null;
 
     return first ? Object.prototype.hasOwnProperty.call(first, "estimated_weight_kg") : null;
+};
+
+const inferDbGeoFieldSupport = (items) => {
+    const first = Array.isArray(items) ? items[0] : null;
+
+    return {
+        label: first ? Object.prototype.hasOwnProperty.call(first, "geocode_label") : null,
+        postcode: first ? Object.prototype.hasOwnProperty.call(first, "geocode_postcode") : null,
+        countryCode: first ? Object.prototype.hasOwnProperty.call(first, "geocode_country_code") : null,
+        source: first ? Object.prototype.hasOwnProperty.call(first, "geocode_source") : null,
+    };
 };
 
 const buildLiveLocationSample = (position) => {
@@ -2298,6 +2425,8 @@ function FullscreenImageViewer({
     selectedItem,
     selectedCounts,
     selectedGps,
+    selectedGeoLookup,
+    isResolvingGeoLookup,
     selectedMapsUrl,
     onClose,
 }) {
@@ -2384,6 +2513,19 @@ function FullscreenImageViewer({
                 ) : (
                     <div>Image GPS: Not available</div>
                 )}
+                {selectedGps ? (
+                    <div>
+                        Area: {isResolvingGeoLookup && !selectedGeoLookup
+                            ? "Locating..."
+                            : selectedGeoLookup?.label || "Lancaster, Lancashire"}
+                    </div>
+                ) : null}
+                {selectedGps ? (
+                    <div>
+                        Postcode: {selectedGeoLookup?.postcode || "Not found"}
+                        {selectedGeoLookup?.countryCode ? ` | Country: ${selectedGeoLookup.countryCode}` : ""}
+                    </div>
+                ) : null}
             </div>
         </div>
     );
@@ -2395,6 +2537,8 @@ function SelectedItemDrawer({
     selectedItem,
     selectedCounts,
     selectedGps,
+    selectedGeoLookup,
+    isResolvingGeoLookup,
     selectedMapsUrl,
     selectedWeight,
     editingItemId,
@@ -2409,6 +2553,9 @@ function SelectedItemDrawer({
     removeLocation,
     startEditingItem,
     canManageItems,
+    onCopyShareLink,
+    copiedShareItemId,
+    shareCopyStatus,
 }) {
     if (!selectedItem || !selectedCounts) return null;
     const useCompactSheet =
@@ -2479,24 +2626,49 @@ function SelectedItemDrawer({
                     <strong style={{ fontSize: "1.1rem", color: "#1e293b" }}>
                         {TYPE_LABELS[normalizeType(selectedItem.type)]}
                     </strong>
-                    <button
-                        onClick={() => {
-                            setSelectedItemId(null);
-                            setEditingItemId(null);
-                        }}
-                        style={{
-                            border: "1px solid #cbd5e1",
-                            background: "#fff",
-                            borderRadius: "999px",
-                            width: "34px",
-                            height: "34px",
-                            fontWeight: 700,
-                            cursor: "pointer",
-                        }}
-                        aria-label="Close details"
-                    >
-                        ×
-                    </button>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        {onCopyShareLink ? (
+                            <button
+                                onClick={() => onCopyShareLink(selectedItem.id)}
+                                style={{
+                                    border: "1px solid #d1d1d6",
+                                    background: "#f2f2f7",
+                                    color: "#0a84ff",
+                                    borderRadius: "999px",
+                                    height: "34px",
+                                    padding: "0 14px",
+                                    fontWeight: 600,
+                                    fontSize: "0.84rem",
+                                    letterSpacing: "0.01em",
+                                    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+                                    cursor: "pointer",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                }}
+                            >
+                                Share
+                            </button>
+                        ) : null}
+                        <button
+                            onClick={() => {
+                                setSelectedItemId(null);
+                                setEditingItemId(null);
+                            }}
+                            style={{
+                                border: "1px solid #cbd5e1",
+                                background: "#fff",
+                                borderRadius: "999px",
+                                width: "34px",
+                                height: "34px",
+                                fontWeight: 700,
+                                cursor: "pointer",
+                            }}
+                            aria-label="Close details"
+                        >
+                            ×
+                        </button>
+                    </div>
                 </div>
 
                 {/* Two-column on desktop, stacked on mobile */}
@@ -2600,6 +2772,26 @@ function SelectedItemDrawer({
                                     Location: <strong>Not available</strong>
                                 </div>
                             )}
+                            {copiedShareItemId === selectedItem.id && shareCopyStatus ? (
+                                <div style={{ marginTop: "4px", color: "#0f766e", fontWeight: 600, fontSize: "0.78rem" }}>
+                                    {shareCopyStatus}
+                                </div>
+                            ) : null}
+                            {selectedGps ? (
+                                <div style={{ marginTop: "2px" }}>
+                                    Area: <strong>
+                                        {isResolvingGeoLookup && !selectedGeoLookup
+                                            ? "Locating..."
+                                            : selectedGeoLookup?.label || "Lancaster, Lancashire"}
+                                    </strong>
+                                </div>
+                            ) : null}
+                            {selectedGps ? (
+                                <div style={{ marginTop: "2px" }}>
+                                    Postcode: <strong>{selectedGeoLookup?.postcode || "Not found"}</strong>
+                                    {selectedGeoLookup?.countryCode ? ` | Country: ${selectedGeoLookup.countryCode}` : ""}
+                                </div>
+                            ) : null}
                         </div>
 
                         <hr style={{ border: "0.5px solid #eee", margin: compactNoScroll ? "4px 0 8px" : "6px 0 10px" }} />
@@ -2904,6 +3096,7 @@ function App() {
     const [editForm, setEditForm] = useState({ type: "misc", total: 1, recovered: 0, estimatedWeight: String(getDefaultWeightForType("misc")), lat: "", lng: "" });
     const [isUpdatingItemId, setIsUpdatingItemId] = useState(null);
     const [selectedItemId, setSelectedItemId] = useState(null);
+    const [querySelectedItemId, setQuerySelectedItemId] = useState(() => readSelectedItemIdFromQuery());
     const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
     const [isTidePlannerCollapsed, setIsTidePlannerCollapsed] = useState(true);
     const [lancasterTideRows, setLancasterTideRows] = useState([]);
@@ -2924,6 +3117,10 @@ function App() {
     const [localWeights, setLocalWeights] = useState(() =>
         readStoredJson(WEIGHT_STORAGE_KEY, {}, (value) => value && typeof value === "object" && !Array.isArray(value)),
     );
+    const [localGeoLookup, setLocalGeoLookup] = useState(() =>
+        readStoredJson(GEOLOOKUP_STORAGE_KEY, {}, (value) => value && typeof value === "object" && !Array.isArray(value)),
+    );
+    const [isResolvingGeoLookup, setIsResolvingGeoLookup] = useState(false);
     const [dbCountFieldSupport, setDbCountFieldSupport] = useState(() =>
         inferDbCountFieldSupport(readStoredJson(ITEMS_STORAGE_KEY, [], Array.isArray)),
     );
@@ -2932,6 +3129,9 @@ function App() {
     );
     const [dbWeightFieldSupport, setDbWeightFieldSupport] = useState(() =>
         inferDbWeightFieldSupport(readStoredJson(ITEMS_STORAGE_KEY, [], Array.isArray)),
+    );
+    const [dbGeoFieldSupport, setDbGeoFieldSupport] = useState(() =>
+        inferDbGeoFieldSupport(readStoredJson(ITEMS_STORAGE_KEY, [], Array.isArray)),
     );
     const [isMobile, setIsMobile] = useState(detectMobileViewport);
     const [waybackReleases, setWaybackReleases] = useState([]);
@@ -2942,11 +3142,81 @@ function App() {
     const [pendingEstimatedWeight, setPendingEstimatedWeight] = useState("");
     const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
     const [isMapToolsOpen, setIsMapToolsOpen] = useState(false);
+    const [copiedShareItemId, setCopiedShareItemId] = useState(null);
+    const [shareCopyStatus, setShareCopyStatus] = useState("");
     const ignoreNextMapClickRef = useRef(false);
     const mapOverlayRootRef = useRef(null);
     const liveLocationWatchIdRef = useRef(null);
     const liveLocationBestRef = useRef(null);
+    const geocodeAttemptedKeysRef = useRef(new Set());
+    const shareCopyTimeoutRef = useRef(null);
     const canManageItems = useMemo(() => canUserManageItems(currentUser), [currentUser]);
+
+    const copyShareLinkForItem = async (itemId) => {
+        const shareUrl = buildShareItemUrl(itemId);
+        if (!shareUrl) return;
+
+        if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+            try {
+                await navigator.share({
+                    title: "River Bank Cleanup Tracker",
+                    text: "Check this cleanup location.",
+                    url: shareUrl,
+                });
+
+                setCopiedShareItemId(itemId);
+                setShareCopyStatus("Share sheet opened.");
+
+                if (shareCopyTimeoutRef.current) {
+                    window.clearTimeout(shareCopyTimeoutRef.current);
+                }
+
+                shareCopyTimeoutRef.current = window.setTimeout(() => {
+                    setCopiedShareItemId(null);
+                    setShareCopyStatus("");
+                    shareCopyTimeoutRef.current = null;
+                }, 2400);
+
+                return;
+            } catch (error) {
+                if (error?.name === "AbortError") {
+                    return;
+                }
+            }
+        }
+
+        try {
+            if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(shareUrl);
+            } else {
+                const textArea = document.createElement("textarea");
+                textArea.value = shareUrl;
+                textArea.setAttribute("readonly", "");
+                textArea.style.position = "absolute";
+                textArea.style.left = "-9999px";
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand("copy");
+                document.body.removeChild(textArea);
+            }
+
+            setCopiedShareItemId(itemId);
+            setShareCopyStatus("Share link copied.");
+        } catch {
+            setCopiedShareItemId(itemId);
+            setShareCopyStatus("Could not copy automatically.");
+        }
+
+        if (shareCopyTimeoutRef.current) {
+            window.clearTimeout(shareCopyTimeoutRef.current);
+        }
+
+        shareCopyTimeoutRef.current = window.setTimeout(() => {
+            setCopiedShareItemId(null);
+            setShareCopyStatus("");
+            shareCopyTimeoutRef.current = null;
+        }, 2400);
+    };
 
     const markOverlayInteraction = () => {
         ignoreNextMapClickRef.current = true;
@@ -3104,6 +3374,10 @@ function App() {
     }, [localWeights]);
 
     useEffect(() => {
+        localStorage.setItem(GEOLOOKUP_STORAGE_KEY, JSON.stringify(localGeoLookup));
+    }, [localGeoLookup]);
+
+    useEffect(() => {
         const handleResize = () => {
             setIsMobile(detectMobileViewport());
         };
@@ -3126,6 +3400,26 @@ function App() {
             setIsImageViewerOpen(false);
         }
     }, [items, selectedItemId]);
+
+    useEffect(() => {
+        return () => {
+            if (shareCopyTimeoutRef.current) {
+                window.clearTimeout(shareCopyTimeoutRef.current);
+                shareCopyTimeoutRef.current = null;
+            }
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!querySelectedItemId) return;
+        if (!items.length) return;
+
+        const matchedItem = items.find((item) => String(item.id) === querySelectedItemId);
+        if (!matchedItem) return;
+
+        setSelectedItemId(matchedItem.id);
+        setQuerySelectedItemId(null);
+    }, [items, querySelectedItemId]);
 
     useEffect(() => {
         if (canManageItems) return;
@@ -3264,6 +3558,39 @@ function App() {
         };
     };
 
+    const getItemGeoLookup = (item, gps) => {
+        const dbLabel =
+            dbGeoFieldSupport.label !== false && typeof item.geocode_label === "string"
+                ? item.geocode_label.trim()
+                : "";
+        const dbPostcode =
+            dbGeoFieldSupport.postcode !== false && typeof item.geocode_postcode === "string"
+                ? item.geocode_postcode.trim()
+                : "";
+        const dbCountryCode =
+            dbGeoFieldSupport.countryCode !== false && typeof item.geocode_country_code === "string"
+                ? item.geocode_country_code.trim().toUpperCase()
+                : "";
+        const dbSource =
+            dbGeoFieldSupport.source !== false && typeof item.geocode_source === "string"
+                ? item.geocode_source.trim().toLowerCase()
+                : "";
+
+        if (dbLabel) {
+            return {
+                label: dbLabel,
+                postcode: dbPostcode,
+                countryCode: dbCountryCode || "GB",
+                source: dbSource || "db",
+            };
+        }
+
+        if (!gps) return null;
+
+        const key = buildGpsLookupKey(gps.latitude, gps.longitude);
+        return key ? localGeoLookup[key] || null : null;
+    };
+
     async function fetchItems() {
         setIsLoadingItems(true);
         const { data, error } = await supabase.from("items").select("*");
@@ -3277,9 +3604,57 @@ function App() {
         setDbCountFieldSupport(inferDbCountFieldSupport(nextItems));
         setDbGpsFieldSupport(inferDbGpsFieldSupport(nextItems));
         setDbWeightFieldSupport(inferDbWeightFieldSupport(nextItems));
+        setDbGeoFieldSupport(inferDbGeoFieldSupport(nextItems));
         setItems(nextItems);
         setIsLoadingItems(false);
         return true;
+    }
+
+    async function saveGeoLookupForItem(itemId, geoLookup) {
+        if (
+            dbGeoFieldSupport.label === false ||
+            dbGeoFieldSupport.postcode === false ||
+            dbGeoFieldSupport.countryCode === false
+        ) {
+            return;
+        }
+
+        const payload = {
+            geocode_label: geoLookup.label,
+            geocode_postcode: geoLookup.postcode || null,
+            geocode_country_code: geoLookup.countryCode || "GB",
+            geocode_source: geoLookup.source || "nominatim",
+            geocode_updated_at: new Date().toISOString(),
+        };
+
+        let { error } = await supabase
+            .from("items")
+            .update(payload)
+            .eq("id", itemId);
+
+        const geocodeColumnMissing =
+            error &&
+            (
+                error.message?.toLowerCase().includes("geocode_label") ||
+                error.message?.toLowerCase().includes("geocode_postcode") ||
+                error.message?.toLowerCase().includes("geocode_country_code") ||
+                error.message?.toLowerCase().includes("geocode_source") ||
+                error.message?.toLowerCase().includes("geocode_updated_at")
+            );
+
+        if (geocodeColumnMissing) {
+            setDbGeoFieldSupport({ label: false, postcode: false, countryCode: false });
+            return;
+        }
+
+        if (!error) {
+            setDbGeoFieldSupport((prev) => ({
+                label: prev.label ?? true,
+                postcode: prev.postcode ?? true,
+                countryCode: prev.countryCode ?? true,
+                source: prev.source ?? true,
+            }));
+        }
     }
 
     async function uploadImage(file) {
@@ -3821,10 +4196,82 @@ function App() {
         () => (selectedGps ? createMapsUrl(selectedGps.latitude, selectedGps.longitude) : null),
         [selectedGps],
     );
+    const selectedGeoLookupKey = useMemo(
+        () =>
+            selectedGps
+                ? buildGpsLookupKey(selectedGps.latitude, selectedGps.longitude)
+                : "",
+        [selectedGps],
+    );
+    const selectedGeoLookup = useMemo(
+        () => (selectedItem && selectedGps ? getItemGeoLookup(selectedItem, selectedGps) : null),
+        [selectedItem, selectedGps, localGeoLookup, dbGeoFieldSupport],
+    );
     const selectedWeight = useMemo(
         () => (selectedItem ? getItemEstimatedWeight(selectedItem) : null),
         [selectedItem, localWeights, dbWeightFieldSupport],
     );
+
+    useEffect(() => {
+        if (!selectedGps || !selectedGeoLookupKey) {
+            setIsResolvingGeoLookup(false);
+            return;
+        }
+
+        const needsLookup = shouldResolveGeoLookup(selectedGeoLookup);
+        if (!needsLookup) {
+            setIsResolvingGeoLookup(false);
+            return;
+        }
+
+        const attemptKey = `${selectedItem?.id || "unknown"}:${selectedGeoLookupKey}`;
+        if (geocodeAttemptedKeysRef.current.has(attemptKey)) {
+            setIsResolvingGeoLookup(false);
+            return;
+        }
+
+        geocodeAttemptedKeysRef.current.add(attemptKey);
+
+        let isCancelled = false;
+        setIsResolvingGeoLookup(true);
+
+        fetchReverseGeocodeForGps(selectedGps.latitude, selectedGps.longitude)
+            .then((geoResult) => {
+                if (isCancelled) return;
+
+                setLocalGeoLookup((prev) => ({
+                    ...prev,
+                    [selectedGeoLookupKey]: geoResult,
+                }));
+
+                if (selectedItem?.id) {
+                    void saveGeoLookupForItem(selectedItem.id, geoResult);
+                }
+            })
+            .catch(() => {
+                if (isCancelled) return;
+
+                const fallbackGeoResult = buildFallbackGeoLookup();
+
+                setLocalGeoLookup((prev) => ({
+                    ...prev,
+                    [selectedGeoLookupKey]: fallbackGeoResult,
+                }));
+
+                if (selectedItem?.id) {
+                    void saveGeoLookupForItem(selectedItem.id, fallbackGeoResult);
+                }
+            })
+            .finally(() => {
+                if (!isCancelled) {
+                    setIsResolvingGeoLookup(false);
+                }
+            });
+
+        return () => {
+            isCancelled = true;
+        };
+    }, [selectedGps, selectedGeoLookupKey, selectedGeoLookup, selectedItem?.id]);
 
     return (
         <div
@@ -4258,6 +4705,8 @@ function App() {
                 selectedItem={selectedItem}
                 selectedCounts={selectedCounts}
                 selectedGps={selectedGps}
+                selectedGeoLookup={selectedGeoLookup}
+                isResolvingGeoLookup={isResolvingGeoLookup}
                 selectedMapsUrl={selectedMapsUrl}
                 selectedWeight={selectedWeight}
                 editingItemId={editingItemId}
@@ -4272,6 +4721,9 @@ function App() {
                 removeLocation={removeLocation}
                 startEditingItem={startEditingItem}
                 canManageItems={canManageItems}
+                onCopyShareLink={copyShareLinkForItem}
+                copiedShareItemId={copiedShareItemId}
+                shareCopyStatus={shareCopyStatus}
             />
 
             <FullscreenImageViewer
@@ -4280,6 +4732,8 @@ function App() {
                 selectedItem={selectedItem}
                 selectedCounts={selectedCounts}
                 selectedGps={selectedGps}
+                selectedGeoLookup={selectedGeoLookup}
+                isResolvingGeoLookup={isResolvingGeoLookup}
                 selectedMapsUrl={selectedMapsUrl}
                 onClose={() => setIsImageViewerOpen(false)}
             />

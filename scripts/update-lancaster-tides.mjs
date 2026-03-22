@@ -22,7 +22,7 @@ const parseRows = (html) => {
     const tableRows = html.match(/<tr[\s\S]*?<\/tr>/gi) || [];
 
     for (const rowHtml of tableRows) {
-        if (rows.length >= 8) break;
+        if (rows.length >= 20) break;
 
         const cells = Array.from(rowHtml.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi))
             .map((match) => stripHtml(match[1]))

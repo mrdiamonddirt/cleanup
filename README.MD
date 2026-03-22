@@ -23,7 +23,26 @@ To maintain the aspect ratio of the aerial imagery, I implemented a custom `CRS.
 ## 🌊 Tide Data
 - The Lancaster tide planner reads from [public/lancaster-tides.json](public/lancaster-tides.json)
 - Refresh manually with `npm run update:tides`
-- A scheduled GitHub Actions workflow updates the JSON daily and redeploys the site
+- A scheduled GitHub Actions workflow updates the JSON every 6 hours and redeploys the site
+
+## 🔎 SEO Share Pages (Supabase Prerender)
+- Build-time SEO page generation runs with `npm run generate:seo`.
+- Generated files are written to `public/share/<item-id>/index.html`.
+- Each share page contains crawler-friendly Open Graph/Twitter metadata from Supabase item data.
+- Human visitors can open the app directly with `?item=<id>` deep links.
+
+To enable Supabase-backed SEO generation in GitHub Actions, configure repository secrets:
+
+```env
+VITE_SUPABASE_URL=...
+VITE_SUPABASE_ANON_KEY=...
+```
+
+Optional site URL override:
+
+```env
+SEO_SITE_URL=https://mrdiamonddirt.github.io/cleanup
+```
 
 ## 🔐 Auth (GitHub + Owner Write Access)
 - Sign-in uses Supabase Auth with the GitHub provider.

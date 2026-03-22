@@ -29,3 +29,6 @@ misc/*
 #env files
 .env
 .env.local
+
+# generated SEO share pages
+public/share/
