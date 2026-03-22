@@ -2801,6 +2801,21 @@ function FullscreenImageViewer({
 }) {
     if (!isOpen || !selectedItem?.image_url || !selectedCounts) return null;
 
+    const MIN_ZOOM = 1;
+    const MAX_ZOOM = 3;
+    const ZOOM_STEP = 0.25;
+    const [zoomLevel, setZoomLevel] = useState(1);
+    const [isDetailsVisible, setIsDetailsVisible] = useState(true);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        setZoomLevel(1);
+        setIsDetailsVisible(true);
+    }, [isOpen, selectedItem?.id]);
+
+    const clampZoom = (value) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
+    const zoomPercent = Math.round(zoomLevel * 100);
+
     const viewerNode = (
         <div
             style={{
@@ -2815,12 +2830,116 @@ function FullscreenImageViewer({
                 boxSizing: "border-box",
             }}
         >
+            <div
+                style={{
+                    position: "absolute",
+                    top: "10px",
+                    left: "10px",
+                    display: "flex",
+                    gap: "8px",
+                    alignItems: "center",
+                    padding: "8px 10px",
+                    borderRadius: "999px",
+                    border: "1px solid rgba(255,255,255,0.25)",
+                    background: "rgba(0,0,0,0.42)",
+                    color: "#fff",
+                    zIndex: 2,
+                }}
+            >
+                <button
+                    type="button"
+                    onClick={() => setZoomLevel((prev) => clampZoom(prev - ZOOM_STEP))}
+                    disabled={zoomLevel <= MIN_ZOOM}
+                    style={{
+                        width: "32px",
+                        height: "32px",
+                        borderRadius: "50%",
+                        border: "1px solid rgba(255,255,255,0.35)",
+                        background: "rgba(15,23,42,0.5)",
+                        color: "#fff",
+                        fontSize: "1.1rem",
+                        cursor: "pointer",
+                        opacity: zoomLevel <= MIN_ZOOM ? 0.45 : 1,
+                    }}
+                    aria-label="Zoom out"
+                >
+                    -
+                </button>
+
+                <input
+                    type="range"
+                    min={MIN_ZOOM}
+                    max={MAX_ZOOM}
+                    step={ZOOM_STEP}
+                    value={zoomLevel}
+                    onChange={(event) => setZoomLevel(Number(event.target.value))}
+                    aria-label="Zoom level"
+                />
+
+                <button
+                    type="button"
+                    onClick={() => setZoomLevel((prev) => clampZoom(prev + ZOOM_STEP))}
+                    disabled={zoomLevel >= MAX_ZOOM}
+                    style={{
+                        width: "32px",
+                        height: "32px",
+                        borderRadius: "50%",
+                        border: "1px solid rgba(255,255,255,0.35)",
+                        background: "rgba(15,23,42,0.5)",
+                        color: "#fff",
+                        fontSize: "1.1rem",
+                        cursor: "pointer",
+                        opacity: zoomLevel >= MAX_ZOOM ? 0.45 : 1,
+                    }}
+                    aria-label="Zoom in"
+                >
+                    +
+                </button>
+
+                <button
+                    type="button"
+                    onClick={() => setZoomLevel(1)}
+                    style={{
+                        borderRadius: "999px",
+                        border: "1px solid rgba(255,255,255,0.35)",
+                        background: "rgba(15,23,42,0.45)",
+                        color: "#fff",
+                        fontSize: "0.78rem",
+                        fontWeight: 700,
+                        padding: "6px 9px",
+                        cursor: "pointer",
+                    }}
+                    aria-label="Reset zoom"
+                >
+                    {zoomPercent}%
+                </button>
+
+                <button
+                    type="button"
+                    onClick={() => setIsDetailsVisible((prev) => !prev)}
+                    style={{
+                        borderRadius: "999px",
+                        border: "1px solid rgba(255,255,255,0.35)",
+                        background: "rgba(15,23,42,0.45)",
+                        color: "#fff",
+                        fontSize: "0.78rem",
+                        fontWeight: 700,
+                        padding: "6px 10px",
+                        cursor: "pointer",
+                    }}
+                    aria-label={isDetailsVisible ? "Hide details panel" : "Show details panel"}
+                >
+                    {isDetailsVisible ? "Hide Details" : "Show Details"}
+                </button>
+            </div>
+
             <button
                 onClick={onClose}
                 style={{
                     position: "absolute",
                     top: "10px",
                     right: "10px",
+                    zIndex: 3,
                     width: "40px",
                     height: "40px",
                     borderRadius: "50%",
@@ -2835,53 +2954,72 @@ function FullscreenImageViewer({
                 ×
             </button>
 
-            <img
-                src={selectedItem.image_url}
-                alt="Debris evidence full size"
-                style={{
-                    maxWidth: "100%",
-                    maxHeight: "100%",
-                    objectFit: "contain",
-                }}
-            />
-
             <div
                 style={{
                     position: "absolute",
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    background: "linear-gradient(to top, rgba(0, 0, 0, 0.95), rgba(0, 0, 0, 0.6))",
-                    color: "#f8fafc",
-                    padding: "10px 14px 14px",
-                    fontSize: "0.85rem",
-                    lineHeight: 1.45,
+                    inset: 0,
+                    overflow: "auto",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    touchAction: "pan-x pan-y pinch-zoom",
+                    padding: isMobile ? "58px 8px 8px" : "64px 20px 20px",
+                    paddingBottom: isDetailsVisible ? (isMobile ? "150px" : "172px") : (isMobile ? "12px" : "20px"),
+                    boxSizing: "border-box",
                 }}
             >
-                <div style={{ display: "grid", gap: "8px" }}>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center", color: "#ffffff" }}>
-                        <strong style={{ fontSize: "0.96rem" }}>{TYPE_LABELS[normalizeType(selectedItem.type)]}</strong>
-                        <span style={{ color: "rgba(226,232,240,0.82)" }}>•</span>
-                        <span style={{ color: "rgba(241,245,249,0.92)" }}>
-                            {selectedCounts.isRecovered ? "Recovered" : "In Water"}
-                        </span>
-                    </div>
-
-                    <div style={{ color: "rgba(226,232,240,0.86)" }}>
-                        Spotted: {new Date(selectedItem.created_at).toLocaleString()}
-                    </div>
-
-                    <LocationDetailsBlock
-                        gps={selectedGps}
-                        geoLookup={selectedGeoLookup}
-                        isResolving={isResolvingGeoLookup}
-                        mapsUrl={selectedMapsUrl}
-                        mapPoint={{ latitude: selectedItem.y, longitude: selectedItem.x }}
-                        compact
-                        inverted
-                    />
-                </div>
+                <img
+                    src={selectedItem.image_url}
+                    alt="Debris evidence full size"
+                    style={{
+                        maxWidth: `${zoomPercent}%`,
+                        maxHeight: `${zoomPercent}%`,
+                        width: "auto",
+                        height: "auto",
+                        objectFit: "contain",
+                    }}
+                />
             </div>
+
+            {isDetailsVisible ? (
+                <div
+                    style={{
+                        position: "absolute",
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        background: "linear-gradient(to top, rgba(0, 0, 0, 0.95), rgba(0, 0, 0, 0.6))",
+                        color: "#f8fafc",
+                        padding: "10px 14px 14px",
+                        fontSize: "0.85rem",
+                        lineHeight: 1.45,
+                    }}
+                >
+                    <div style={{ display: "grid", gap: "8px" }}>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center", color: "#ffffff" }}>
+                            <strong style={{ fontSize: "0.96rem" }}>{TYPE_LABELS[normalizeType(selectedItem.type)]}</strong>
+                            <span style={{ color: "rgba(226,232,240,0.82)" }}>•</span>
+                            <span style={{ color: "rgba(241,245,249,0.92)" }}>
+                                {selectedCounts.isRecovered ? "Recovered" : "In Water"}
+                            </span>
+                        </div>
+
+                        <div style={{ color: "rgba(226,232,240,0.86)" }}>
+                            Spotted: {new Date(selectedItem.created_at).toLocaleString()}
+                        </div>
+
+                        <LocationDetailsBlock
+                            gps={selectedGps}
+                            geoLookup={selectedGeoLookup}
+                            isResolving={isResolvingGeoLookup}
+                            mapsUrl={selectedMapsUrl}
+                            mapPoint={{ latitude: selectedItem.y, longitude: selectedItem.x }}
+                            compact
+                            inverted
+                        />
+                    </div>
+                </div>
+            ) : null}
         </div>
     );
 
