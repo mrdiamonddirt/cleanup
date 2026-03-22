@@ -207,7 +207,7 @@ const main = async () => {
         localEnv.SEO_SITE_URL ||
         localEnv.SITE_URL ||
         localEnv.VITE_SITE_URL ||
-        "https://mrdiamonddirt.github.io/cleanup",
+        "https://rivercleanup.co.uk",
     );
 
     await rm(shareRoot, { recursive: true, force: true });

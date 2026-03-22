@@ -12,7 +12,7 @@ jobs:
   refresh-and-deploy:
     runs-on: ubuntu-latest
     env:
-      SEO_SITE_URL: https://mrdiamonddirt.github.io/cleanup
+      SEO_SITE_URL: https://rivercleanup.co.uk
       VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
       VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 

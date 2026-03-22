@@ -3580,6 +3580,54 @@ function SelectedItemDrawer({
                                 No photo attached
                             </div>
                         )}
+
+                        {!isItemStoryEmpty(selectedStory) ? (
+                            <div
+                                style={{
+                                    display: "grid",
+                                    gap: "5px",
+                                    marginTop: "8px",
+                                    padding: compactNoScroll ? "8px 9px" : useBottomSheet ? "8px 9px" : "10px 11px",
+                                    borderRadius: "12px",
+                                    border: "1px solid #dbe3ee",
+                                    background: "#f8fafc",
+                                    color: "#334155",
+                                    fontSize: compactNoScroll ? "0.78rem" : useBottomSheet ? "0.8rem" : "0.83rem",
+                                    lineHeight: 1.45,
+                                }}
+                            >
+                                {selectedStory?.knownSinceDate ? (
+                                    <div>
+                                        Known in river since: <strong style={{ color: "#0f172a" }}>{formatStoryDate(selectedStory.knownSinceDate)}</strong>
+                                    </div>
+                                ) : null}
+                                {selectedStory?.recoveredOnDate ? (
+                                    <div>
+                                        Recovered on: <strong style={{ color: "#0f172a" }}>{formatStoryDate(selectedStory.recoveredOnDate)}</strong>
+                                    </div>
+                                ) : null}
+                                {timeInRiverLabel ? (
+                                    <div>
+                                        Time in river: <strong style={{ color: "#0f172a" }}>{timeInRiverLabel}</strong>
+                                    </div>
+                                ) : null}
+                                {selectedStory?.referenceImageUrl ? (
+                                    <div style={{ color: "#1d4ed8", fontWeight: 600 }}>
+                                        Includes reference image in fullscreen viewer.
+                                    </div>
+                                ) : null}
+                                {selectedStory?.referenceImageCaption ? (
+                                    <a
+                                        href={selectedStory.referenceImageCaption}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        style={{ color: "#1d4ed8", fontWeight: 700, width: "fit-content" }}
+                                    >
+                                        Open Street View source
+                                    </a>
+                                ) : null}
+                            </div>
+                        ) : null}
                     </div>
 
                     {/* Right: details + actions */}
@@ -3592,53 +3640,6 @@ function SelectedItemDrawer({
                             <div style={{ color: "#64748b", fontSize: compactNoScroll ? "0.8rem" : "0.84rem" }}>
                                 Spotted: {new Date(selectedItem.created_at).toLocaleString()}
                             </div>
-
-                            {!isItemStoryEmpty(selectedStory) ? (
-                                <div
-                                    style={{
-                                        display: "grid",
-                                        gap: "5px",
-                                        padding: compactNoScroll ? "8px 9px" : useBottomSheet ? "8px 9px" : "10px 11px",
-                                        borderRadius: "12px",
-                                        border: "1px solid #dbe3ee",
-                                        background: "#f8fafc",
-                                        color: "#334155",
-                                        fontSize: compactNoScroll ? "0.78rem" : useBottomSheet ? "0.8rem" : "0.83rem",
-                                        lineHeight: 1.45,
-                                    }}
-                                >
-                                    {selectedStory?.knownSinceDate ? (
-                                        <div>
-                                            Known in river since: <strong style={{ color: "#0f172a" }}>{formatStoryDate(selectedStory.knownSinceDate)}</strong>
-                                        </div>
-                                    ) : null}
-                                    {selectedStory?.recoveredOnDate ? (
-                                        <div>
-                                            Recovered on: <strong style={{ color: "#0f172a" }}>{formatStoryDate(selectedStory.recoveredOnDate)}</strong>
-                                        </div>
-                                    ) : null}
-                                    {timeInRiverLabel ? (
-                                        <div>
-                                            Time in river: <strong style={{ color: "#0f172a" }}>{timeInRiverLabel}</strong>
-                                        </div>
-                                    ) : null}
-                                    {selectedStory?.referenceImageUrl ? (
-                                        <div style={{ color: "#1d4ed8", fontWeight: 600 }}>
-                                            Includes reference image in fullscreen viewer.
-                                        </div>
-                                    ) : null}
-                                    {selectedStory?.referenceImageCaption ? (
-                                        <a
-                                            href={selectedStory.referenceImageCaption}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            style={{ color: "#1d4ed8", fontWeight: 700, width: "fit-content" }}
-                                        >
-                                            Open Street View source
-                                        </a>
-                                    ) : null}
-                                </div>
-                            ) : null}
 
                             <div style={{ display: "grid", gridTemplateColumns: statGridColumns, gap: "8px", minWidth: 0 }}>
                                 <DetailBadge
