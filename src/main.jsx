@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom/client";
+import { createPortal } from "react-dom";
 import {
     MapContainer,
     TileLayer,
@@ -540,6 +541,7 @@ function PendingPlacementOverlay({
     setPendingLocation,
     handleTypePick,
     markOverlayInteraction,
+    overlayPortalElement,
 }) {
     const map = useMap();
     const panelRef = useRef(null);
@@ -584,6 +586,11 @@ function PendingPlacementOverlay({
 
     useEffect(() => {
         if (!pendingLocation) return undefined;
+
+        if (isMobile) {
+            setPanelPosition((prev) => ({ ...prev, ready: true }));
+            return undefined;
+        }
 
         const updatePosition = () => {
             const container = map.getContainer();
@@ -638,48 +645,54 @@ function PendingPlacementOverlay({
 
     if (!pendingLocation) return null;
 
-    return (
+    const panelNode = (
         <div
             ref={panelRef}
             style={{
-                position: "absolute",
-                left: `${panelPosition.left}px`,
-                top: `${panelPosition.top}px`,
-                width: isMobile ? "min(288px, calc(100% - 24px))" : "320px",
-                padding: isMobile ? "10px" : "10px 12px",
+                position: isMobile ? "fixed" : "absolute",
+                left: isMobile ? "8px" : `${panelPosition.left}px`,
+                right: isMobile ? "8px" : "auto",
+                bottom: isMobile ? "calc(env(safe-area-inset-bottom, 0px) + 8px)" : "auto",
+                top: isMobile ? "auto" : `${panelPosition.top}px`,
+                width: isMobile ? "auto" : "320px",
+                maxHeight: isMobile ? "62svh" : "none",
+                overflowY: isMobile ? "auto" : "visible",
+                padding: isMobile ? "12px" : "10px 12px",
                 border: "1px solid #cbd5e1",
-                borderRadius: "10px",
+                borderRadius: isMobile ? "16px" : "10px",
                 background: "rgba(248,250,252,0.98)",
                 boxShadow: "0 14px 32px rgba(15,23,42,0.18)",
                 backdropFilter: "blur(6px)",
-                zIndex: 500,
+                zIndex: isMobile ? 1400 : 1100,
                 boxSizing: "border-box",
                 opacity: panelPosition.ready ? 1 : 0,
                 transform: panelPosition.ready ? "translateY(0)" : "translateY(4px)",
                 transition: "opacity 140ms ease, transform 180ms ease",
             }}
         >
-            <div
-                aria-hidden="true"
-                style={{
-                    position: "absolute",
-                    left: `${panelPosition.arrowLeft}px`,
-                    width: "14px",
-                    height: "14px",
-                    background: "rgba(248,250,252,0.98)",
-                    borderLeft: "1px solid #cbd5e1",
-                    borderTop: "1px solid #cbd5e1",
-                    transform: panelPosition.placement === "above"
-                        ? "translateX(-50%) translateY(50%) rotate(225deg)"
-                        : "translateX(-50%) translateY(-50%) rotate(45deg)",
-                    boxShadow: panelPosition.placement === "above"
-                        ? "4px 4px 12px rgba(15,23,42,0.08)"
-                        : "-4px -4px 12px rgba(15,23,42,0.08)",
-                    bottom: panelPosition.placement === "above" ? "0" : "auto",
-                    top: panelPosition.placement === "below" ? "0" : "auto",
-                    zIndex: -1,
-                }}
-            />
+            {!isMobile ? (
+                <div
+                    aria-hidden="true"
+                    style={{
+                        position: "absolute",
+                        left: `${panelPosition.arrowLeft}px`,
+                        width: "14px",
+                        height: "14px",
+                        background: "rgba(248,250,252,0.98)",
+                        borderLeft: "1px solid #cbd5e1",
+                        borderTop: "1px solid #cbd5e1",
+                        transform: panelPosition.placement === "above"
+                            ? "translateX(-50%) translateY(50%) rotate(225deg)"
+                            : "translateX(-50%) translateY(-50%) rotate(45deg)",
+                        boxShadow: panelPosition.placement === "above"
+                            ? "4px 4px 12px rgba(15,23,42,0.08)"
+                            : "-4px -4px 12px rgba(15,23,42,0.08)",
+                        bottom: panelPosition.placement === "above" ? "0" : "auto",
+                        top: panelPosition.placement === "below" ? "0" : "auto",
+                        zIndex: -1,
+                    }}
+                />
+            ) : null}
             <div
                 style={{
                     fontSize: "0.9rem",
@@ -900,6 +913,12 @@ function PendingPlacementOverlay({
             )}
         </div>
     );
+
+    if (overlayPortalElement) {
+        return createPortal(panelNode, overlayPortalElement);
+    }
+
+    return panelNode;
 }
 
 function HeroBanner({
@@ -2636,7 +2655,10 @@ function App() {
     const [liveLocation, setLiveLocation] = useState(null);
     const [liveLocationError, setLiveLocationError] = useState("");
     const [pendingEstimatedWeight, setPendingEstimatedWeight] = useState("");
+    const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
+    const [isMapToolsOpen, setIsMapToolsOpen] = useState(false);
     const ignoreNextMapClickRef = useRef(false);
+    const mapOverlayRootRef = useRef(null);
     const liveLocationWatchIdRef = useRef(null);
     const liveLocationBestRef = useRef(null);
     const canManageItems = useMemo(() => canUserManageItems(currentUser), [currentUser]);
@@ -2827,6 +2849,12 @@ function App() {
         setPendingItemType(null);
         setEditingItemId(null);
     }, [canManageItems]);
+
+    useEffect(() => {
+        if (!pendingLocation) return;
+        setIsFilterSheetOpen(false);
+        setIsMapToolsOpen(false);
+    }, [pendingLocation]);
 
     useEffect(() => {
         fetchLancasterTides();
@@ -3485,6 +3513,7 @@ function App() {
     const mapHeight = isMobile ? "58svh" : "calc(100vh - 250px)";
     const controlFontSize = isMobile ? "0.95rem" : "0.85rem";
     const touchButtonSize = isMobile ? "38px" : "30px";
+    const activeFilterCount = Number(typeFilter !== "all") + Number(statusFilter !== "all");
     const selectedItem = useMemo(
         () => (selectedItemId ? items.find((item) => item.id === selectedItemId) || null : null),
         [items, selectedItemId],
@@ -3509,10 +3538,22 @@ function App() {
     return (
         <div
             style={{
-                padding: isMobile ? "8px 6px 10px" : "8px",
-                fontFamily: "sans-serif",
+                padding: isMobile
+                    ? "calc(env(safe-area-inset-top, 0px) + 10px) 8px calc(env(safe-area-inset-bottom, 0px) + 12px)"
+                    : "18px 16px 20px",
+                fontFamily:
+                    '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", sans-serif',
                 maxWidth: "1200px",
                 margin: "0 auto",
+                borderRadius: isMobile ? "18px" : "24px",
+                border: "1px solid rgba(148,163,184,0.35)",
+                background: "linear-gradient(180deg, rgba(255,255,255,0.88) 0%, rgba(248,250,252,0.9) 100%)",
+                boxShadow: isMobile
+                    ? "0 12px 30px rgba(15,23,42,0.14)"
+                    : "0 20px 50px rgba(15,23,42,0.14)",
+                backdropFilter: "blur(14px)",
+                WebkitTapHighlightColor: "transparent",
+                boxSizing: "border-box",
             }}
         >
             <HeroBanner
@@ -3557,7 +3598,10 @@ function App() {
                 isMobile={isMobile}
             />
 
-            <div style={{ position: "relative" }}>
+            <div
+                ref={mapOverlayRootRef}
+                style={{ position: "relative" }}
+            >
                 <MapContainer
                     center={RIVER_LUNE_CENTER}
                     zoom={RIVER_LUNE_ZOOM}
@@ -3637,6 +3681,7 @@ function App() {
                         setPendingLocation={setPendingLocation}
                         handleTypePick={handleTypePick}
                         markOverlayInteraction={markOverlayInteraction}
+                        overlayPortalElement={mapOverlayRootRef.current}
                     />
 
                     {filteredItems.map((item) => {
@@ -3658,127 +3703,239 @@ function App() {
                     })}
                 </MapContainer>
 
-                <FilterControls
-                    isMobile={isMobile}
-                    controlFontSize={controlFontSize}
-                    typeFilter={typeFilter}
-                    statusFilter={statusFilter}
-                    setTypeFilter={setTypeFilter}
-                    setStatusFilter={setStatusFilter}
-                    isOverlay
-                />
+                {isMobile ? (
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setIsFilterSheetOpen(true);
+                            setIsMapToolsOpen(false);
+                        }}
+                        style={{
+                            position: "absolute",
+                            top: "10px",
+                            right: "10px",
+                            zIndex: 900,
+                            border: "1px solid #cbd5e1",
+                            background: "rgba(255,255,255,0.96)",
+                            color: "#0f172a",
+                            borderRadius: "999px",
+                            padding: "7px 11px",
+                            fontSize: "0.78rem",
+                            fontWeight: 700,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "7px",
+                            boxShadow: "0 6px 18px rgba(15,23,42,0.14)",
+                        }}
+                    >
+                        <span>Filters</span>
+                        {activeFilterCount > 0 ? (
+                            <span
+                                style={{
+                                    minWidth: "18px",
+                                    height: "18px",
+                                    borderRadius: "999px",
+                                    background: "#0ea5e9",
+                                    color: "#fff",
+                                    fontSize: "0.72rem",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    padding: "0 5px",
+                                    boxSizing: "border-box",
+                                }}
+                            >
+                                {activeFilterCount}
+                            </span>
+                        ) : null}
+                    </button>
+                ) : (
+                    <FilterControls
+                        isMobile={isMobile}
+                        controlFontSize={controlFontSize}
+                        typeFilter={typeFilter}
+                        statusFilter={statusFilter}
+                        setTypeFilter={setTypeFilter}
+                        setStatusFilter={setStatusFilter}
+                        isOverlay
+                    />
+                )}
 
                 <div
                     style={{
                         position: "absolute",
-                        bottom: "20px",
-                        right: "5px",
-                        zIndex: 1000,
+                        bottom: "14px",
+                        right: "10px",
+                        zIndex: 900,
                         display: "flex",
                         flexDirection: "column",
-                        gap: "5px",
+                        gap: "6px",
                         alignItems: "flex-end",
                     }}
                 >
                     <button
                         type="button"
-                        onClick={() => setIsLiveLocationEnabled((prev) => !prev)}
-                        title={isLiveLocationEnabled ? "Hide live location" : "Show live location"}
-                        aria-label={isLiveLocationEnabled ? "Hide live location" : "Show live location"}
+                        onClick={() => setIsMapToolsOpen((prev) => !prev)}
+                        aria-expanded={isMapToolsOpen}
                         style={{
-                            width: isMobile ? "34px" : "30px",
-                            height: isMobile ? "34px" : "30px",
                             border: "1px solid #cbd5e1",
-                            background: "rgba(255,255,255,0.97)",
+                            background: "rgba(255,255,255,0.96)",
                             color: "#0f172a",
-                            borderRadius: "6px",
-                            padding: 0,
-                            cursor: "pointer",
-                            boxShadow: "0 1px 4px rgba(0,0,0,0.16)",
+                            borderRadius: "999px",
+                            padding: isMobile ? "8px 12px" : "6px 10px",
+                            fontSize: "0.78rem",
+                            fontWeight: 700,
                             display: "inline-flex",
                             alignItems: "center",
-                            justifyContent: "center",
+                            gap: "8px",
+                            boxShadow: "0 8px 22px rgba(15,23,42,0.16)",
                         }}
                     >
-                        <span
-                            style={{
-                                width: "12px",
-                                height: "12px",
-                                borderRadius: "999px",
-                                border: "2px solid",
-                                borderColor: isLiveLocationEnabled ? "#0284c7" : "#64748b",
-                                background: "transparent",
-                                boxShadow: isLiveLocationEnabled
-                                    ? "inset 0 0 0 3px #0ea5e9"
-                                    : "none",
-                                transition: "all 0.2s ease",
-                            }}
-                        />
+                        <span>Map Tools</span>
+                        <span style={{ fontSize: "0.9em" }}>{isMapToolsOpen ? "▾" : "▴"}</span>
                     </button>
 
-                    {liveLocationError && (
+                    {isMapToolsOpen ? (
                         <div
                             style={{
-                                background: "rgba(254,226,226,0.96)",
-                                border: "1px solid #fecaca",
-                                borderRadius: "6px",
-                                padding: "4px 6px",
-                                boxShadow: "0 2px 6px rgba(0,0,0,0.12)",
-                                fontSize: "0.68rem",
-                                color: "#991b1b",
-                                lineHeight: 1.25,
-                                maxWidth: isMobile ? "150px" : "170px",
+                                width: isMobile ? "min(88vw, 300px)" : "280px",
+                                border: "1px solid rgba(148,163,184,0.45)",
+                                borderRadius: "12px",
+                                padding: "10px",
+                                background: "rgba(255,255,255,0.98)",
+                                boxShadow: "0 16px 32px rgba(15,23,42,0.2)",
+                                display: "grid",
+                                gap: "8px",
                             }}
                         >
-                            {liveLocationError}
-                        </div>
-                    )}
-                </div>
+                            <button
+                                type="button"
+                                onClick={() => setIsLiveLocationEnabled((prev) => !prev)}
+                                style={{
+                                    border: "1px solid #cbd5e1",
+                                    background: isLiveLocationEnabled ? "#e0f2fe" : "#fff",
+                                    color: "#0f172a",
+                                    borderRadius: "9px",
+                                    minHeight: "36px",
+                                    padding: "0 10px",
+                                    fontWeight: 700,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                }}
+                            >
+                                <span>Live Location</span>
+                                <span style={{ color: isLiveLocationEnabled ? "#0284c7" : "#64748b" }}>
+                                    {isLiveLocationEnabled ? "On" : "Off"}
+                                </span>
+                            </button>
 
-                {/* Imagery date selector — bottom-left of map */}
-                {waybackReleases.length > 0 && (
+                            {waybackReleases.length > 0 ? (
+                                <label style={{ display: "grid", gap: "5px", fontSize: "0.75rem", color: "#475569", fontWeight: 700 }}>
+                                    <span>Imagery</span>
+                                    <select
+                                        value={selectedWaybackId ?? ""}
+                                        onChange={(e) => setSelectedWaybackId(e.target.value ? Number(e.target.value) : null)}
+                                        style={{
+                                            border: "1px solid #cbd5e1",
+                                            borderRadius: "8px",
+                                            padding: "7px 8px",
+                                            background: "#fff",
+                                            fontSize: "0.82rem",
+                                        }}
+                                    >
+                                        <option value="">Mapbox (Live)</option>
+                                        {waybackReleases.map((r) => (
+                                            <option key={r.releaseNum} value={r.releaseNum}>
+                                                {r.releaseName}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+                            ) : null}
+
+                            {liveLocationError ? (
+                                <div
+                                    style={{
+                                        background: "rgba(254,226,226,0.96)",
+                                        border: "1px solid #fecaca",
+                                        borderRadius: "8px",
+                                        padding: "6px 8px",
+                                        fontSize: "0.72rem",
+                                        color: "#991b1b",
+                                        lineHeight: 1.25,
+                                    }}
+                                >
+                                    {liveLocationError}
+                                </div>
+                            ) : null}
+                        </div>
+                    ) : null}
+                </div>
+            </div>
+
+            {isMobile && isFilterSheetOpen ? (
+                <>
+                    <div
+                        onClick={() => setIsFilterSheetOpen(false)}
+                        style={{
+                            position: "fixed",
+                            inset: 0,
+                            background: "rgba(2,6,23,0.38)",
+                            zIndex: 1200,
+                        }}
+                    />
                     <div
                         style={{
-                            position: "absolute",
-                            bottom: "30px",
-                            left: "10px",
-                            zIndex: 1000,
-                            background: "rgba(255,255,255,0.95)",
-                            border: "1px solid #cbd5e1",
-                            borderRadius: "8px",
-                            padding: "6px 8px",
-                            boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
-                            fontSize: "0.78rem",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "6px",
-                            maxWidth: isMobile ? "200px" : "260px",
+                            position: "fixed",
+                            left: "0",
+                            right: "0",
+                            bottom: "0",
+                            zIndex: 1201,
+                            background: "#fff",
+                            borderTopLeftRadius: "16px",
+                            borderTopRightRadius: "16px",
+                            boxShadow: "0 -14px 32px rgba(15,23,42,0.2)",
+                            padding: "12px 12px calc(env(safe-area-inset-bottom, 0px) + 14px)",
                         }}
                     >
-                        <span style={{ fontWeight: 700, color: "#334155", whiteSpace: "nowrap" }}>🛰 Imagery:</span>
-                        <select
-                            value={selectedWaybackId ?? ""}
-                            onChange={(e) => setSelectedWaybackId(e.target.value ? Number(e.target.value) : null)}
+                        <div
                             style={{
-                                border: "1px solid #cbd5e1",
-                                borderRadius: "5px",
-                                padding: "3px 5px",
-                                fontSize: "0.78rem",
-                                background: "#fff",
-                                cursor: "pointer",
-                                maxWidth: "160px",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                marginBottom: "8px",
                             }}
                         >
-                            <option value="">Mapbox (Live)</option>
-                            {waybackReleases.map((r) => (
-                                <option key={r.releaseNum} value={r.releaseNum}>
-                                    {r.releaseName}
-                                </option>
-                            ))}
-                        </select>
+                            <strong style={{ color: "#0f172a", fontSize: "0.92rem" }}>Filters</strong>
+                            <button
+                                type="button"
+                                onClick={() => setIsFilterSheetOpen(false)}
+                                style={{
+                                    border: "1px solid #cbd5e1",
+                                    borderRadius: "999px",
+                                    background: "#fff",
+                                    width: "34px",
+                                    height: "34px",
+                                    fontWeight: 700,
+                                }}
+                                aria-label="Close filters"
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <FilterControls
+                            isMobile={isMobile}
+                            controlFontSize={controlFontSize}
+                            typeFilter={typeFilter}
+                            statusFilter={statusFilter}
+                            setTypeFilter={setTypeFilter}
+                            setStatusFilter={setStatusFilter}
+                        />
                     </div>
-                )}
-            </div>
+                </>
+            ) : null}
 
             <SelectedItemDrawer
                 selectedItem={selectedItem}
