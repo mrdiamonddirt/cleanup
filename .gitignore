@@ -25,6 +25,7 @@ dist-ssr
 
 #all files in misc folder
 misc/*
+public/lancaster-tides.json
 
 #env files
 .env
