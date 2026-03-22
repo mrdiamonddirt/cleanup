@@ -72,6 +72,24 @@ const OWNER_SUPABASE_IDS = (import.meta.env.VITE_OWNER_SUPABASE_IDS || "")
     .map((value) => value.trim())
     .filter(Boolean);
 
+const UI_TOKENS = {
+    radius: {
+        sm: "10px",
+        md: "14px",
+        lg: "18px",
+        pill: "999px",
+    },
+    shadow: {
+        soft: "0 8px 24px rgba(15,23,42,0.08)",
+        raised: "0 14px 34px rgba(15,23,42,0.14)",
+    },
+    spacing: {
+        xs: "6px",
+        sm: "10px",
+        md: "14px",
+    },
+};
+
 const createMapsUrl = (lat, lng) =>
     `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lat},${lng}`)}`;
 
@@ -940,10 +958,10 @@ function HeroBanner({
             style={{
                 marginBottom: "4px",
                 padding: isMobile ? "10px 10px 8px" : "12px 14px 10px",
-                borderRadius: "16px",
+                borderRadius: UI_TOKENS.radius.lg,
                 border: "1px solid #dbeafe",
                 background: "linear-gradient(135deg, #f8fbff 0%, #eef6ff 52%, #f8fafc 100%)",
-                boxShadow: "0 10px 30px rgba(37,99,235,0.08)",
+                boxShadow: UI_TOKENS.shadow.soft,
             }}
         >
             <div
@@ -1120,6 +1138,180 @@ function HeroBanner({
     );
 }
 
+function AppTopBar({
+    isMobile,
+    authReady,
+    currentUser,
+    canManageItems,
+    isAuthActionLoading,
+    onSignIn,
+    onSignOut,
+    isLoadingItems,
+}) {
+    const signedIn = Boolean(currentUser);
+    const syncLabel = isLoadingItems ? "Syncing" : "Up to date";
+
+    return (
+        <div
+            style={{
+                position: "sticky",
+                top: `calc(env(safe-area-inset-top, 0px) + ${isMobile ? "2px" : "0px"})`,
+                zIndex: 1050,
+                marginBottom: UI_TOKENS.spacing.sm,
+                padding: isMobile ? "8px 10px" : "9px 12px",
+                borderRadius: UI_TOKENS.radius.md,
+                border: "1px solid rgba(148,163,184,0.35)",
+                background: "rgba(255,255,255,0.86)",
+                backdropFilter: "blur(16px)",
+                boxShadow: UI_TOKENS.shadow.soft,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "10px",
+            }}
+        >
+            <style>
+                {`
+                    @keyframes riverTitleShimmer {
+                        0% { background-position: 0% 50%; }
+                        50% { background-position: 100% 50%; }
+                        100% { background-position: 0% 50%; }
+                    }
+
+                    @media (prefers-reduced-motion: reduce) {
+                        .river-title-shimmer {
+                            animation: none !important;
+                        }
+                    }
+                `}
+            </style>
+            <div style={{ minWidth: 0 }}>
+                <div
+                    style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "7px",
+                        padding: isMobile ? "3px 8px" : "4px 9px",
+                        borderRadius: "999px",
+                        border: "1px solid rgba(147,197,253,0.55)",
+                        background: "linear-gradient(135deg, rgba(239,246,255,0.92), rgba(224,242,254,0.78))",
+                        boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.45)",
+                    }}
+                >
+                    <span
+                        style={{
+                            width: "7px",
+                            height: "7px",
+                            borderRadius: "999px",
+                            background: "#0ea5e9",
+                            boxShadow: "0 0 10px rgba(14,165,233,0.7)",
+                            flexShrink: 0,
+                        }}
+                    />
+                    <span
+                        className="river-title-shimmer"
+                        style={{
+                            fontWeight: 800,
+                            letterSpacing: "-0.02em",
+                            fontSize: isMobile ? "0.96rem" : "1.03rem",
+                            lineHeight: 1,
+                            background: "linear-gradient(100deg, #0f172a 5%, #1d4ed8 40%, #0ea5e9 65%, #1d4ed8 85%, #0f172a 100%)",
+                            backgroundSize: "220% 220%",
+                            animation: "riverTitleShimmer 7s ease-in-out infinite",
+                            WebkitBackgroundClip: "text",
+                            backgroundClip: "text",
+                            color: "transparent",
+                        }}
+                    >
+                        River Lune Cleanup
+                    </span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "7px", marginTop: "2px", fontSize: "0.72rem", color: "#475569" }}>
+                    <span
+                        style={{
+                            width: "8px",
+                            height: "8px",
+                            borderRadius: UI_TOKENS.radius.pill,
+                            background: isLoadingItems ? "#f59e0b" : "#22c55e",
+                        }}
+                    />
+                    <span>{syncLabel}</span>
+                    <span style={{ color: "#cbd5e1" }}>•</span>
+                    <span>{canManageItems ? "Edit mode" : "View-only"}</span>
+                </div>
+            </div>
+
+            <div
+                style={{ display: "flex", alignItems: "center", gap: "6px" }}
+            >
+                <a
+                    href="https://ko-fi.com/rowdog"
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                        border: "1px solid #bfdbfe",
+                        background: "#eff6ff",
+                        color: "#1d4ed8",
+                        borderRadius: UI_TOKENS.radius.pill,
+                        minHeight: "34px",
+                        padding: isMobile ? "0 10px" : "0 11px",
+                        fontSize: "0.74rem",
+                        fontWeight: 700,
+                        textDecoration: "none",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        whiteSpace: "nowrap",
+                    }}
+                    aria-label="Support cleanup costs on Ko-fi"
+                >
+                    {isMobile ? "❤" : "❤ Support"}
+                </a>
+
+                <button
+                    type="button"
+                    onClick={signedIn ? onSignOut : onSignIn}
+                    disabled={!authReady || isAuthActionLoading}
+                    style={{
+                        border: `1px solid ${signedIn ? "#cbd5e1" : "#0f172a"}`,
+                        background: signedIn ? "#fff" : "#0f172a",
+                        color: signedIn ? "#0f172a" : "#fff",
+                        borderRadius: UI_TOKENS.radius.pill,
+                        minHeight: "34px",
+                        padding: isMobile ? "0 11px" : "0 12px",
+                        fontSize: "0.76rem",
+                        fontWeight: 700,
+                        whiteSpace: "nowrap",
+                        opacity: !authReady || isAuthActionLoading ? 0.65 : 1,
+                        cursor: !authReady || isAuthActionLoading ? "not-allowed" : "pointer",
+                    }}
+                >
+                    {signedIn ? "Sign Out" : "Sign In"}
+                </button>
+            </div>
+        </div>
+    );
+}
+
+function SurfaceCard({ as = "div", style = {}, children, ...props }) {
+    const Component = as;
+
+    return (
+        <Component
+            style={{
+                border: "1px solid rgba(148,163,184,0.35)",
+                borderRadius: UI_TOKENS.radius.md,
+                background: "rgba(255,255,255,0.92)",
+                boxShadow: UI_TOKENS.shadow.soft,
+                ...style,
+            }}
+            {...props}
+        >
+            {children}
+        </Component>
+    );
+}
+
 function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impactStats }) {
     const [activeTooltip, setActiveTooltip] = useState(null);
     const statsRef = useRef(null);
@@ -1234,7 +1426,7 @@ function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impact
                     width: "100%",
                     border: "1px solid #dbe4ee",
                     background: activeTooltip === id ? "#eff6ff" : "rgba(255,255,255,0.84)",
-                    borderRadius: "10px",
+                    borderRadius: UI_TOKENS.radius.sm,
                     padding: isMobile ? "8px 10px" : "7px 10px",
                     textAlign: "left",
                     color: "#0f172a",
@@ -1281,10 +1473,10 @@ function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impact
                             width: isMobile ? "min(240px, calc(100vw - 24px))" : "260px",
                             maxWidth: "calc(100vw - 24px)",
                             padding: "10px 11px",
-                            borderRadius: "10px",
+                            borderRadius: UI_TOKENS.radius.sm,
                             border: "1px solid #cbd5e1",
                             background: "rgba(255,255,255,0.98)",
-                            boxShadow: "0 18px 35px rgba(15,23,42,0.18)",
+                            boxShadow: UI_TOKENS.shadow.raised,
                             color: "#334155",
                             fontSize: "0.78rem",
                             lineHeight: 1.45,
@@ -1315,8 +1507,8 @@ function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impact
             : `${Math.round(impactStats.estimatedRecoveredKg)} kg`;
 
     return (
-        <div
-            ref={statsRef}
+        <div ref={statsRef}>
+            <SurfaceCard
             style={{
                 display: "grid",
                 gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(6, minmax(0, 1fr))",
@@ -1325,18 +1517,17 @@ function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impact
                 marginBottom: "4px",
                 padding: isMobile ? "6px 8px" : "6px 10px",
                 background: "linear-gradient(180deg, #ffffff, #f8fafc)",
-                borderRadius: "12px",
                 border: "1px solid #e2e8f0",
-                boxShadow: "0 8px 24px rgba(15,23,42,0.05)",
                 fontSize: controlFontSize,
             }}
-        >
-            {renderStatTile("total-items", "Total Items", totals.total, totalTooltipLines)}
-            {renderStatTile("recovered-items", "Recovered", totals.recovered, recoveredTooltipLines, "green")}
-            {renderStatTile("remaining-items", "Remaining", totals.remaining, remainingTooltipLines, "red")}
-            {renderStatTile("locations", "Locations", locationCount, locationsTooltipLines, "#2c3e50")}
-            {renderStatTile("remaining-weight", "Est. Weight Remaining", remainingKgLabel, remainingWeightTooltipLines, "#b45309")}
-            {renderStatTile("removed-weight", "Est. Weight Removed", recoveredKgLabel, removedWeightTooltipLines, "#0f766e")}
+            >
+                {renderStatTile("total-items", "Total Items", totals.total, totalTooltipLines)}
+                {renderStatTile("recovered-items", "Recovered", totals.recovered, recoveredTooltipLines, "green")}
+                {renderStatTile("remaining-items", "Remaining", totals.remaining, remainingTooltipLines, "red")}
+                {renderStatTile("locations", "Locations", locationCount, locationsTooltipLines, "#2c3e50")}
+                {renderStatTile("remaining-weight", "Est. Weight Remaining", remainingKgLabel, remainingWeightTooltipLines, "#b45309")}
+                {renderStatTile("removed-weight", "Est. Weight Removed", recoveredKgLabel, removedWeightTooltipLines, "#0f766e")}
+            </SurfaceCard>
         </div>
     );
 }
@@ -1384,7 +1575,7 @@ function ControlToggles({
                         border: "1px solid #cbd5e1",
                         background: "linear-gradient(135deg, #eff6ff, #f8fafc)",
                         color: "#0f172a",
-                        borderRadius: "999px",
+                        borderRadius: UI_TOKENS.radius.pill,
                         padding: isMobile ? "7px 10px" : "5px 10px",
                         minHeight: "30px",
                         width: "auto",
@@ -1418,6 +1609,22 @@ function FilterControls({
     setStatusFilter,
     isOverlay = false,
 }) {
+    const typeOptions = [
+        { value: "all", label: "All" },
+        { value: "bike", label: "Bike" },
+        { value: "motorbike", label: "Moto" },
+        { value: "trolley", label: "Trolley" },
+        { value: "misc", label: "Misc" },
+    ];
+
+    const statusOptions = [
+        { value: "all", label: "All" },
+        { value: "in-water", label: "In Water" },
+        { value: "recovered", label: "Recovered" },
+    ];
+
+    const useSegmentedMobile = isMobile && !isOverlay;
+
     return (
         <div
             style={{
@@ -1463,49 +1670,105 @@ function FilterControls({
                     </div>
                 ) : null}
 
-                <div style={{ display: "flex", alignItems: "center", gap: "6px", flexDirection: isOverlay ? "column" : "row" }}>
-                    <span style={{ fontSize: isOverlay ? "0.72rem" : controlFontSize, fontWeight: 600, alignSelf: isOverlay ? "flex-start" : "auto" }}>Type:</span>
-                    <select
-                        value={typeFilter}
-                        onChange={(e) => setTypeFilter(e.target.value)}
-                        style={{
-                            border: isOverlay ? "1px solid #9ca3af" : "1px solid #cbd5e1",
-                            borderRadius: isOverlay ? "4px" : "8px",
-                            padding: isOverlay ? "6px 8px" : isMobile ? "9px 10px" : "5px 8px",
-                            fontSize: isOverlay ? "0.78rem" : controlFontSize,
-                            background: "#fff",
-                            minHeight: isOverlay ? "30px" : isMobile ? "40px" : "32px",
-                            width: isOverlay ? "100%" : isMobile ? "100%" : "auto",
-                        }}
-                    >
-                        <option value="all">All</option>
-                        <option value="bike">Bikes</option>
-                        <option value="motorbike">Motorbikes</option>
-                        <option value="trolley">Trolleys</option>
-                        <option value="misc">Misc</option>
-                    </select>
-                </div>
+                {useSegmentedMobile ? (
+                    <>
+                        <div style={{ display: "grid", gap: "6px" }}>
+                            <span style={{ fontSize: "0.72rem", fontWeight: 700, color: "#334155", textTransform: "uppercase", letterSpacing: "0.04em" }}>Type</span>
+                            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                                {typeOptions.map((option) => (
+                                    <button
+                                        key={`type-${option.value}`}
+                                        type="button"
+                                        onClick={() => setTypeFilter(option.value)}
+                                        style={{
+                                            border: typeFilter === option.value ? "1px solid #2563eb" : "1px solid #cbd5e1",
+                                            background: typeFilter === option.value ? "#dbeafe" : "#fff",
+                                            color: "#0f172a",
+                                            borderRadius: UI_TOKENS.radius.pill,
+                                            padding: "7px 10px",
+                                            fontSize: "0.8rem",
+                                            fontWeight: 700,
+                                            minHeight: "34px",
+                                        }}
+                                    >
+                                        {option.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: "6px", flexDirection: isOverlay ? "column" : "row" }}>
-                    <span style={{ fontSize: isOverlay ? "0.72rem" : controlFontSize, fontWeight: 600, alignSelf: isOverlay ? "flex-start" : "auto" }}>Status:</span>
-                    <select
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                        style={{
-                            border: isOverlay ? "1px solid #9ca3af" : "1px solid #cbd5e1",
-                            borderRadius: isOverlay ? "4px" : "8px",
-                            padding: isOverlay ? "6px 8px" : isMobile ? "9px 10px" : "5px 8px",
-                            fontSize: isOverlay ? "0.78rem" : controlFontSize,
-                            background: "#fff",
-                            minHeight: isOverlay ? "30px" : isMobile ? "40px" : "32px",
-                            width: isOverlay ? "100%" : isMobile ? "100%" : "auto",
-                        }}
-                    >
-                        <option value="all">All</option>
-                        <option value="in-water">In Water</option>
-                        <option value="recovered">Recovered</option>
-                    </select>
-                </div>
+                        <div style={{ display: "grid", gap: "6px" }}>
+                            <span style={{ fontSize: "0.72rem", fontWeight: 700, color: "#334155", textTransform: "uppercase", letterSpacing: "0.04em" }}>Status</span>
+                            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                                {statusOptions.map((option) => (
+                                    <button
+                                        key={`status-${option.value}`}
+                                        type="button"
+                                        onClick={() => setStatusFilter(option.value)}
+                                        style={{
+                                            border: statusFilter === option.value ? "1px solid #2563eb" : "1px solid #cbd5e1",
+                                            background: statusFilter === option.value ? "#dbeafe" : "#fff",
+                                            color: "#0f172a",
+                                            borderRadius: UI_TOKENS.radius.pill,
+                                            padding: "7px 10px",
+                                            fontSize: "0.8rem",
+                                            fontWeight: 700,
+                                            minHeight: "34px",
+                                        }}
+                                    >
+                                        {option.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </>
+                ) : (
+                    <>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexDirection: isOverlay ? "column" : "row" }}>
+                            <span style={{ fontSize: isOverlay ? "0.72rem" : controlFontSize, fontWeight: 600, alignSelf: isOverlay ? "flex-start" : "auto" }}>Type:</span>
+                            <select
+                                value={typeFilter}
+                                onChange={(e) => setTypeFilter(e.target.value)}
+                                style={{
+                                    border: isOverlay ? "1px solid #9ca3af" : "1px solid #cbd5e1",
+                                    borderRadius: isOverlay ? "4px" : "8px",
+                                    padding: isOverlay ? "6px 8px" : isMobile ? "9px 10px" : "5px 8px",
+                                    fontSize: isOverlay ? "0.78rem" : controlFontSize,
+                                    background: "#fff",
+                                    minHeight: isOverlay ? "30px" : isMobile ? "40px" : "32px",
+                                    width: isOverlay ? "100%" : isMobile ? "100%" : "auto",
+                                }}
+                            >
+                                <option value="all">All</option>
+                                <option value="bike">Bikes</option>
+                                <option value="motorbike">Motorbikes</option>
+                                <option value="trolley">Trolleys</option>
+                                <option value="misc">Misc</option>
+                            </select>
+                        </div>
+
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexDirection: isOverlay ? "column" : "row" }}>
+                            <span style={{ fontSize: isOverlay ? "0.72rem" : controlFontSize, fontWeight: 600, alignSelf: isOverlay ? "flex-start" : "auto" }}>Status:</span>
+                            <select
+                                value={statusFilter}
+                                onChange={(e) => setStatusFilter(e.target.value)}
+                                style={{
+                                    border: isOverlay ? "1px solid #9ca3af" : "1px solid #cbd5e1",
+                                    borderRadius: isOverlay ? "4px" : "8px",
+                                    padding: isOverlay ? "6px 8px" : isMobile ? "9px 10px" : "5px 8px",
+                                    fontSize: isOverlay ? "0.78rem" : controlFontSize,
+                                    background: "#fff",
+                                    minHeight: isOverlay ? "30px" : isMobile ? "40px" : "32px",
+                                    width: isOverlay ? "100%" : isMobile ? "100%" : "auto",
+                                }}
+                            >
+                                <option value="all">All</option>
+                                <option value="in-water">In Water</option>
+                                <option value="recovered">Recovered</option>
+                            </select>
+                        </div>
+                    </>
+                )}
             </div>
         </div>
     );
@@ -2040,13 +2303,13 @@ function FullscreenImageViewer({
 }) {
     if (!isOpen || !selectedItem?.image_url || !selectedCounts) return null;
 
-    return (
+    const viewerNode = (
         <div
             style={{
                 position: "fixed",
                 inset: 0,
                 background: "rgba(0, 0, 0, 0.92)",
-                zIndex: 1000,
+                zIndex: 1400,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -2124,6 +2387,8 @@ function FullscreenImageViewer({
             </div>
         </div>
     );
+
+    return createPortal(viewerNode, document.body);
 }
 
 function SelectedItemDrawer({
@@ -2146,8 +2411,12 @@ function SelectedItemDrawer({
     canManageItems,
 }) {
     if (!selectedItem || !selectedCounts) return null;
+    const useCompactSheet =
+        isMobile || (typeof window !== "undefined" && window.innerWidth <= 1024);
+    const isEditingThisItem = canManageItems && editingItemId === selectedItem.id;
+    const compactNoScroll = useCompactSheet && !isEditingThisItem;
 
-    return (
+    const drawerNode = (
         <>
             <div
                 onClick={() => {
@@ -2158,23 +2427,23 @@ function SelectedItemDrawer({
                     position: "fixed",
                     inset: 0,
                     background: "rgba(2, 6, 23, 0.45)",
-                    zIndex: 998,
+                    zIndex: 1499,
                 }}
             />
 
             <div
+                data-drawer-version={useCompactSheet ? "v4-fullscreen" : "v4-desktop"}
                 style={{
                     position: "fixed",
                     // Mobile: full-width bottom sheet
-                    ...(isMobile ? {
-                        left: "0",
-                        right: "0",
-                        bottom: "0",
-                        top: "auto",
+                    ...(useCompactSheet ? {
+                        inset: "0",
                         width: "100%",
-                        maxHeight: "78svh",
-                        borderTopLeftRadius: "16px",
-                        borderTopRightRadius: "16px",
+                        height: "100dvh",
+                        minHeight: "100dvh",
+                        maxHeight: "none",
+                        borderTopLeftRadius: "0",
+                        borderTopRightRadius: "0",
                         borderBottomLeftRadius: "0",
                         borderBottomRightRadius: "0",
                     } : {
@@ -2186,12 +2455,16 @@ function SelectedItemDrawer({
                         maxHeight: "min(88vh, 760px)",
                         borderRadius: "14px",
                     }),
-                    overflowY: "auto",
+                    overflowY: compactNoScroll ? "hidden" : "auto",
                     background: "#ffffff",
                     boxShadow: "0 24px 60px rgba(0,0,0,0.32)",
-                    zIndex: 999,
-                    padding: "14px",
+                    zIndex: 1500,
+                    padding: useCompactSheet
+                        ? "calc(env(safe-area-inset-top, 0px) + 8px) 12px calc(env(safe-area-inset-bottom, 0px) + 6px)"
+                        : "14px",
                     boxSizing: "border-box",
+                    display: "flex",
+                    flexDirection: "column",
                 }}
             >
                 <div
@@ -2200,7 +2473,7 @@ function SelectedItemDrawer({
                         alignItems: "center",
                         justifyContent: "space-between",
                         gap: "8px",
-                        marginBottom: "10px",
+                        marginBottom: compactNoScroll ? "6px" : "10px",
                     }}
                 >
                     <strong style={{ fontSize: "1.1rem", color: "#1e293b" }}>
@@ -2228,15 +2501,17 @@ function SelectedItemDrawer({
 
                 {/* Two-column on desktop, stacked on mobile */}
                 <div style={{
-                    display: isMobile ? "block" : "flex",
-                    gap: "14px",
+                    display: compactNoScroll ? "flex" : useCompactSheet ? "block" : "flex",
+                    gap: compactNoScroll ? "10px" : "14px",
                     alignItems: "flex-start",
+                    flex: compactNoScroll ? 1 : "0 0 auto",
+                    minHeight: 0,
                 }}>
                     {/* Left: image */}
                     <div style={{
                         flexShrink: 0,
-                        width: isMobile ? "100%" : "220px",
-                        marginBottom: isMobile ? "10px" : 0,
+                        width: compactNoScroll ? "42%" : useCompactSheet ? "100%" : "220px",
+                        marginBottom: compactNoScroll ? 0 : useCompactSheet ? "8px" : 0,
                     }}>
                         {selectedItem.image_url ? (
                             <button
@@ -2255,7 +2530,7 @@ function SelectedItemDrawer({
                                     alt="Debris evidence"
                                     style={{
                                         width: "100%",
-                                        height: isMobile ? "auto" : "200px",
+                                        height: compactNoScroll ? "min(24dvh, 165px)" : useCompactSheet ? "min(22svh, 170px)" : "200px",
                                         objectFit: "cover",
                                         borderRadius: "10px",
                                         border: "1px solid #ddd",
@@ -2283,21 +2558,23 @@ function SelectedItemDrawer({
                     </div>
 
                     {/* Right: details + actions */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", minHeight: 0 }}>
                         <div style={{
-                            fontSize: "0.9rem",
+                            fontSize: compactNoScroll ? "0.82rem" : "0.9rem",
                             color: "#475569",
-                            marginBottom: "10px",
-                            lineHeight: 1.45,
+                            marginBottom: compactNoScroll ? "6px" : "8px",
+                            lineHeight: compactNoScroll ? 1.35 : 1.45,
                         }}>
-                            <div>Spotted: {new Date(selectedItem.created_at).toLocaleDateString()}</div>
-                            <div>Status: {selectedCounts.isRecovered ? "✅ Recovered" : "❌ In Water"}</div>
-                            <div>Total: <strong>{selectedCounts.total}</strong></div>
-                            <div>Recovered: <strong>{selectedCounts.recovered}</strong></div>
-                            <div>In Water: <strong>{selectedCounts.inWater}</strong></div>
+                            <div style={{ display: useCompactSheet ? "grid" : "block", gridTemplateColumns: useCompactSheet ? "1fr 1fr" : "none", gap: useCompactSheet ? "3px 8px" : "0" }}>
+                                <div>Spotted: {new Date(selectedItem.created_at).toLocaleDateString()}</div>
+                                <div>Status: {selectedCounts.isRecovered ? "✅ Recovered" : "❌ In Water"}</div>
+                                <div>Total: <strong>{selectedCounts.total}</strong></div>
+                                <div>Recovered: <strong>{selectedCounts.recovered}</strong></div>
+                                <div>In Water: <strong>{selectedCounts.inWater}</strong></div>
+                            </div>
                             {selectedWeight ? (
                                 <>
-                                    <div>
+                                    <div style={{ marginTop: useCompactSheet ? "4px" : "0" }}>
                                         Est. weight per item: <strong>{formatWeightKg(selectedWeight.value)}</strong>
                                         {selectedWeight.source === "default" ? " (default)" : ""}
                                     </div>
@@ -2325,17 +2602,17 @@ function SelectedItemDrawer({
                             )}
                         </div>
 
-                        <hr style={{ border: "0.5px solid #eee", margin: "8px 0 12px" }} />
+                        <hr style={{ border: "0.5px solid #eee", margin: compactNoScroll ? "4px 0 8px" : "6px 0 10px" }} />
 
                         {!canManageItems ? (
                             <div style={{
-                                marginBottom: "12px",
-                                padding: "9px 10px",
+                                marginBottom: compactNoScroll ? "8px" : "12px",
+                                padding: compactNoScroll ? "7px 8px" : "9px 10px",
                                 borderRadius: "8px",
                                 border: "1px solid #fde68a",
                                 background: "#fffbeb",
                                 color: "#92400e",
-                                fontSize: "0.82rem",
+                                fontSize: compactNoScroll ? "0.74rem" : "0.82rem",
                             }}>
                                 Read-only mode: only authorized GitHub accounts can edit or delete locations.
                             </div>
@@ -2533,20 +2810,20 @@ function SelectedItemDrawer({
                                 </div>
                             </div>
                         ) : canManageItems ? (
-                            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "0" }}>
                                 {!selectedCounts.isRecovered && (
                                     <button
                                         style={{
                                             flex: "1 1 100%",
-                                            marginTop: "5px",
-                                            padding: "10px",
+                                            marginTop: compactNoScroll ? "0" : "5px",
+                                            padding: compactNoScroll ? "8px" : "10px",
                                             backgroundColor: "#2ecc71",
                                             color: "white",
                                             border: "none",
                                             borderRadius: "6px",
                                             fontWeight: "bold",
                                             cursor: "pointer",
-                                            fontSize: "0.9rem",
+                                            fontSize: compactNoScroll ? "0.8rem" : "0.9rem",
                                         }}
                                         onClick={() => {
                                             setEditingItemId(selectedItem.id);
@@ -2567,7 +2844,7 @@ function SelectedItemDrawer({
                                     onClick={() => startEditingItem(selectedItem)}
                                     style={{
                                         flex: "1 1 90px",
-                                        padding: "10px",
+                                        padding: compactNoScroll ? "8px" : "10px",
                                         border: "1px solid #cbd5e1",
                                         background: "#fff",
                                         color: "#0f172a",
@@ -2583,7 +2860,7 @@ function SelectedItemDrawer({
                                     disabled={isUpdatingItemId === selectedItem.id}
                                     style={{
                                         flex: "1 1 90px",
-                                        padding: "10px",
+                                        padding: compactNoScroll ? "8px" : "10px",
                                         border: "none",
                                         background: "#dc2626",
                                         color: "#fff",
@@ -2601,9 +2878,19 @@ function SelectedItemDrawer({
             </div>
         </>
     );
+
+    return createPortal(drawerNode, document.body);
 }
 
 function App() {
+    const detectMobileViewport = () => {
+        if (typeof window === "undefined") return false;
+
+        const smallViewport = window.matchMedia("(max-width: 1024px)").matches;
+        const coarsePointer = window.matchMedia("(pointer: coarse)").matches;
+        return smallViewport || coarsePointer;
+    };
+
     const [items, setItems] = useState(() => readStoredJson(ITEMS_STORAGE_KEY, [], Array.isArray));
     const [typeFilter, setTypeFilter] = useState("all");
     const [statusFilter, setStatusFilter] = useState("all");
@@ -2646,9 +2933,7 @@ function App() {
     const [dbWeightFieldSupport, setDbWeightFieldSupport] = useState(() =>
         inferDbWeightFieldSupport(readStoredJson(ITEMS_STORAGE_KEY, [], Array.isArray)),
     );
-    const [isMobile, setIsMobile] = useState(() =>
-        typeof window !== "undefined" ? window.innerWidth <= 768 : false,
-    );
+    const [isMobile, setIsMobile] = useState(detectMobileViewport);
     const [waybackReleases, setWaybackReleases] = useState([]);
     const [selectedWaybackId, setSelectedWaybackId] = useState(null);
     const [isLiveLocationEnabled, setIsLiveLocationEnabled] = useState(false);
@@ -2820,7 +3105,7 @@ function App() {
 
     useEffect(() => {
         const handleResize = () => {
-            setIsMobile(window.innerWidth <= 768);
+            setIsMobile(detectMobileViewport());
         };
 
         handleResize();
@@ -3510,7 +3795,7 @@ function App() {
         [lancasterTideRows, lancasterTideUpdatedAt],
     );
 
-    const mapHeight = isMobile ? "58svh" : "calc(100vh - 250px)";
+    const mapHeight = isMobile ? "calc(100svh - 150px)" : "calc(100vh - 250px)";
     const controlFontSize = isMobile ? "0.95rem" : "0.85rem";
     const touchButtonSize = isMobile ? "38px" : "30px";
     const activeFilterCount = Number(typeFilter !== "all") + Number(statusFilter !== "all");
@@ -3539,13 +3824,13 @@ function App() {
         <div
             style={{
                 padding: isMobile
-                    ? "calc(env(safe-area-inset-top, 0px) + 10px) 8px calc(env(safe-area-inset-bottom, 0px) + 12px)"
+                    ? "calc(env(safe-area-inset-top, 0px) + 10px) 8px 0"
                     : "18px 16px 20px",
                 fontFamily:
                     '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", sans-serif',
                 maxWidth: "1200px",
                 margin: "0 auto",
-                borderRadius: isMobile ? "18px" : "24px",
+                borderRadius: isMobile ? UI_TOKENS.radius.lg : "24px",
                 border: "1px solid rgba(148,163,184,0.35)",
                 background: "linear-gradient(180deg, rgba(255,255,255,0.88) 0%, rgba(248,250,252,0.9) 100%)",
                 boxShadow: isMobile
@@ -3556,16 +3841,32 @@ function App() {
                 boxSizing: "border-box",
             }}
         >
-            <HeroBanner
+            <AppTopBar
                 isMobile={isMobile}
                 authReady={authReady}
                 currentUser={currentUser}
                 canManageItems={canManageItems}
-                authError={authError}
                 isAuthActionLoading={isAuthActionLoading}
                 onSignIn={signInWithGitHub}
                 onSignOut={signOut}
+                isLoadingItems={isLoadingItems}
             />
+
+            {isMobile && authError ? (
+                <div
+                    style={{
+                        marginBottom: "8px",
+                        color: "#b91c1c",
+                        fontSize: "0.82rem",
+                        background: "rgba(254,242,242,0.92)",
+                        border: "1px solid #fecaca",
+                        borderRadius: UI_TOKENS.radius.sm,
+                        padding: "8px 10px",
+                    }}
+                >
+                    {authError}
+                </div>
+            ) : null}
 
             <SummaryStats
                 totals={totals}
@@ -3764,7 +4065,7 @@ function App() {
                 <div
                     style={{
                         position: "absolute",
-                        bottom: "14px",
+                        bottom: isMobile ? "28px" : "22px",
                         right: "10px",
                         zIndex: 900,
                         display: "flex",
@@ -3795,19 +4096,19 @@ function App() {
                         <span style={{ fontSize: "0.9em" }}>{isMapToolsOpen ? "▾" : "▴"}</span>
                     </button>
 
-                    {isMapToolsOpen ? (
-                        <div
-                            style={{
-                                width: isMobile ? "min(88vw, 300px)" : "280px",
-                                border: "1px solid rgba(148,163,184,0.45)",
-                                borderRadius: "12px",
-                                padding: "10px",
-                                background: "rgba(255,255,255,0.98)",
-                                boxShadow: "0 16px 32px rgba(15,23,42,0.2)",
-                                display: "grid",
-                                gap: "8px",
-                            }}
-                        >
+                    <SurfaceCard
+                        style={{
+                            width: isMobile ? "min(88vw, 300px)" : "280px",
+                            padding: "10px",
+                            display: "grid",
+                            gap: "8px",
+                            opacity: isMapToolsOpen ? 1 : 0,
+                            transform: isMapToolsOpen ? "translateY(0) scale(1)" : "translateY(8px) scale(0.98)",
+                            transformOrigin: "bottom right",
+                            transition: "opacity 180ms ease, transform 220ms ease",
+                            pointerEvents: isMapToolsOpen ? "auto" : "none",
+                        }}
+                    >
                             <button
                                 type="button"
                                 onClick={() => setIsLiveLocationEnabled((prev) => !prev)}
@@ -3869,8 +4170,7 @@ function App() {
                                     {liveLocationError}
                                 </div>
                             ) : null}
-                        </div>
-                    ) : null}
+                    </SurfaceCard>
                 </div>
             </div>
 
@@ -3883,20 +4183,23 @@ function App() {
                             inset: 0,
                             background: "rgba(2,6,23,0.38)",
                             zIndex: 1200,
+                            transition: "opacity 180ms ease",
                         }}
                     />
-                    <div
+                    <SurfaceCard
                         style={{
                             position: "fixed",
                             left: "0",
                             right: "0",
                             bottom: "0",
                             zIndex: 1201,
-                            background: "#fff",
                             borderTopLeftRadius: "16px",
                             borderTopRightRadius: "16px",
-                            boxShadow: "0 -14px 32px rgba(15,23,42,0.2)",
+                            borderBottomLeftRadius: "0",
+                            borderBottomRightRadius: "0",
                             padding: "12px 12px calc(env(safe-area-inset-bottom, 0px) + 14px)",
+                            transform: "translateY(0)",
+                            transition: "transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1)",
                         }}
                     >
                         <div
@@ -3933,7 +4236,7 @@ function App() {
                             setTypeFilter={setTypeFilter}
                             setStatusFilter={setStatusFilter}
                         />
-                    </div>
+                    </SurfaceCard>
                 </>
             ) : null}
 
