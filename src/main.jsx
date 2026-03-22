@@ -57,6 +57,7 @@ const COUNT_STORAGE_KEY = "cleanup-item-counts-v1";
 const GPS_STORAGE_KEY = "cleanup-item-gps-v1";
 const WEIGHT_STORAGE_KEY = "cleanup-item-weights-v1";
 const GEOLOOKUP_STORAGE_KEY = "cleanup-item-geolookup-v1";
+const ITEM_STORY_STORAGE_KEY = "cleanup-item-story-v1";
 const LANCASTER_TIDE_JSON_URL = `${import.meta.env.BASE_URL}lancaster-tides.json`;
 const LANCASTER_TIDE_CHART_URL =
     "https://www.tide-forecast.com/tide/Lancaster/tide-times";
@@ -110,6 +111,80 @@ const parseEstimatedWeightKg = (value) => {
     if (!Number.isFinite(parsed) || parsed <= 0) return null;
 
     return Math.round(parsed * 10) / 10;
+};
+
+const normalizeOptionalDateInput = (value) => {
+    if (typeof value !== "string") return "";
+
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+
+    const simpleDateMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (simpleDateMatch) {
+        return `${simpleDateMatch[1]}-${simpleDateMatch[2]}-${simpleDateMatch[3]}`;
+    }
+
+    const parsed = new Date(trimmed);
+    if (Number.isNaN(parsed.getTime())) return "";
+
+    return parsed.toISOString().slice(0, 10);
+};
+
+const parseDateInputToUtcDate = (value) => {
+    const normalized = normalizeOptionalDateInput(value);
+    if (!normalized) return null;
+
+    const parsed = new Date(`${normalized}T12:00:00Z`);
+    if (Number.isNaN(parsed.getTime())) return null;
+
+    return parsed;
+};
+
+const formatStoryDate = (value) => {
+    const parsed = parseDateInputToUtcDate(value);
+    if (!parsed) return "";
+
+    return parsed.toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+    });
+};
+
+const formatTimeInRiver = (knownSinceDate, recoveredOnDate) => {
+    const start = parseDateInputToUtcDate(knownSinceDate);
+    const end = parseDateInputToUtcDate(recoveredOnDate);
+    if (!start || !end || end < start) return "";
+
+    let totalMonths =
+        (end.getUTCFullYear() - start.getUTCFullYear()) * 12 +
+        (end.getUTCMonth() - start.getUTCMonth());
+
+    if (end.getUTCDate() < start.getUTCDate()) {
+        totalMonths -= 1;
+    }
+
+    if (totalMonths < 0) totalMonths = 0;
+
+    const years = Math.floor(totalMonths / 12);
+    const months = totalMonths % 12;
+
+    if (years > 0 && months > 0) return `${years}y ${months}m`;
+    if (years > 0) return `${years} year${years === 1 ? "" : "s"}`;
+    if (months > 0) return `${months} month${months === 1 ? "" : "s"}`;
+
+    return "Less than a month";
+};
+
+const isItemStoryEmpty = (story) => {
+    if (!story || typeof story !== "object") return true;
+
+    return !(
+        normalizeOptionalDateInput(story.knownSinceDate) ||
+        normalizeOptionalDateInput(story.recoveredOnDate) ||
+        (typeof story.referenceImageUrl === "string" && story.referenceImageUrl.trim()) ||
+        (typeof story.referenceImageCaption === "string" && story.referenceImageCaption.trim())
+    );
 };
 
 const buildShareItemUrl = (itemId) => {
@@ -281,6 +356,17 @@ const inferDbGeoFieldSupport = (items) => {
         postcode: first ? Object.prototype.hasOwnProperty.call(first, "geocode_postcode") : null,
         countryCode: first ? Object.prototype.hasOwnProperty.call(first, "geocode_country_code") : null,
         source: first ? Object.prototype.hasOwnProperty.call(first, "geocode_source") : null,
+    };
+};
+
+const inferDbStoryFieldSupport = (items) => {
+    const first = Array.isArray(items) ? items[0] : null;
+
+    return {
+        knownSinceDate: first ? Object.prototype.hasOwnProperty.call(first, "known_since_date") : null,
+        recoveredOnDate: first ? Object.prototype.hasOwnProperty.call(first, "recovered_on_date") : null,
+        referenceImageUrl: first ? Object.prototype.hasOwnProperty.call(first, "reference_image_url") : null,
+        referenceImageCaption: first ? Object.prototype.hasOwnProperty.call(first, "reference_image_caption") : null,
     };
 };
 
@@ -2793,6 +2879,7 @@ function FullscreenImageViewer({
     isMobile,
     selectedItem,
     selectedCounts,
+    selectedStory,
     selectedGps,
     selectedGeoLookup,
     isResolvingGeoLookup,
@@ -2806,15 +2893,49 @@ function FullscreenImageViewer({
     const ZOOM_STEP = 0.25;
     const [zoomLevel, setZoomLevel] = useState(1);
     const [isDetailsVisible, setIsDetailsVisible] = useState(true);
+    const [activeImageIndex, setActiveImageIndex] = useState(0);
+    const swipeTouchStartX = useRef(null);
 
     useEffect(() => {
         if (!isOpen) return;
         setZoomLevel(1);
         setIsDetailsVisible(true);
+        setActiveImageIndex(0);
     }, [isOpen, selectedItem?.id]);
 
     const clampZoom = (value) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
     const zoomPercent = Math.round(zoomLevel * 100);
+    const hasReferenceImage = Boolean(selectedStory?.referenceImageUrl);
+    const images = [
+        { url: selectedItem.image_url, label: null },
+        ...(hasReferenceImage ? [{ url: selectedStory.referenceImageUrl, label: "Reference Image", sourceLink: selectedStory.referenceImageCaption }] : []),
+    ];
+    const activeImage = images[activeImageIndex] ?? images[0];
+    const canGoPrev = activeImageIndex > 0;
+    const canGoNext = activeImageIndex < images.length - 1;
+
+    const handleTouchStart = (e) => {
+        if (zoomLevel > 1) { swipeTouchStartX.current = null; return; }
+        swipeTouchStartX.current = e.touches[0].clientX;
+    };
+    const handleTouchEnd = (e) => {
+        if (swipeTouchStartX.current === null || images.length < 2) return;
+        const delta = e.changedTouches[0].clientX - swipeTouchStartX.current;
+        swipeTouchStartX.current = null;
+        if (Math.abs(delta) < 50) return;
+        if (delta < 0) {
+            // swipe left → next (wrap around)
+            setActiveImageIndex((i) => (i + 1) % images.length);
+        } else {
+            // swipe right → prev (wrap around)
+            setActiveImageIndex((i) => (i - 1 + images.length) % images.length);
+        }
+        setZoomLevel(1);
+    };
+    const timeInRiverLabel = formatTimeInRiver(
+        selectedStory?.knownSinceDate,
+        selectedStory?.recoveredOnDate,
+    );
 
     const viewerNode = (
         <div
@@ -2959,27 +3080,136 @@ function FullscreenImageViewer({
                     position: "absolute",
                     inset: 0,
                     overflow: "auto",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    touchAction: "pan-x pan-y pinch-zoom",
+                    display: "grid",
+                    alignItems: "start",
+                    justifyItems: "center",
+                    touchAction: zoomLevel > 1 ? "pan-x pan-y pinch-zoom" : "pan-y pinch-zoom",
                     padding: isMobile ? "58px 8px 8px" : "64px 20px 20px",
                     paddingBottom: isDetailsVisible ? (isMobile ? "150px" : "172px") : (isMobile ? "12px" : "20px"),
                     boxSizing: "border-box",
                 }}
+                onTouchStart={images.length > 1 ? handleTouchStart : undefined}
+                onTouchEnd={images.length > 1 ? handleTouchEnd : undefined}
             >
-                <img
-                    src={selectedItem.image_url}
-                    alt="Debris evidence full size"
+                <div
                     style={{
-                        maxWidth: `${zoomPercent}%`,
-                        maxHeight: `${zoomPercent}%`,
-                        width: "auto",
-                        height: "auto",
-                        objectFit: "contain",
+                        width: "100%",
+                        display: "grid",
+                        gap: "10px",
+                        justifyItems: "center",
                     }}
-                />
+                >
+                    {activeImage.label ? (
+                        <div
+                            style={{
+                                color: "rgba(226,232,240,0.9)",
+                                fontSize: "0.76rem",
+                                fontWeight: 700,
+                                letterSpacing: "0.06em",
+                                textTransform: "uppercase",
+                                background: "rgba(15,23,42,0.65)",
+                                padding: "4px 12px",
+                                borderRadius: "999px",
+                                border: "1px solid rgba(148,163,184,0.3)",
+                            }}
+                        >
+                            {activeImage.label}
+                        </div>
+                    ) : null}
+
+                    <img
+                        src={activeImage.url}
+                        alt={activeImage.label ?? "Debris evidence full size"}
+                        style={{
+                            width: `${zoomPercent}%`,
+                            height: "auto",
+                        }}
+                    />
+
+                    {activeImage.sourceLink ? (
+                        <a
+                            href={activeImage.sourceLink}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{ color: "#93c5fd", fontWeight: 700, fontSize: "0.82rem", textDecoration: "underline" }}
+                        >
+                            Open Street View source
+                        </a>
+                    ) : null}
+                </div>
             </div>
+
+            {images.length > 1 ? (
+                <div
+                    style={{
+                        position: "absolute",
+                        left: "50%",
+                        transform: "translateX(-50%)",
+                        bottom: isDetailsVisible ? (isMobile ? "154px" : "178px") : "14px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        zIndex: 2,
+                    }}
+                >
+                    <button
+                        type="button"
+                        onClick={() => { setActiveImageIndex((i) => i - 1); setZoomLevel(1); }}
+                        disabled={!canGoPrev}
+                        style={{
+                            width: "34px",
+                            height: "34px",
+                            borderRadius: "50%",
+                            border: "1px solid rgba(255,255,255,0.35)",
+                            background: "rgba(15,23,42,0.6)",
+                            color: "#fff",
+                            fontSize: "1rem",
+                            cursor: canGoPrev ? "pointer" : "default",
+                            opacity: canGoPrev ? 1 : 0.35,
+                        }}
+                        aria-label="Previous image"
+                    >
+                        ‹
+                    </button>
+                    {images.map((_, idx) => (
+                        <button
+                            key={idx}
+                            type="button"
+                            onClick={() => { setActiveImageIndex(idx); setZoomLevel(1); }}
+                            style={{
+                                width: idx === activeImageIndex ? "10px" : "8px",
+                                height: idx === activeImageIndex ? "10px" : "8px",
+                                borderRadius: "50%",
+                                border: "none",
+                                background: idx === activeImageIndex ? "#f8fafc" : "rgba(248,250,252,0.35)",
+                                cursor: "pointer",
+                                padding: 0,
+                                transition: "all 0.15s",
+                            }}
+                            aria-label={`View image ${idx + 1}`}
+                        />
+                    ))}
+                    <button
+                        type="button"
+                        onClick={() => { setActiveImageIndex((i) => i + 1); setZoomLevel(1); }}
+                        disabled={!canGoNext}
+                        style={{
+                            width: "34px",
+                            height: "34px",
+                            borderRadius: "50%",
+                            border: "1px solid rgba(255,255,255,0.35)",
+                            background: "rgba(15,23,42,0.6)",
+                            color: "#fff",
+                            fontSize: "1rem",
+                            cursor: canGoNext ? "pointer" : "default",
+                            opacity: canGoNext ? 1 : 0.35,
+                        }}
+                        aria-label="Next image"
+                    >
+                        ›
+                    </button>
+                </div>
+            ) : null}
 
             {isDetailsVisible ? (
                 <div
@@ -3008,6 +3238,19 @@ function FullscreenImageViewer({
                             Spotted: {new Date(selectedItem.created_at).toLocaleString()}
                         </div>
 
+                        {selectedStory?.knownSinceDate ? (
+                            <div style={{ color: "rgba(226,232,240,0.86)" }}>
+                                Known in river since: {formatStoryDate(selectedStory.knownSinceDate)}
+                            </div>
+                        ) : null}
+
+                        {selectedStory?.recoveredOnDate ? (
+                            <div style={{ color: "rgba(226,232,240,0.86)" }}>
+                                Recovered on: {formatStoryDate(selectedStory.recoveredOnDate)}
+                                {timeInRiverLabel ? ` (${timeInRiverLabel} in river)` : ""}
+                            </div>
+                        ) : null}
+
                         <LocationDetailsBlock
                             gps={selectedGps}
                             geoLookup={selectedGeoLookup}
@@ -3029,6 +3272,7 @@ function FullscreenImageViewer({
 function SelectedItemDrawer({
     selectedItem,
     selectedCounts,
+    selectedStory,
     selectedGps,
     selectedGeoLookup,
     isResolvingGeoLookup,
@@ -3046,6 +3290,8 @@ function SelectedItemDrawer({
     removeLocation,
     startEditingItem,
     canManageItems,
+    onUploadReferenceImage,
+    isUploadingReferenceImage,
     onCopyShareLink,
     copiedShareItemId,
     shareCopyStatus,
@@ -3062,6 +3308,10 @@ function SelectedItemDrawer({
     const itemStatusLabel = selectedCounts.isRecovered ? "Recovered" : "In Water";
     const shareButtonLabel = copiedShareItemId === selectedItem.id && shareCopyStatus ? "Copied" : "Share";
     const useDenseDesktopCard = !useBottomSheet && !isEditingThisItem;
+    const timeInRiverLabel = formatTimeInRiver(
+        selectedStory?.knownSinceDate,
+        selectedStory?.recoveredOnDate,
+    );
 
     const drawerNode = (
         <>
@@ -3343,6 +3593,53 @@ function SelectedItemDrawer({
                                 Spotted: {new Date(selectedItem.created_at).toLocaleString()}
                             </div>
 
+                            {!isItemStoryEmpty(selectedStory) ? (
+                                <div
+                                    style={{
+                                        display: "grid",
+                                        gap: "5px",
+                                        padding: compactNoScroll ? "8px 9px" : useBottomSheet ? "8px 9px" : "10px 11px",
+                                        borderRadius: "12px",
+                                        border: "1px solid #dbe3ee",
+                                        background: "#f8fafc",
+                                        color: "#334155",
+                                        fontSize: compactNoScroll ? "0.78rem" : useBottomSheet ? "0.8rem" : "0.83rem",
+                                        lineHeight: 1.45,
+                                    }}
+                                >
+                                    {selectedStory?.knownSinceDate ? (
+                                        <div>
+                                            Known in river since: <strong style={{ color: "#0f172a" }}>{formatStoryDate(selectedStory.knownSinceDate)}</strong>
+                                        </div>
+                                    ) : null}
+                                    {selectedStory?.recoveredOnDate ? (
+                                        <div>
+                                            Recovered on: <strong style={{ color: "#0f172a" }}>{formatStoryDate(selectedStory.recoveredOnDate)}</strong>
+                                        </div>
+                                    ) : null}
+                                    {timeInRiverLabel ? (
+                                        <div>
+                                            Time in river: <strong style={{ color: "#0f172a" }}>{timeInRiverLabel}</strong>
+                                        </div>
+                                    ) : null}
+                                    {selectedStory?.referenceImageUrl ? (
+                                        <div style={{ color: "#1d4ed8", fontWeight: 600 }}>
+                                            Includes reference image in fullscreen viewer.
+                                        </div>
+                                    ) : null}
+                                    {selectedStory?.referenceImageCaption ? (
+                                        <a
+                                            href={selectedStory.referenceImageCaption}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            style={{ color: "#1d4ed8", fontWeight: 700, width: "fit-content" }}
+                                        >
+                                            Open Street View source
+                                        </a>
+                                    ) : null}
+                                </div>
+                            ) : null}
+
                             <div style={{ display: "grid", gridTemplateColumns: statGridColumns, gap: "8px", minWidth: 0 }}>
                                 <DetailBadge
                                     label="Status"
@@ -3564,6 +3861,105 @@ function SelectedItemDrawer({
                                     />
                                 </div>
 
+                                <div style={{ marginBottom: "10px" }}>
+                                    <label style={{ fontSize: "0.8rem", color: "#475569" }}>Known In River Since</label>
+                                    <input
+                                        type="date"
+                                        value={editForm.knownSinceDate}
+                                        onChange={(e) =>
+                                            setEditForm((prev) => ({ ...prev, knownSinceDate: e.target.value }))
+                                        }
+                                        style={{
+                                            width: "100%",
+                                            marginTop: "4px",
+                                            border: "1px solid #cbd5e1",
+                                            borderRadius: "6px",
+                                            padding: "8px",
+                                            boxSizing: "border-box",
+                                        }}
+                                    />
+                                </div>
+
+                                <div style={{ marginBottom: "10px" }}>
+                                    <label style={{ fontSize: "0.8rem", color: "#475569" }}>Recovered On</label>
+                                    <input
+                                        type="date"
+                                        value={editForm.recoveredOnDate}
+                                        onChange={(e) =>
+                                            setEditForm((prev) => ({ ...prev, recoveredOnDate: e.target.value }))
+                                        }
+                                        style={{
+                                            width: "100%",
+                                            marginTop: "4px",
+                                            border: "1px solid #cbd5e1",
+                                            borderRadius: "6px",
+                                            padding: "8px",
+                                            boxSizing: "border-box",
+                                        }}
+                                    />
+                                </div>
+
+                                <div style={{ marginBottom: "10px" }}>
+                                    <label style={{ fontSize: "0.8rem", color: "#475569" }}>Reference Image URL</label>
+                                    <input
+                                        type="url"
+                                        placeholder="https://..."
+                                        value={editForm.referenceImageUrl}
+                                        onChange={(e) =>
+                                            setEditForm((prev) => ({ ...prev, referenceImageUrl: e.target.value }))
+                                        }
+                                        style={{
+                                            width: "100%",
+                                            marginTop: "4px",
+                                            border: "1px solid #cbd5e1",
+                                            borderRadius: "6px",
+                                            padding: "8px",
+                                            boxSizing: "border-box",
+                                        }}
+                                    />
+
+                                    <div style={{ marginTop: "8px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                                        <button
+                                            type="button"
+                                            onClick={() => onUploadReferenceImage?.()}
+                                            disabled={Boolean(isUploadingReferenceImage)}
+                                            style={{
+                                                border: "1px solid #bfdbfe",
+                                                background: "#eff6ff",
+                                                color: "#1d4ed8",
+                                                borderRadius: "999px",
+                                                padding: "7px 12px",
+                                                fontSize: "0.78rem",
+                                                fontWeight: 700,
+                                                cursor: isUploadingReferenceImage ? "not-allowed" : "pointer",
+                                                opacity: isUploadingReferenceImage ? 0.65 : 1,
+                                            }}
+                                        >
+                                            {isUploadingReferenceImage ? "Uploading..." : "Upload Reference Image"}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div style={{ marginBottom: "12px" }}>
+                                    <label style={{ fontSize: "0.8rem", color: "#475569" }}>Street View / Source Link</label>
+                                    <input
+                                        type="url"
+                                        placeholder="https://maps.google.com/..."
+                                        value={editForm.referenceImageCaption}
+                                        onChange={(e) =>
+                                            setEditForm((prev) => ({ ...prev, referenceImageCaption: e.target.value }))
+                                        }
+                                        style={{
+                                            width: "100%",
+                                            marginTop: "4px",
+                                            border: "1px solid #cbd5e1",
+                                            borderRadius: "6px",
+                                            padding: "8px",
+                                            boxSizing: "border-box",
+                                        }}
+                                    />
+                                </div>
+
                                 <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
                                     <button
                                         onClick={() => saveItemEdits(selectedItem.id)}
@@ -3624,6 +4020,10 @@ function SelectedItemDrawer({
                                                 estimatedWeight: String(selectedWeight?.value || getDefaultWeightForType(selectedItem.type)),
                                                 lat: selectedGps ? String(selectedGps.latitude) : "",
                                                 lng: selectedGps ? String(selectedGps.longitude) : "",
+                                                knownSinceDate: normalizeOptionalDateInput(selectedStory?.knownSinceDate),
+                                                recoveredOnDate: normalizeOptionalDateInput(selectedStory?.recoveredOnDate),
+                                                referenceImageUrl: selectedStory?.referenceImageUrl || "",
+                                                referenceImageCaption: selectedStory?.referenceImageCaption || "",
                                             });
                                         }}
                                     >
@@ -3688,10 +4088,22 @@ function App() {
     const [pendingItemType, setPendingItemType] = useState(null);
     const [isSavingItem, setIsSavingItem] = useState(false);
     const [isPickingImage, setIsPickingImage] = useState(false);
+    const [isUploadingReferenceImage, setIsUploadingReferenceImage] = useState(false);
     const [uploadProgressText, setUploadProgressText] = useState("");
     const [pendingCount, setPendingCount] = useState(1);
     const [editingItemId, setEditingItemId] = useState(null);
-    const [editForm, setEditForm] = useState({ type: "misc", total: 1, recovered: 0, estimatedWeight: String(getDefaultWeightForType("misc")), lat: "", lng: "" });
+    const [editForm, setEditForm] = useState({
+        type: "misc",
+        total: 1,
+        recovered: 0,
+        estimatedWeight: String(getDefaultWeightForType("misc")),
+        lat: "",
+        lng: "",
+        knownSinceDate: "",
+        recoveredOnDate: "",
+        referenceImageUrl: "",
+        referenceImageCaption: "",
+    });
     const [isUpdatingItemId, setIsUpdatingItemId] = useState(null);
     const [selectedItemId, setSelectedItemId] = useState(null);
     const [querySelectedItemId, setQuerySelectedItemId] = useState(() => readSelectedItemIdFromQuery());
@@ -3718,6 +4130,9 @@ function App() {
     const [localGeoLookup, setLocalGeoLookup] = useState(() =>
         readStoredJson(GEOLOOKUP_STORAGE_KEY, {}, (value) => value && typeof value === "object" && !Array.isArray(value)),
     );
+    const [localItemStory, setLocalItemStory] = useState(() =>
+        readStoredJson(ITEM_STORY_STORAGE_KEY, {}, (value) => value && typeof value === "object" && !Array.isArray(value)),
+    );
     const [isResolvingGeoLookup, setIsResolvingGeoLookup] = useState(false);
     const [dbCountFieldSupport, setDbCountFieldSupport] = useState(() =>
         inferDbCountFieldSupport(readStoredJson(ITEMS_STORAGE_KEY, [], Array.isArray)),
@@ -3730,6 +4145,9 @@ function App() {
     );
     const [dbGeoFieldSupport, setDbGeoFieldSupport] = useState(() =>
         inferDbGeoFieldSupport(readStoredJson(ITEMS_STORAGE_KEY, [], Array.isArray)),
+    );
+    const [dbStoryFieldSupport, setDbStoryFieldSupport] = useState(() =>
+        inferDbStoryFieldSupport(readStoredJson(ITEMS_STORAGE_KEY, [], Array.isArray)),
     );
     const [isMobile, setIsMobile] = useState(detectMobileViewport);
     const [waybackReleases, setWaybackReleases] = useState([]);
@@ -3976,6 +4394,10 @@ function App() {
     }, [localGeoLookup]);
 
     useEffect(() => {
+        localStorage.setItem(ITEM_STORY_STORAGE_KEY, JSON.stringify(localItemStory));
+    }, [localItemStory]);
+
+    useEffect(() => {
         const handleResize = () => {
             setIsMobile(detectMobileViewport());
         };
@@ -4189,6 +4611,50 @@ function App() {
         return key ? localGeoLookup[key] || null : null;
     };
 
+    const getItemStory = (item) => {
+        const fromDbKnownSince =
+            dbStoryFieldSupport.knownSinceDate !== false && item.known_since_date !== undefined
+                ? normalizeOptionalDateInput(String(item.known_since_date || ""))
+                : "";
+        const fromDbRecoveredOn =
+            dbStoryFieldSupport.recoveredOnDate !== false && item.recovered_on_date !== undefined
+                ? normalizeOptionalDateInput(String(item.recovered_on_date || ""))
+                : "";
+        const fromDbReferenceImageUrl =
+            dbStoryFieldSupport.referenceImageUrl !== false && typeof item.reference_image_url === "string"
+                ? item.reference_image_url.trim()
+                : "";
+        const fromDbReferenceImageCaption =
+            dbStoryFieldSupport.referenceImageCaption !== false && typeof item.reference_image_caption === "string"
+                ? item.reference_image_caption.trim()
+                : "";
+
+        if (
+            fromDbKnownSince ||
+            fromDbRecoveredOn ||
+            fromDbReferenceImageUrl ||
+            fromDbReferenceImageCaption
+        ) {
+            return {
+                knownSinceDate: fromDbKnownSince,
+                recoveredOnDate: fromDbRecoveredOn,
+                referenceImageUrl: fromDbReferenceImageUrl,
+                referenceImageCaption: fromDbReferenceImageCaption,
+            };
+        }
+
+        const fromLocal = localItemStory[item.id];
+        if (!fromLocal || typeof fromLocal !== "object") return null;
+
+        return {
+            knownSinceDate: normalizeOptionalDateInput(fromLocal.knownSinceDate),
+            recoveredOnDate: normalizeOptionalDateInput(fromLocal.recoveredOnDate),
+            referenceImageUrl: typeof fromLocal.referenceImageUrl === "string" ? fromLocal.referenceImageUrl.trim() : "",
+            referenceImageCaption:
+                typeof fromLocal.referenceImageCaption === "string" ? fromLocal.referenceImageCaption.trim() : "",
+        };
+    };
+
     async function fetchItems() {
         setIsLoadingItems(true);
         const { data, error } = await supabase.from("items").select("*");
@@ -4203,6 +4669,7 @@ function App() {
         setDbGpsFieldSupport(inferDbGpsFieldSupport(nextItems));
         setDbWeightFieldSupport(inferDbWeightFieldSupport(nextItems));
         setDbGeoFieldSupport(inferDbGeoFieldSupport(nextItems));
+        setDbStoryFieldSupport(inferDbStoryFieldSupport(nextItems));
         setItems(nextItems);
         setIsLoadingItems(false);
         return true;
@@ -4272,6 +4739,52 @@ function App() {
             .from("debris-images")
             .getPublicUrl(filePath);
         return data.publicUrl;
+    }
+
+    function uploadReferenceImageFromEdit() {
+        if (!canManageItems) {
+            alert("This account is read-only for now.");
+            return;
+        }
+
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = "image/*";
+
+        input.onchange = async (event) => {
+            const file = event.target.files?.[0];
+
+            if (!file) {
+                setUploadProgressText("No image selected.");
+                window.setTimeout(() => setUploadProgressText(""), 1500);
+                return;
+            }
+
+            setIsUploadingReferenceImage(true);
+            setUploadProgressText("Uploading reference image...");
+
+            try {
+                const referenceImageUrl = await uploadImage(file);
+                setEditForm((prev) => ({
+                    ...prev,
+                    referenceImageUrl,
+                }));
+                setUploadProgressText("Reference image uploaded.");
+                window.setTimeout(() => setUploadProgressText(""), 1800);
+            } catch {
+                setUploadProgressText("Reference upload failed. Please try again.");
+                alert("Reference upload failed. Please try again.");
+            } finally {
+                setIsUploadingReferenceImage(false);
+            }
+        };
+
+        input.oncancel = () => {
+            setUploadProgressText("No image selected.");
+            window.setTimeout(() => setUploadProgressText(""), 1500);
+        };
+
+        input.click();
     }
 
     async function signInWithGitHub() {
@@ -4536,6 +5049,7 @@ function App() {
 
         const gps = getItemGps(item);
         const estimatedWeight = getItemEstimatedWeight(item);
+        const story = getItemStory(item);
         setEditingItemId(item.id);
         setEditForm({
             type: normalizeType(item.type),
@@ -4544,6 +5058,10 @@ function App() {
             estimatedWeight: String(estimatedWeight.value),
             lat: gps ? String(gps.latitude) : "",
             lng: gps ? String(gps.longitude) : "",
+            knownSinceDate: normalizeOptionalDateInput(story?.knownSinceDate),
+            recoveredOnDate: normalizeOptionalDateInput(story?.recoveredOnDate),
+            referenceImageUrl: story?.referenceImageUrl || "",
+            referenceImageCaption: story?.referenceImageCaption || "",
         });
     }
 
@@ -4558,6 +5076,10 @@ function App() {
         const nextType = normalizeType(editForm.type);
         const estimatedWeightKg = parseEstimatedWeightKg(editForm.estimatedWeight) || getDefaultWeightForType(nextType);
         const nextRecoveredState = recovered >= total;
+        const knownSinceDate = normalizeOptionalDateInput(editForm.knownSinceDate);
+        const recoveredOnDate = normalizeOptionalDateInput(editForm.recoveredOnDate);
+        const referenceImageUrl = (editForm.referenceImageUrl || "").trim();
+        const referenceImageCaption = (editForm.referenceImageCaption || "").trim();
 
         const updatePayload = {
             type: nextType,
@@ -4567,6 +5089,10 @@ function App() {
         if (dbCountFieldSupport.total) updatePayload.total_count = total;
         if (dbCountFieldSupport.recovered) updatePayload.recovered_count = recovered;
         if (dbWeightFieldSupport !== false) updatePayload.estimated_weight_kg = estimatedWeightKg;
+        if (dbStoryFieldSupport.knownSinceDate !== false) updatePayload.known_since_date = knownSinceDate || null;
+        if (dbStoryFieldSupport.recoveredOnDate !== false) updatePayload.recovered_on_date = recoveredOnDate || null;
+        if (dbStoryFieldSupport.referenceImageUrl !== false) updatePayload.reference_image_url = referenceImageUrl || null;
+        if (dbStoryFieldSupport.referenceImageCaption !== false) updatePayload.reference_image_caption = referenceImageCaption || null;
 
         const parsedLat = parseGpsNumber(editForm.lat);
         const parsedLng = parseGpsNumber(editForm.lng);
@@ -4593,8 +5119,16 @@ function App() {
                 error.message?.toLowerCase().includes("gps_longitude"));
         const weightColumnMissing =
             error && error.message?.toLowerCase().includes("estimated_weight_kg");
+        const storyColumnMissing =
+            error &&
+            (
+                error.message?.toLowerCase().includes("known_since_date") ||
+                error.message?.toLowerCase().includes("recovered_on_date") ||
+                error.message?.toLowerCase().includes("reference_image_url") ||
+                error.message?.toLowerCase().includes("reference_image_caption")
+            );
 
-        if (gpsColumnMissing || weightColumnMissing) {
+        if (gpsColumnMissing || weightColumnMissing || storyColumnMissing) {
             const retryPayload = { ...updatePayload };
 
             if (gpsColumnMissing) {
@@ -4606,6 +5140,19 @@ function App() {
             if (weightColumnMissing) {
                 delete retryPayload.estimated_weight_kg;
                 setDbWeightFieldSupport(false);
+            }
+
+            if (storyColumnMissing) {
+                delete retryPayload.known_since_date;
+                delete retryPayload.recovered_on_date;
+                delete retryPayload.reference_image_url;
+                delete retryPayload.reference_image_caption;
+                setDbStoryFieldSupport({
+                    knownSinceDate: false,
+                    recoveredOnDate: false,
+                    referenceImageUrl: false,
+                    referenceImageCaption: false,
+                });
             }
 
             const retryResult = await supabase
@@ -4641,6 +5188,40 @@ function App() {
                 ...prev,
                 [itemId]: estimatedWeightKg,
             }));
+        }
+
+        if (
+            dbStoryFieldSupport.knownSinceDate === false ||
+            dbStoryFieldSupport.recoveredOnDate === false ||
+            dbStoryFieldSupport.referenceImageUrl === false ||
+            dbStoryFieldSupport.referenceImageCaption === false ||
+            storyColumnMissing
+        ) {
+            setLocalItemStory((prev) => {
+                const next = { ...prev };
+                const nextStory = {
+                    knownSinceDate,
+                    recoveredOnDate,
+                    referenceImageUrl,
+                    referenceImageCaption,
+                };
+
+                if (isItemStoryEmpty(nextStory)) {
+                    delete next[itemId];
+                } else {
+                    next[itemId] = nextStory;
+                }
+
+                return next;
+            });
+        } else {
+            setLocalItemStory((prev) => {
+                if (!Object.prototype.hasOwnProperty.call(prev, itemId)) return prev;
+
+                const next = { ...prev };
+                delete next[itemId];
+                return next;
+            });
         }
 
         setEditingItemId(null);
@@ -4684,6 +5265,14 @@ function App() {
         });
 
         setLocalWeights((prev) => {
+            if (!Object.prototype.hasOwnProperty.call(prev, itemId)) return prev;
+
+            const next = { ...prev };
+            delete next[itemId];
+            return next;
+        });
+
+        setLocalItemStory((prev) => {
             if (!Object.prototype.hasOwnProperty.call(prev, itemId)) return prev;
 
             const next = { ...prev };
@@ -4808,6 +5397,10 @@ function App() {
     const selectedWeight = useMemo(
         () => (selectedItem ? getItemEstimatedWeight(selectedItem) : null),
         [selectedItem, localWeights, dbWeightFieldSupport],
+    );
+    const selectedStory = useMemo(
+        () => (selectedItem ? getItemStory(selectedItem) : null),
+        [selectedItem, localItemStory, dbStoryFieldSupport],
     );
 
     useEffect(() => {
@@ -5302,6 +5895,7 @@ function App() {
             <SelectedItemDrawer
                 selectedItem={selectedItem}
                 selectedCounts={selectedCounts}
+                selectedStory={selectedStory}
                 selectedGps={selectedGps}
                 selectedGeoLookup={selectedGeoLookup}
                 isResolvingGeoLookup={isResolvingGeoLookup}
@@ -5319,6 +5913,8 @@ function App() {
                 removeLocation={removeLocation}
                 startEditingItem={startEditingItem}
                 canManageItems={canManageItems}
+                onUploadReferenceImage={uploadReferenceImageFromEdit}
+                isUploadingReferenceImage={isUploadingReferenceImage}
                 onCopyShareLink={copyShareLinkForItem}
                 copiedShareItemId={copiedShareItemId}
                 shareCopyStatus={shareCopyStatus}
@@ -5329,6 +5925,7 @@ function App() {
                 isMobile={isMobile}
                 selectedItem={selectedItem}
                 selectedCounts={selectedCounts}
+                selectedStory={selectedStory}
                 selectedGps={selectedGps}
                 selectedGeoLookup={selectedGeoLookup}
                 isResolvingGeoLookup={isResolvingGeoLookup}
