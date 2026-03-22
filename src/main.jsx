@@ -2309,7 +2309,7 @@ function FullscreenImageViewer({
                 position: "fixed",
                 inset: 0,
                 background: "rgba(0, 0, 0, 0.92)",
-                zIndex: 1400,
+                zIndex: 2100,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -2414,7 +2414,7 @@ function SelectedItemDrawer({
     const useCompactSheet =
         isMobile || (typeof window !== "undefined" && window.innerWidth <= 1024);
     const isEditingThisItem = canManageItems && editingItemId === selectedItem.id;
-    const compactNoScroll = useCompactSheet && !isEditingThisItem;
+    const compactNoScroll = false;
 
     const drawerNode = (
         <>
@@ -2530,7 +2530,7 @@ function SelectedItemDrawer({
                                     alt="Debris evidence"
                                     style={{
                                         width: "100%",
-                                        height: compactNoScroll ? "min(24dvh, 165px)" : useCompactSheet ? "min(22svh, 170px)" : "200px",
+                                        height: useCompactSheet ? "min(40svh, 260px)" : "200px",
                                         objectFit: "cover",
                                         borderRadius: "10px",
                                         border: "1px solid #ddd",
@@ -3795,7 +3795,13 @@ function App() {
         [lancasterTideRows, lancasterTideUpdatedAt],
     );
 
-    const mapHeight = isMobile ? "calc(100svh - 150px)" : "calc(100vh - 250px)";
+    const mapHeight = isTidePlannerCollapsed
+        ? isMobile
+            ? "calc(100dvh - 198px)"
+            : "calc(100dvh - 242px)"
+        : isMobile
+          ? "calc(100svh - 150px)"
+          : "calc(100vh - 250px)";
     const controlFontSize = isMobile ? "0.95rem" : "0.85rem";
     const touchButtonSize = isMobile ? "38px" : "30px";
     const activeFilterCount = Number(typeFilter !== "all") + Number(statusFilter !== "all");
@@ -3839,6 +3845,9 @@ function App() {
                 backdropFilter: "blur(14px)",
                 WebkitTapHighlightColor: "transparent",
                 boxSizing: "border-box",
+                minHeight: "100dvh",
+                display: "flex",
+                flexDirection: "column",
             }}
         >
             <AppTopBar
@@ -3901,7 +3910,12 @@ function App() {
 
             <div
                 ref={mapOverlayRootRef}
-                style={{ position: "relative" }}
+                style={{
+                    position: "relative",
+                    marginTop: isTidePlannerCollapsed ? "2px" : "0",
+                    flex: isTidePlannerCollapsed ? "1 1 auto" : "0 0 auto",
+                    minHeight: 0,
+                }}
             >
                 <MapContainer
                     center={RIVER_LUNE_CENTER}
