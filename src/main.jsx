@@ -60,6 +60,9 @@ const GEOLOOKUP_STORAGE_KEY = "cleanup-item-geolookup-v1";
 const LANCASTER_TIDE_JSON_URL = `${import.meta.env.BASE_URL}lancaster-tides.json`;
 const LANCASTER_TIDE_CHART_URL =
     "https://www.tide-forecast.com/tide/Lancaster/tide-times";
+const TIDE_CHART_MIN_WIDTH = 640;
+const TIDE_CHART_PIXELS_PER_POINT = 120;
+const CLEANUP_WINDOW_MINUTES = 120;
 const OWNER_GITHUB_LOGINS = (import.meta.env.VITE_OWNER_GITHUB_LOGINS || "mrdiamonddirt")
     .split(",")
     .map((value) => value.trim().toLowerCase())
@@ -420,6 +423,55 @@ const formatTideDay = (date) => {
     }).format(date);
 };
 
+const formatTideClockTime = (date) => {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
+
+    return new Intl.DateTimeFormat("en-GB", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+    }).format(date);
+};
+
+const buildCurrentTideMarker = (chartData, currentTime) => {
+    const points = chartData?.points || [];
+    if (points.length < 2) return null;
+
+    const currentTimestamp = currentTime instanceof Date ? currentTime.getTime() : Number(currentTime);
+    if (!Number.isFinite(currentTimestamp)) return null;
+
+    const firstPoint = points[0];
+    const lastPoint = points[points.length - 1];
+    const firstTime = firstPoint.date.getTime();
+    const lastTime = lastPoint.date.getTime();
+
+    if (currentTimestamp < firstTime || currentTimestamp > lastTime) return null;
+
+    for (let index = 0; index < points.length - 1; index += 1) {
+        const start = points[index];
+        const end = points[index + 1];
+        const startTime = start.date.getTime();
+        const endTime = end.date.getTime();
+
+        if (currentTimestamp < startTime || currentTimestamp > endTime) continue;
+
+        const segmentProgress = (currentTimestamp - startTime) / (endTime - startTime || 1);
+        const easedProgress = (1 - Math.cos(Math.PI * segmentProgress)) / 2;
+        const currentHeight = start.height + (end.height - start.height) * easedProgress;
+
+        return {
+            time: new Date(currentTimestamp),
+            height: currentHeight,
+            x: start.x + (end.x - start.x) * segmentProgress,
+            y: start.y + (end.y - start.y) * easedProgress,
+            previous: start,
+            next: end,
+        };
+    }
+
+    return null;
+};
+
 const buildTideChartData = (rows, updatedAt) => {
     if (!Array.isArray(rows) || rows.length < 2) return null;
 
@@ -444,7 +496,7 @@ const buildTideChartData = (rows, updatedAt) => {
 
     if (parsedRows.length < 2) return null;
 
-    const width = 640;
+    const width = Math.max(TIDE_CHART_MIN_WIDTH, parsedRows.length * TIDE_CHART_PIXELS_PER_POINT);
     const height = 196;
     const padding = { top: 8, right: 12, bottom: 16, left: 12 };
     const chartWidth = width - padding.left - padding.right;
@@ -494,42 +546,12 @@ const buildTideChartData = (rows, updatedAt) => {
 
     const areaPath = `${curvePath} L ${points[points.length - 1].x.toFixed(2)} ${(padding.top + chartHeight).toFixed(2)} L ${points[0].x.toFixed(2)} ${(padding.top + chartHeight).toFixed(2)} Z`;
 
-    const now = new Date();
-    let currentMarker = null;
-
-    if (now.getTime() >= minTime && now.getTime() <= maxTime) {
-        for (let index = 0; index < parsedRows.length - 1; index += 1) {
-            const start = parsedRows[index];
-            const end = parsedRows[index + 1];
-            const startTime = start.date.getTime();
-            const endTime = end.date.getTime();
-
-            if (now.getTime() < startTime || now.getTime() > endTime) continue;
-
-            const segmentProgress = (now.getTime() - startTime) / (endTime - startTime || 1);
-            const easedProgress = (1 - Math.cos(Math.PI * segmentProgress)) / 2;
-            const currentHeight = start.height + (end.height - start.height) * easedProgress;
-
-            currentMarker = {
-                time: now,
-                height: currentHeight,
-                x: getX(now.getTime()),
-                y: getY(currentHeight),
-                previous: start,
-                next: end,
-            };
-            break;
-        }
-    }
-
-    const nextTide = parsedRows.find((row) => row.date.getTime() >= now.getTime()) || null;
-    const previousTide = [...parsedRows].reverse().find((row) => row.date.getTime() <= now.getTime()) || null;
     const cleanupWindows = parsedRows
         .filter((row) => row.isLowTide)
         .map((row) => {
             const centerTime = row.date.getTime();
-            const startTime = Math.max(minTime, centerTime - 90 * 60 * 1000);
-            const endTime = Math.min(maxTime, centerTime + 90 * 60 * 1000);
+            const startTime = Math.max(minTime, centerTime - CLEANUP_WINDOW_MINUTES * 60 * 1000);
+            const endTime = Math.min(maxTime, centerTime + CLEANUP_WINDOW_MINUTES * 60 * 1000);
 
             return {
                 index: row.index,
@@ -550,9 +572,6 @@ const buildTideChartData = (rows, updatedAt) => {
         points,
         curvePath,
         areaPath,
-        currentMarker,
-        nextTide,
-        previousTide,
         cleanupWindows,
     };
 };
@@ -1942,6 +1961,39 @@ function TidePlanner({
     tideChartData,
 }) {
     const [selectedTideIndex, setSelectedTideIndex] = useState(null);
+    const [liveTideTimeMs, setLiveTideTimeMs] = useState(() => Date.now());
+
+    useEffect(() => {
+        if (isTidePlannerCollapsed || !tideChartData?.points?.length) return undefined;
+
+        setLiveTideTimeMs(Date.now());
+
+        const intervalId = window.setInterval(() => {
+            setLiveTideTimeMs(Date.now());
+        }, 15000);
+
+        return () => {
+            window.clearInterval(intervalId);
+        };
+    }, [isTidePlannerCollapsed, tideChartData]);
+
+    const currentTideTime = useMemo(() => new Date(liveTideTimeMs), [liveTideTimeMs]);
+    const currentTideMarker = useMemo(
+        () => buildCurrentTideMarker(tideChartData, liveTideTimeMs),
+        [tideChartData, liveTideTimeMs],
+    );
+    const nextTide = useMemo(
+        () =>
+            tideChartData?.points?.find((point) => point.date.getTime() >= liveTideTimeMs) || null,
+        [tideChartData, liveTideTimeMs],
+    );
+    const previousTide = useMemo(
+        () =>
+            tideChartData?.points
+                ? [...tideChartData.points].reverse().find((point) => point.date.getTime() <= liveTideTimeMs) || null
+                : null,
+        [tideChartData, liveTideTimeMs],
+    );
 
     useEffect(() => {
         if (!tideChartData?.points?.length) {
@@ -1954,13 +2006,13 @@ function TidePlanner({
             if (selectedStillExists) return;
         }
 
-        const fallbackPoint = tideChartData.nextTide || tideChartData.points[0];
+        const fallbackPoint = nextTide || tideChartData.points[0];
         setSelectedTideIndex(fallbackPoint?.index ?? null);
-    }, [tideChartData, selectedTideIndex]);
+    }, [nextTide, tideChartData, selectedTideIndex]);
 
     const selectedTidePoint =
         tideChartData?.points?.find((point) => point.index === selectedTideIndex) ||
-        tideChartData?.nextTide ||
+        nextTide ||
         tideChartData?.points?.[0] ||
         null;
 
@@ -2026,7 +2078,7 @@ function TidePlanner({
                     </div>
 
                     <div style={{ fontSize: "0.8rem", color: "#334155", marginBottom: "5px", lineHeight: 1.35 }}>
-                        Best cleanup window is usually around low tide: target about 90 minutes before and after the low tide dips shown on the graph.
+                        Best cleanup window is usually around low tide: target about 2 hours before and after the low tide dips shown on the graph.
                     </div>
 
                     {lancasterTideUpdatedAt ? (
@@ -2102,7 +2154,7 @@ function TidePlanner({
                                                 border: "1px solid rgba(22,163,74,0.55)",
                                             }}
                                         />
-                                        90 min cleanup window
+                                        2 hr cleanup window
                                     </span>
                                     <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
                                         <span aria-hidden="true" style={{ width: "2px", height: "14px", background: "#dc2626" }} />
@@ -2115,7 +2167,7 @@ function TidePlanner({
                                         viewBox={`0 0 ${tideChartData.width} ${tideChartData.height}`}
                                         role="img"
                                         aria-label="Wave graph of upcoming Lancaster tide highs, lows, and current time"
-                                        style={{ width: "100%", minWidth: isMobile ? "460px" : "100%", height: "auto", display: "block" }}
+                                        style={{ width: "100%", minWidth: `${tideChartData.width}px`, height: "auto", display: "block" }}
                                     >
                                         <defs>
                                             <linearGradient id="tideBackdropGradient" x1="0" x2="0" y1="0" y2="1">
@@ -2243,25 +2295,59 @@ function TidePlanner({
                                             strokeLinecap="round"
                                         />
 
-                                        {tideChartData.currentMarker ? (
+                                        {currentTideMarker ? (
                                             <g>
+                                                {(() => {
+                                                    const timeLabelX = Math.min(
+                                                        Math.max(currentTideMarker.x + 8, tideChartData.padding.left + 24),
+                                                        tideChartData.width - tideChartData.padding.right - 24,
+                                                    );
+
+                                                    return (
+                                                        <>
                                                 <line
-                                                    x1={tideChartData.currentMarker.x}
-                                                    x2={tideChartData.currentMarker.x}
+                                                    x1={currentTideMarker.x}
+                                                    x2={currentTideMarker.x}
                                                     y1={tideChartData.padding.top}
                                                     y2={tideChartData.baselineY}
                                                     stroke="#dc2626"
-                                                    strokeWidth="2"
+                                                    strokeWidth="1.5"
                                                     strokeDasharray="6 4"
+                                                    opacity="0.8"
                                                 />
+                                                <rect
+                                                    x={timeLabelX - 19}
+                                                    y={tideChartData.padding.top + 5}
+                                                    width="38"
+                                                    height="14"
+                                                    rx="7"
+                                                    fill="#fff5f5"
+                                                    stroke="#dc2626"
+                                                    strokeWidth="1"
+                                                    opacity="0.95"
+                                                />
+                                                <text
+                                                    x={timeLabelX}
+                                                    y={tideChartData.padding.top + 12.8}
+                                                    textAnchor="middle"
+                                                    dominantBaseline="middle"
+                                                    fontSize="8"
+                                                    fontWeight="700"
+                                                    fill="#b91c1c"
+                                                >
+                                                    {formatTideClockTime(currentTideMarker.time)}
+                                                </text>
                                                 <circle
-                                                    cx={tideChartData.currentMarker.x}
-                                                    cy={tideChartData.currentMarker.y}
-                                                    r="5"
-                                                    fill="#dc2626"
-                                                    stroke="#ffffff"
-                                                    strokeWidth="2.5"
+                                                    cx={currentTideMarker.x}
+                                                    cy={currentTideMarker.y}
+                                                    r="3.2"
+                                                    fill="#ffffff"
+                                                    stroke="#dc2626"
+                                                    strokeWidth="1.8"
                                                 />
+                                                        </>
+                                                    );
+                                                })()}
                                             </g>
                                         ) : null}
 
@@ -2313,10 +2399,10 @@ function TidePlanner({
                                     <div style={{ borderRadius: "10px", border: "1px solid #dbeafe", background: "#eff6ff", padding: "8px 10px" }}>
                                         <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "#1d4ed8", textTransform: "uppercase", letterSpacing: "0.04em" }}>Previous tide</div>
                                         <div style={{ marginTop: "4px", fontSize: "0.88rem", fontWeight: 700, color: "#0f172a" }}>
-                                            {tideChartData.previousTide ? tideChartData.previousTide.type : "Unavailable"}
+                                            {previousTide ? previousTide.type : "Unavailable"}
                                         </div>
                                         <div style={{ marginTop: "2px", fontSize: "0.78rem", color: "#475569" }}>
-                                            {tideChartData.previousTide ? `${formatTideTime(tideChartData.previousTide.date)} • ${tideChartData.previousTide.height.toFixed(2)} m` : "No tide before current time in this range."}
+                                            {previousTide ? `${formatTideTime(previousTide.date)} • ${previousTide.height.toFixed(2)} m` : "No tide before current time in this range."}
                                         </div>
                                     </div>
 
@@ -2342,10 +2428,10 @@ function TidePlanner({
                                     <div style={{ borderRadius: "10px", border: "1px solid #fecaca", background: "#fef2f2", padding: "8px 10px" }}>
                                         <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "#b91c1c", textTransform: "uppercase", letterSpacing: "0.04em" }}>Current time</div>
                                         <div style={{ marginTop: "4px", fontSize: "0.88rem", fontWeight: 700, color: "#0f172a" }}>
-                                            {formatTideTime(tideChartData.currentMarker?.time || new Date())}
+                                            {formatTideTime(currentTideMarker?.time || currentTideTime)}
                                         </div>
                                         <div style={{ marginTop: "2px", fontSize: "0.78rem", color: "#475569" }}>
-                                            {tideChartData.currentMarker ? `Estimated height ${tideChartData.currentMarker.height.toFixed(2)} m between ${tideChartData.currentMarker.previous.type} and ${tideChartData.currentMarker.next.type}.` : "Current time sits outside the saved chart range."}
+                                            {currentTideMarker ? `Estimated height ${currentTideMarker.height.toFixed(2)} m between ${currentTideMarker.previous.type} and ${currentTideMarker.next.type}.` : "Current time sits outside the saved chart range."}
                                         </div>
                                     </div>
                                 </div>
