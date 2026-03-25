@@ -2331,6 +2331,8 @@ function TidePlanner({
 }) {
     const [selectedTideIndex, setSelectedTideIndex] = useState(null);
     const [liveTideTimeMs, setLiveTideTimeMs] = useState(() => Date.now());
+    const [activeCleanupWindowIndex, setActiveCleanupWindowIndex] = useState(null);
+    const tideChartViewportRef = useRef(null);
 
     useEffect(() => {
         if (isTidePlannerCollapsed || !tideChartData?.points?.length) return undefined;
@@ -2379,11 +2381,61 @@ function TidePlanner({
         setSelectedTideIndex(fallbackPoint?.index ?? null);
     }, [nextTide, tideChartData, selectedTideIndex]);
 
+    useEffect(() => {
+        if (!tideChartData?.cleanupWindows?.length) {
+            setActiveCleanupWindowIndex(null);
+            return;
+        }
+
+        const activeWindowStillExists = tideChartData.cleanupWindows.some(
+            (window) => window.index === activeCleanupWindowIndex,
+        );
+
+        if (!activeWindowStillExists) {
+            setActiveCleanupWindowIndex(null);
+        }
+    }, [activeCleanupWindowIndex, tideChartData]);
+
+    useEffect(() => {
+        if (!isMobile || activeCleanupWindowIndex === null) return undefined;
+
+        const handlePointerDown = (event) => {
+            if (tideChartViewportRef.current?.contains(event.target)) return;
+            setActiveCleanupWindowIndex(null);
+        };
+
+        window.addEventListener("pointerdown", handlePointerDown);
+
+        return () => {
+            window.removeEventListener("pointerdown", handlePointerDown);
+        };
+    }, [activeCleanupWindowIndex, isMobile]);
+
     const selectedTidePoint =
         tideChartData?.points?.find((point) => point.index === selectedTideIndex) ||
         nextTide ||
         tideChartData?.points?.[0] ||
         null;
+    const activeCleanupWindow =
+        tideChartData?.cleanupWindows?.find((window) => window.index === activeCleanupWindowIndex) ||
+        null;
+    const activeCleanupWindowPosition = activeCleanupWindow
+        ? activeCleanupWindow.lowTideX / tideChartData.width
+        : null;
+    const cleanupTooltipPlacement =
+        activeCleanupWindowPosition === null
+            ? "center"
+            : activeCleanupWindowPosition < 0.24
+              ? "left"
+              : activeCleanupWindowPosition > 0.76
+                ? "right"
+                : "center";
+    const cleanupTooltipStartLabel = activeCleanupWindow
+        ? formatTideTime(new Date(activeCleanupWindow.startTime))
+        : "";
+    const cleanupTooltipEndLabel = activeCleanupWindow
+        ? formatTideTime(new Date(activeCleanupWindow.endTime))
+        : "";
 
     return (
         <div
@@ -2446,8 +2498,100 @@ function TidePlanner({
                         </button>
                     </div>
 
-                    <div style={{ fontSize: "0.8rem", color: "#334155", marginBottom: "5px", lineHeight: 1.35 }}>
-                        Best cleanup window is usually around low tide: target about 2 hours before and after the low tide dips shown on the graph.
+                    <div
+                        style={{
+                            marginBottom: "7px",
+                            padding: isMobile ? "9px 10px" : "10px 12px",
+                            borderRadius: "12px",
+                            border: "1px solid #dbeafe",
+                            background: "linear-gradient(180deg, rgba(239,246,255,0.95) 0%, rgba(248,250,252,0.98) 100%)",
+                            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.7)",
+                        }}
+                    >
+                        <div
+                            style={{
+                                display: "flex",
+                                gap: "6px",
+                                flexWrap: "wrap",
+                                alignItems: "center",
+                                marginBottom: "5px",
+                            }}
+                        >
+                            <span
+                                style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    borderRadius: "999px",
+                                    background: "#dbeafe",
+                                    color: "#1d4ed8",
+                                    padding: "3px 8px",
+                                    fontSize: "0.69rem",
+                                    fontWeight: 800,
+                                    letterSpacing: "0.04em",
+                                    textTransform: "uppercase",
+                                }}
+                            >
+                                Tide guidance
+                            </span>
+                            <span
+                                style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    borderRadius: "999px",
+                                    background: "#fef2f2",
+                                    color: "#b91c1c",
+                                    padding: "3px 8px",
+                                    fontSize: "0.69rem",
+                                    fontWeight: 800,
+                                    letterSpacing: "0.04em",
+                                    textTransform: "uppercase",
+                                }}
+                            >
+                                Safety warning
+                            </span>
+                        </div>
+
+                        <div style={{ fontSize: "0.81rem", color: "#1e293b", lineHeight: 1.45, fontWeight: 600 }}>
+                            The best cleanup window is usually around low tide. Aim for roughly 2 hours before and 2 hours after the low tide dips shown on the graph.
+                        </div>
+
+                        <div style={{ fontSize: "0.77rem", color: "#475569", lineHeight: 1.45, marginTop: "4px" }}>
+                            These windows are estimates only and conditions can change quickly.
+                        </div>
+
+                        <div
+                            style={{
+                                marginTop: "7px",
+                                padding: "8px 10px",
+                                borderRadius: "10px",
+                                border: "1px solid #fecaca",
+                                background: "linear-gradient(180deg, #fff5f5 0%, #fef2f2 100%)",
+                            }}
+                        >
+                            <div
+                                style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    borderRadius: "999px",
+                                    background: "#fee2e2",
+                                    color: "#991b1b",
+                                    padding: "2px 7px",
+                                    fontSize: "0.67rem",
+                                    fontWeight: 800,
+                                    letterSpacing: "0.05em",
+                                    textTransform: "uppercase",
+                                    marginBottom: "4px",
+                                }}
+                            >
+                                Highest risk
+                            </div>
+                            <div style={{ fontSize: "0.78rem", color: "#7f1d1d", lineHeight: 1.45, fontWeight: 800 }}>
+                                Outgoing tides are particularly dangerous.
+                            </div>
+                            <div style={{ fontSize: "0.76rem", color: "#7f1d1d", lineHeight: 1.45, marginTop: "2px", fontWeight: 700 }}>
+                                Tides are dangerous at all times. Do not enter the water without strict professional supervision.
+                            </div>
+                        </div>
                     </div>
 
                     {lancasterTideUpdatedAt ? (
@@ -2531,13 +2675,66 @@ function TidePlanner({
                                     </span>
                                 </div>
 
-                                <div style={{ width: "100%", overflowX: "auto", marginTop: "-3px", marginBottom: "-2px" }}>
-                                    <svg
-                                        viewBox={`0 0 ${tideChartData.width} ${tideChartData.height}`}
-                                        role="img"
-                                        aria-label="Wave graph of upcoming Lancaster tide highs, lows, and current time"
-                                        style={{ width: "100%", minWidth: `${tideChartData.width}px`, height: "auto", display: "block" }}
+                                <div
+                                    ref={tideChartViewportRef}
+                                    style={{ width: "100%", overflowX: "auto", marginTop: "-3px", marginBottom: "-2px" }}
+                                >
+                                    <div
+                                        style={{
+                                            position: "relative",
+                                            width: `max(100%, ${tideChartData.width}px)`,
+                                            minWidth: `${tideChartData.width}px`,
+                                        }}
                                     >
+                                        {activeCleanupWindow ? (
+                                            <div
+                                                role="status"
+                                                aria-live="polite"
+                                                style={{
+                                                    position: "absolute",
+                                                    top: "10px",
+                                                    left:
+                                                        cleanupTooltipPlacement === "left"
+                                                            ? "10px"
+                                                            : cleanupTooltipPlacement === "center"
+                                                              ? `${(activeCleanupWindow.lowTideX / tideChartData.width) * 100}%`
+                                                              : "auto",
+                                                    right: cleanupTooltipPlacement === "right" ? "10px" : "auto",
+                                                    transform:
+                                                        cleanupTooltipPlacement === "center"
+                                                            ? "translateX(-50%)"
+                                                            : "none",
+                                                    width: isMobile ? "min(260px, calc(100% - 20px))" : "min(300px, calc(100% - 20px))",
+                                                    padding: "10px 12px",
+                                                    borderRadius: "12px",
+                                                    border: "1px solid rgba(15, 23, 42, 0.12)",
+                                                    background: "rgba(255, 255, 255, 0.96)",
+                                                    color: "#0f172a",
+                                                    boxShadow: "0 14px 28px rgba(15,23,42,0.16)",
+                                                    fontSize: "0.76rem",
+                                                    lineHeight: 1.45,
+                                                    zIndex: 2,
+                                                    pointerEvents: "none",
+                                                }}
+                                            >
+                                                <div style={{ fontWeight: 800, color: "#166534", marginBottom: "3px" }}>
+                                                    Estimated 2 hour cleanup window
+                                                </div>
+                                                <div style={{ color: "#334155" }}>
+                                                    Around {cleanupTooltipStartLabel} to {cleanupTooltipEndLabel}.
+                                                </div>
+                                                <div style={{ color: "#7f1d1d", marginTop: "5px", fontWeight: 700 }}>
+                                                    Estimated only. Tides are dangerous at all times, and outgoing tides are particularly dangerous. Do not enter the water without strict professional supervision.
+                                                </div>
+                                            </div>
+                                        ) : null}
+
+                                        <svg
+                                            viewBox={`0 0 ${tideChartData.width} ${tideChartData.height}`}
+                                            role="img"
+                                            aria-label="Wave graph of upcoming Lancaster tide highs, lows, and current time"
+                                            style={{ width: "100%", height: "auto", display: "block" }}
+                                        >
                                         <defs>
                                             <linearGradient id="tideBackdropGradient" x1="0" x2="0" y1="0" y2="1">
                                                 <stop offset="0%" stopColor="#f8fbff" />
@@ -2603,22 +2800,68 @@ function TidePlanner({
                                             strokeWidth="1"
                                         />
 
-                                        {tideChartData.cleanupWindows.map((window) => (
-                                            <g key={`cleanup-window-${window.index}`}>
+                                        {tideChartData.cleanupWindows.map((window) => {
+                                            const isActive = activeCleanupWindowIndex === window.index;
+                                            const cleanupWindowSummary = `Estimated cleanup window from ${formatTideTime(new Date(window.startTime))} to ${formatTideTime(new Date(window.endTime))}. Tides are dangerous at all times, and outgoing tides are particularly dangerous. Do not enter the water without strict professional supervision.`;
+
+                                            return (
+                                            <g
+                                                key={`cleanup-window-${window.index}`}
+                                                role="button"
+                                                tabIndex={0}
+                                                aria-label={cleanupWindowSummary}
+                                                onMouseEnter={() => {
+                                                    if (!isMobile) setActiveCleanupWindowIndex(window.index);
+                                                }}
+                                                onMouseLeave={() => {
+                                                    if (!isMobile) {
+                                                        setActiveCleanupWindowIndex((currentIndex) =>
+                                                            currentIndex === window.index ? null : currentIndex,
+                                                        );
+                                                    }
+                                                }}
+                                                onFocus={() => setActiveCleanupWindowIndex(window.index)}
+                                                onBlur={() => {
+                                                    setActiveCleanupWindowIndex((currentIndex) =>
+                                                        currentIndex === window.index ? null : currentIndex,
+                                                    );
+                                                }}
+                                                onClick={() => {
+                                                    if (isMobile) {
+                                                        setActiveCleanupWindowIndex((currentIndex) =>
+                                                            currentIndex === window.index ? null : window.index,
+                                                        );
+                                                    }
+                                                }}
+                                                onKeyDown={(event) => {
+                                                    if (event.key === "Enter" || event.key === " ") {
+                                                        event.preventDefault();
+                                                        setActiveCleanupWindowIndex((currentIndex) =>
+                                                            currentIndex === window.index ? null : window.index,
+                                                        );
+                                                    }
+
+                                                    if (event.key === "Escape") {
+                                                        setActiveCleanupWindowIndex(null);
+                                                    }
+                                                }}
+                                                style={{ cursor: "pointer" }}
+                                            >
                                                 <rect
                                                     x={window.xStart}
                                                     y={tideChartData.padding.top}
                                                     width={Math.max(window.xEnd - window.xStart, 1)}
                                                     height={tideChartData.baselineY - tideChartData.padding.top}
-                                                    fill="rgba(22, 163, 74, 0.11)"
+                                                    rx="12"
+                                                    fill={isActive ? "rgba(22, 163, 74, 0.22)" : "rgba(22, 163, 74, 0.11)"}
                                                 />
                                                 <line
                                                     x1={window.xStart}
                                                     x2={window.xStart}
                                                     y1={tideChartData.padding.top}
                                                     y2={tideChartData.baselineY}
-                                                    stroke="rgba(22, 163, 74, 0.6)"
-                                                    strokeWidth="1"
+                                                    stroke={isActive ? "rgba(21, 128, 61, 0.95)" : "rgba(22, 163, 74, 0.6)"}
+                                                    strokeWidth={isActive ? "1.4" : "1"}
                                                     strokeDasharray="5 5"
                                                 />
                                                 <line
@@ -2626,12 +2869,13 @@ function TidePlanner({
                                                     x2={window.xEnd}
                                                     y1={tideChartData.padding.top}
                                                     y2={tideChartData.baselineY}
-                                                    stroke="rgba(22, 163, 74, 0.6)"
-                                                    strokeWidth="1"
+                                                    stroke={isActive ? "rgba(21, 128, 61, 0.95)" : "rgba(22, 163, 74, 0.6)"}
+                                                    strokeWidth={isActive ? "1.4" : "1"}
                                                     strokeDasharray="5 5"
                                                 />
                                             </g>
-                                        ))}
+                                            );
+                                        })}
 
                                         {tideChartData.points.map((point) => (
                                             <line
@@ -2755,7 +2999,8 @@ function TidePlanner({
                                                 </g>
                                             );
                                         })}
-                                    </svg>
+                                        </svg>
+                                    </div>
                                 </div>
 
                                 <div
