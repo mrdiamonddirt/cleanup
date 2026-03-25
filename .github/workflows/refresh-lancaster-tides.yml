@@ -34,14 +34,6 @@ jobs:
       - name: Refresh Lancaster tide JSON
         run: npm run update:tides
 
-      - name: Commit updated tide JSON
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@users.noreply.github.com"
-          git add public/lancaster-tides.json
-          git diff --cached --quiet || git commit -m "chore: refresh Lancaster tide data"
-          git push
-
       - name: Build site
         run: npm run build
 

@@ -23,7 +23,7 @@ To maintain the aspect ratio of the aerial imagery, I implemented a custom `CRS.
 ## 🌊 Tide Data
 - The Lancaster tide planner reads from [public/lancaster-tides.json](public/lancaster-tides.json)
 - Refresh manually with `npm run update:tides`
-- A scheduled GitHub Actions workflow updates the JSON every 6 hours and redeploys the site
+- A scheduled GitHub Actions workflow refreshes the JSON during the build every 6 hours and redeploys the site
 
 ## 🔎 SEO Share Pages (Supabase Prerender)
 - Build-time SEO page generation runs with `npm run generate:seo`.
