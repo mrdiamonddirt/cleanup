@@ -12,7 +12,7 @@ import {
 import L from "leaflet";
 import * as exifr from "exifr";
 import "leaflet/dist/leaflet.css";
-import { supabase } from "./supabaseClient";
+import { hasSupabaseConfig, supabase } from "./supabaseClient";
 
 // --- LEAFLET ICON FIX ---
 import markerIcon from "leaflet/dist/images/marker-icon.png";
@@ -4588,6 +4588,16 @@ function App() {
     useEffect(() => {
         let isMounted = true;
 
+        if (!hasSupabaseConfig) {
+            setCurrentUser(null);
+            setAuthError("Supabase is not configured for this deployment.");
+            setAuthReady(true);
+            setIsAuthActionLoading(false);
+            return () => {
+                isMounted = false;
+            };
+        }
+
         const initAuth = async () => {
             const { data, error } = await supabase.auth.getUser();
 
@@ -4903,6 +4913,12 @@ function App() {
 
     async function fetchItems() {
         setIsLoadingItems(true);
+
+        if (!hasSupabaseConfig) {
+            setIsLoadingItems(false);
+            return false;
+        }
+
         const { data, error } = await supabase.from("items").select("*");
 
         if (error) {
@@ -5037,6 +5053,12 @@ function App() {
         setAuthError("");
         setIsAuthActionLoading(true);
 
+        if (!hasSupabaseConfig) {
+            setAuthError("Supabase is not configured for this deployment.");
+            setIsAuthActionLoading(false);
+            return;
+        }
+
         const redirectTo = `${window.location.origin}${window.location.pathname}`;
         const { error } = await supabase.auth.signInWithOAuth({
             provider: "github",
@@ -5053,6 +5075,13 @@ function App() {
     async function signOut() {
         setAuthError("");
         setIsAuthActionLoading(true);
+
+        if (!hasSupabaseConfig) {
+            setAuthError("Supabase is not configured for this deployment.");
+            setIsAuthActionLoading(false);
+            return;
+        }
+
         const { error } = await supabase.auth.signOut();
 
         if (error) {
