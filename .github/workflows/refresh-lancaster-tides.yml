@@ -40,4 +40,4 @@ jobs:
       - name: Deploy to GitHub Pages branch
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx gh-pages -d dist -u "github-actions <github-actions@users.noreply.github.com>"
+        run: npx gh-pages -d dist -u "github-actions <github-actions@users.noreply.github.com>" -r "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
