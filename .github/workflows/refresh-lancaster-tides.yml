@@ -22,6 +22,21 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Validate required Supabase secrets
+        run: |
+          if [ -z "${VITE_SUPABASE_URL}" ] || [ -z "${VITE_SUPABASE_ANON_KEY}" ]; then
+            echo "Missing required Supabase secrets. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in repository secrets."
+            exit 1
+          fi
+
+      - name: Write .env.production for Vite build
+        run: |
+          cat <<EOF > .env.production
+          VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+          VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
+          SEO_SITE_URL=${SEO_SITE_URL}
+          EOF
+
       - name: Set up Node.js
         uses: actions/setup-node@v5
         with:
