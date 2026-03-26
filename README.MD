@@ -62,6 +62,6 @@ You can set one or more values in each variable as comma-separated lists. This k
 ## ❤️ Support The Cleanup
 If you want to help cover practical cleanup costs (rope, gloves, bags, and disposal trips), you can support the project here:
 
-- https://ko-fi.com/rowdog
+- https://buymeacoffee.com/rivercleanv
 
 Every donation goes back into getting more rubbish out of the river safely and responsibly.

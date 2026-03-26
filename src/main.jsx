@@ -1542,7 +1542,7 @@ function HeroBanner({
                     }}
                 >
                     <a
-                        href="https://ko-fi.com/rowdog"
+                        href="https://buymeacoffee.com/rivercleanv"
                         target="_blank"
                         rel="noreferrer"
                         style={{
@@ -1760,7 +1760,7 @@ function AppTopBar({
                 style={{ display: "flex", alignItems: "center", gap: "6px" }}
             >
                 <a
-                    href="https://ko-fi.com/rowdog"
+                    href="https://buymeacoffee.com/rivercleanv"
                     target="_blank"
                     rel="noreferrer"
                     style={{
