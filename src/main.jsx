@@ -5,6 +5,7 @@ import {
     MapContainer,
     TileLayer,
     Marker,
+    Popup,
     CircleMarker,
     useMap,
     useMapEvents,
@@ -64,6 +65,11 @@ const LANCASTER_TIDE_CHART_URL =
 const TIDE_CHART_MIN_WIDTH = 640;
 const TIDE_CHART_PIXELS_PER_POINT = 120;
 const CLEANUP_WINDOW_MINUTES = 120;
+const EA_STATIONS_URL =
+    "https://environment.data.gov.uk/flood-monitoring/id/stations?riverName=River%20Lune";
+const EA_TARGET_RIVER_NAME = "River Lune";
+const EA_READINGS_REFRESH_MS = 15 * 60 * 1000;
+const EA_FLOODS_URL = `https://environment.data.gov.uk/flood-monitoring/id/floods?lat=${RIVER_LUNE_CENTER[0]}&long=${RIVER_LUNE_CENTER[1]}&dist=15`;
 const OWNER_GITHUB_LOGINS = (import.meta.env.VITE_OWNER_GITHUB_LOGINS || "mrdiamonddirt")
     .split(",")
     .map((value) => value.trim().toLowerCase())
@@ -97,6 +103,28 @@ const UI_TOKENS = {
 
 const createMapsUrl = (lat, lng) =>
     `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lat},${lng}`)}`;
+
+const extractEaMeasureId = (value) => {
+    if (typeof value !== "string") return null;
+
+    const parts = value.split("/").filter(Boolean);
+    return parts.length ? parts[parts.length - 1] : null;
+};
+
+const buildEaReadingsUrl = (measureId) =>
+    `https://environment.data.gov.uk/flood-monitoring/id/measures/${encodeURIComponent(measureId)}/readings?latest`;
+
+const formatEaReadingDateTime = (value) => {
+    if (typeof value !== "string" || !value.trim()) return null;
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+
+    return parsed.toLocaleString("en-GB", {
+        dateStyle: "medium",
+        timeStyle: "short",
+    });
+};
 
 const parseGpsNumber = (value) => {
     const parsed = Number(value);
@@ -759,6 +787,18 @@ const getIcon = (type, isRecovered) => {
         iconAnchor: [17, 17],
     });
 };
+
+const getStationIcon = () =>
+    L.divIcon({
+        className: "ea-station-marker",
+        html: `
+            <div style="width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; transform: rotate(45deg); border-radius: 8px; border: 2px solid #0f766e; background: linear-gradient(180deg, #ffffff 0%, #ecfeff 100%); box-shadow: 0 3px 10px rgba(15,118,110,0.3);">
+                <span style="transform: rotate(-45deg); color: #0f766e; font-size: 20px; font-weight: 700; line-height: 1;">≈</span>
+            </div>
+        `,
+        iconSize: [38, 38],
+        iconAnchor: [19, 19],
+    });
 
 const formatCoordinate = (value, digits = 6) => {
     const parsed = Number(value);
@@ -2120,6 +2160,8 @@ function FilterControls({
     controlFontSize,
     typeFilter,
     statusFilter,
+    isLuneStationsVisible,
+    setIsLuneStationsVisible,
     setTypeFilter,
     setStatusFilter,
     isOverlay = false,
@@ -2236,6 +2278,29 @@ function FilterControls({
                                 ))}
                             </div>
                         </div>
+
+                        <div style={{ display: "grid", gap: "6px" }}>
+                            <span style={{ fontSize: "0.72rem", fontWeight: 700, color: "#0f766e", textTransform: "uppercase", letterSpacing: "0.04em" }}>Sensors</span>
+                            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsLuneStationsVisible((prev) => !prev)}
+                                    style={{
+                                        border: isLuneStationsVisible ? "1px solid #0f766e" : "1px solid #99f6e4",
+                                        background: isLuneStationsVisible ? "#ccfbf1" : "#f8fafc",
+                                        color: isLuneStationsVisible ? "#115e59" : "#475569",
+                                        borderRadius: UI_TOKENS.radius.pill,
+                                        padding: "7px 10px",
+                                        fontSize: "0.8rem",
+                                        fontWeight: 700,
+                                        minHeight: "34px",
+                                    }}
+                                    aria-pressed={isLuneStationsVisible}
+                                >
+                                    {isLuneStationsVisible ? "Sensor Stations On" : "Sensor Stations Off"}
+                                </button>
+                            </div>
+                        </div>
                     </>
                 ) : (
                     <>
@@ -2282,6 +2347,29 @@ function FilterControls({
                                 <option value="recovered">Recovered</option>
                             </select>
                         </div>
+
+                        <button
+                            type="button"
+                            onClick={() => setIsLuneStationsVisible((prev) => !prev)}
+                            style={{
+                                border: isLuneStationsVisible ? "1px solid #0f766e" : "1px solid #99f6e4",
+                                borderRadius: isOverlay ? "4px" : UI_TOKENS.radius.pill,
+                                padding: isOverlay ? "6px 8px" : isMobile ? "9px 10px" : "5px 10px",
+                                fontSize: isOverlay ? "0.78rem" : controlFontSize,
+                                background: isLuneStationsVisible
+                                    ? "linear-gradient(135deg, #ccfbf1, #ecfeff)"
+                                    : "linear-gradient(135deg, #f8fafc, #ffffff)",
+                                color: isLuneStationsVisible ? "#115e59" : "#475569",
+                                minHeight: isOverlay ? "30px" : isMobile ? "40px" : "32px",
+                                width: isOverlay ? "100%" : isMobile ? "100%" : "auto",
+                                fontWeight: 700,
+                                cursor: "pointer",
+                            }}
+                            aria-pressed={isLuneStationsVisible}
+                            aria-label={isLuneStationsVisible ? "Hide sensor stations" : "Show sensor stations"}
+                        >
+                            {isLuneStationsVisible ? "Sensor Stations: On" : "Sensor Stations: Off"}
+                        </button>
                     </>
                 )}
             </div>
@@ -4318,6 +4406,334 @@ function SelectedItemDrawer({
     return createPortal(drawerNode, document.body);
 }
 
+function StationPopupContent({ station, reading }) {
+    const fallbackParameterName = Array.isArray(station?.measures)
+        ? station.measures.find((measure) => typeof measure?.parameterName === "string")?.parameterName
+        : "";
+
+    const parameterName = reading?.parameterName || fallbackParameterName || "Latest reading";
+    const timestampText = formatEaReadingDateTime(reading?.dateTime);
+    const rawValue = Number(reading?.value);
+    const hasValue = Number.isFinite(rawValue);
+    const valueText = hasValue ? rawValue.toLocaleString(undefined, { maximumFractionDigits: 3 }) : null;
+    const readingText = hasValue
+        ? `${valueText}${reading?.unitName ? ` ${reading.unitName}` : ""}`
+        : "Reading unavailable";
+
+    return (
+        <div
+            style={{
+                width: "220px",
+                display: "grid",
+                gap: "8px",
+                color: "#0f172a",
+                fontFamily:
+                    '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", sans-serif',
+            }}
+        >
+            <div style={{ display: "grid", gap: "3px" }}>
+                <div style={{ fontWeight: 800, fontSize: "0.92rem", lineHeight: 1.2 }}>{station?.label || "EA Station"}</div>
+                <div style={{ fontSize: "0.72rem", color: "#0f766e", fontWeight: 700 }}>River Lune · EA Sensor</div>
+            </div>
+
+            <div
+                style={{
+                    border: "1px solid #99f6e4",
+                    borderRadius: UI_TOKENS.radius.sm,
+                    background: "#f0fdfa",
+                    padding: "7px 9px",
+                    display: "grid",
+                    gap: "4px",
+                }}
+            >
+                <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "#0f766e", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                    {parameterName}
+                </div>
+                <div style={{ fontSize: "0.98rem", fontWeight: 800, color: "#134e4a" }}>
+                    {reading?.loading ? "Loading latest reading..." : readingText}
+                </div>
+                {reading?.error && !reading?.loading ? (
+                    <div style={{ fontSize: "0.72rem", color: "#b91c1c" }}>Could not load current value.</div>
+                ) : null}
+                {!reading?.loading && timestampText ? (
+                    <div style={{ fontSize: "0.72rem", color: "#0f766e" }}>Updated {timestampText}</div>
+                ) : null}
+            </div>
+
+            {station?.town ? <div style={{ fontSize: "0.76rem", color: "#334155" }}>Town: {station.town}</div> : null}
+
+            {Number.isFinite(Number(station?.lat)) && Number.isFinite(Number(station?.long)) ? (
+                <a
+                    href={createMapsUrl(Number(station.lat), Number(station.long))}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ fontSize: "0.76rem", color: "#0369a1", fontWeight: 700, textDecoration: "none" }}
+                >
+                    Open in Maps
+                </a>
+            ) : null}
+
+            <div style={{ fontSize: "0.68rem", color: "#64748b" }}>Environment Agency · Open Government Licence</div>
+        </div>
+    );
+}
+
+const FLOOD_SEVERITY_CONFIG = {
+    1: { label: "Severe Flood Warning", color: "#991b1b", bg: "#fff5f5", border: "#fecaca", dot: "#dc2626" },
+    2: { label: "Flood Warning", color: "#92400e", bg: "#fffbeb", border: "#fde68a", dot: "#d97706" },
+    3: { label: "Flood Alert", color: "#78350f", bg: "#fefce8", border: "#fde68a", dot: "#f59e0b" },
+};
+
+function FloodStatusPanel({ floodAlerts, isLoadingFloodAlerts, floodAlertsError, floodAlertsUpdatedAt, isMobile }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const panelRef = useRef(null);
+
+    const hasAlerts = floodAlerts.length > 0;
+    const highest = hasAlerts ? floodAlerts[0] : null;
+    const sevConf = highest ? (FLOOD_SEVERITY_CONFIG[highest.severityLevel] || FLOOD_SEVERITY_CONFIG[3]) : null;
+    const visibleAlerts = floodAlerts.slice(0, 3);
+    const overflowCount = floodAlerts.length - visibleAlerts.length;
+
+    useEffect(() => {
+        if (!isOpen || !isMobile) return undefined;
+
+        const handlePointerDown = (event) => {
+            if (!panelRef.current?.contains(event.target)) {
+                setIsOpen(false);
+            }
+        };
+
+        document.addEventListener("pointerdown", handlePointerDown);
+        return () => document.removeEventListener("pointerdown", handlePointerDown);
+    }, [isOpen, isMobile]);
+
+    let pillBg = "rgba(255,255,255,0.96)";
+    let pillBorder = "#e2e8f0";
+    let pillDot = "#22c55e";
+    let pillText = "No active flood alerts";
+    let pillTextColor = "#64748b";
+
+    if (isLoadingFloodAlerts && !hasAlerts) {
+        pillDot = "#94a3b8";
+        pillText = "Checking flood status\u2026";
+        pillTextColor = "#94a3b8";
+    } else if (floodAlertsError) {
+        pillDot = "#cbd5e1";
+        pillText = "Flood status unavailable";
+        pillTextColor = "#94a3b8";
+    } else if (hasAlerts && sevConf) {
+        pillBg = sevConf.bg;
+        pillBorder = sevConf.border;
+        pillDot = sevConf.dot;
+        pillText = `${floodAlerts.length} flood alert${floodAlerts.length !== 1 ? "s" : ""} in area`;
+        pillTextColor = sevConf.color;
+    }
+
+    return (
+        <div
+            style={{
+                position: "absolute",
+                top: "10px",
+                left: "50%",
+                transform: "translateX(-50%)",
+                zIndex: 900,
+                pointerEvents: "none",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+            }}
+        >
+            <div
+                ref={panelRef}
+                style={{
+                    display: "inline-flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    pointerEvents: "auto",
+                }}
+                onMouseEnter={!isMobile ? () => setIsOpen(true) : undefined}
+                onMouseLeave={!isMobile ? () => setIsOpen(false) : undefined}
+            >
+                <button
+                    type="button"
+                    onClick={isMobile ? () => setIsOpen((prev) => !prev) : undefined}
+                    aria-expanded={isOpen}
+                    aria-label={pillText}
+                    style={{
+                        border: `1px solid ${pillBorder}`,
+                        borderRadius: UI_TOKENS.radius.pill,
+                        background: pillBg,
+                        backdropFilter: "blur(6px)",
+                        WebkitBackdropFilter: "blur(6px)",
+                        padding: "5px 10px 5px 9px",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        boxShadow: "0 4px 14px rgba(15,23,42,0.12)",
+                        cursor: "pointer",
+                        maxWidth: "min(90vw, 280px)",
+                        minWidth: 0,
+                    }}
+                >
+                    <span
+                        aria-hidden="true"
+                        style={{
+                            width: "7px",
+                            height: "7px",
+                            borderRadius: "50%",
+                            flexShrink: 0,
+                            background: pillDot,
+                        }}
+                    />
+                    <span
+                        style={{
+                            fontSize: "0.72rem",
+                            fontWeight: 700,
+                            color: pillTextColor,
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            minWidth: 0,
+                        }}
+                    >
+                        {pillText}
+                    </span>
+                    <span
+                        aria-hidden="true"
+                        style={{ fontSize: "0.6rem", color: pillTextColor, opacity: 0.65, flexShrink: 0 }}
+                    >
+                        {isOpen ? "▴" : "▾"}
+                    </span>
+                </button>
+
+                <div
+                    style={{
+                        marginTop: "5px",
+                        width: "min(90vw, 300px)",
+                        opacity: isOpen ? 1 : 0,
+                        transform: isOpen ? "translateY(0) scale(1)" : "translateY(-6px) scale(0.97)",
+                        transformOrigin: "top center",
+                        transition: "opacity 160ms ease, transform 180ms ease",
+                        pointerEvents: isOpen ? "auto" : "none",
+                    }}
+                >
+                    <SurfaceCard style={{ padding: "10px", display: "grid", gap: "8px" }}>
+                        {floodAlertsUpdatedAt ? (
+                            <div style={{ fontSize: "0.68rem", color: "#94a3b8", fontWeight: 600, textAlign: "center" }}>
+                                Last checked: {floodAlertsUpdatedAt} · updates every 15 min
+                            </div>
+                        ) : null}
+
+                        {!hasAlerts && !floodAlertsError && !isLoadingFloodAlerts ? (
+                            <div style={{ fontSize: "0.76rem", color: "#374151", fontWeight: 600, textAlign: "center", padding: "2px 0" }}>
+                                No active flood alerts in the River Lune area.
+                            </div>
+                        ) : null}
+
+                        {isLoadingFloodAlerts && !hasAlerts ? (
+                            <div style={{ fontSize: "0.76rem", color: "#94a3b8", textAlign: "center", padding: "2px 0" }}>
+                                Loading flood data...
+                            </div>
+                        ) : null}
+
+                        {floodAlertsError ? (
+                            <div style={{ fontSize: "0.76rem", color: "#94a3b8", textAlign: "center", padding: "2px 0" }}>
+                                Could not load flood data from the Environment Agency.
+                            </div>
+                        ) : null}
+
+                        {hasAlerts ? (
+                            <div
+                                style={{
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    gap: "4px",
+                                }}
+                            >
+                                {visibleAlerts.map((alert) => {
+                                    const cfg = FLOOD_SEVERITY_CONFIG[alert.severityLevel] || FLOOD_SEVERITY_CONFIG[3];
+                                    return (
+                                        <div
+                                            key={alert.id}
+                                            style={{
+                                                border: `1px solid ${cfg.border}`,
+                                                borderRadius: UI_TOKENS.radius.sm,
+                                                background: cfg.bg,
+                                                padding: "7px 10px",
+                                                fontSize: "0.72rem",
+                                                lineHeight: 1.35,
+                                            }}
+                                        >
+                                            <div
+                                                style={{
+                                                    fontWeight: 800,
+                                                    color: cfg.color,
+                                                    marginBottom: "2px",
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    gap: "5px",
+                                                }}
+                                            >
+                                                <span
+                                                    style={{
+                                                        width: "6px",
+                                                        height: "6px",
+                                                        borderRadius: "50%",
+                                                        background: cfg.dot,
+                                                        flexShrink: 0,
+                                                        display: "inline-block",
+                                                    }}
+                                                />
+                                                {alert.severity}
+                                            </div>
+                                            <div style={{ color: "#374151", fontWeight: 600 }}>{alert.areaName}</div>
+                                            {alert.message ? (
+                                                <div
+                                                    style={{
+                                                        color: "#6b7280",
+                                                        marginTop: "3px",
+                                                        display: "-webkit-box",
+                                                        WebkitLineClamp: 2,
+                                                        WebkitBoxOrient: "vertical",
+                                                        overflow: "hidden",
+                                                    }}
+                                                >
+                                                    {alert.message}
+                                                </div>
+                                            ) : null}
+                                            {alert.timeIssued ? (
+                                                <div style={{ color: "#9ca3af", marginTop: "3px" }}>{alert.timeIssued}</div>
+                                            ) : null}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ) : null}
+
+                        {overflowCount > 0 ? (
+                            <div
+                                style={{
+                                    fontSize: "0.7rem",
+                                    color: "#64748b",
+                                    fontWeight: 700,
+                                    textAlign: "center",
+                                    padding: "3px 0",
+                                }}
+                            >
+                                +{overflowCount} more
+                            </div>
+                        ) : null}
+
+                        <div style={{ fontSize: "0.65rem", color: "#cbd5e1", textAlign: "center" }}>
+                            Environment Agency · Open Government Licence
+                        </div>
+                    </SurfaceCard>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 function App() {
     const detectMobileViewport = () => {
         if (typeof window === "undefined") return false;
@@ -4401,6 +4817,13 @@ function App() {
     const [isLiveLocationEnabled, setIsLiveLocationEnabled] = useState(false);
     const [liveLocation, setLiveLocation] = useState(null);
     const [liveLocationError, setLiveLocationError] = useState("");
+    const [luneStations, setLuneStations] = useState([]);
+    const [luneStationReadings, setLuneStationReadings] = useState({});
+    const [isLuneStationsVisible, setIsLuneStationsVisible] = useState(true);
+    const [floodAlerts, setFloodAlerts] = useState([]);
+    const [isLoadingFloodAlerts, setIsLoadingFloodAlerts] = useState(false);
+    const [floodAlertsError, setFloodAlertsError] = useState(null);
+    const [floodAlertsUpdatedAt, setFloodAlertsUpdatedAt] = useState("");
     const [pendingEstimatedWeight, setPendingEstimatedWeight] = useState("");
     const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
     const [isMapToolsOpen, setIsMapToolsOpen] = useState(false);
@@ -4486,6 +4909,167 @@ function App() {
         window.setTimeout(() => {
             ignoreNextMapClickRef.current = false;
         }, 0);
+    };
+
+    const fetchLuneStations = async () => {
+        try {
+            const response = await fetch(EA_STATIONS_URL, { cache: "no-store" });
+
+            if (!response.ok) {
+                throw new Error("Could not load EA stations");
+            }
+
+            const payload = await response.json();
+            const stationItems = Array.isArray(payload?.items) ? payload.items : [];
+            const filteredStations = stationItems.filter((station) => {
+                const lat = Number(station?.lat);
+                const lng = Number(station?.long);
+                return (
+                    station?.riverName === EA_TARGET_RIVER_NAME
+                    && Number.isFinite(lat)
+                    && Number.isFinite(lng)
+                );
+            });
+
+            setLuneStations(filteredStations);
+            if (!filteredStations.length) {
+                setLuneStationReadings({});
+            }
+
+            return filteredStations;
+        } catch {
+            setLuneStations([]);
+            setLuneStationReadings({});
+            return [];
+        }
+    };
+
+    const fetchLuneStationReadings = async (stations) => {
+        if (!Array.isArray(stations) || !stations.length) {
+            setLuneStationReadings({});
+            return;
+        }
+
+        const stationKeys = stations.map((station) =>
+            station?.stationReference || station?.notation || station?.["@id"],
+        );
+
+        setLuneStationReadings((prev) => {
+            const next = { ...prev };
+
+            stationKeys.forEach((key) => {
+                if (!key) return;
+                next[key] = {
+                    ...(next[key] || {}),
+                    loading: true,
+                    error: "",
+                };
+            });
+
+            return next;
+        });
+
+        const updates = await Promise.all(
+            stations.map(async (station) => {
+                const key = station?.stationReference || station?.notation || station?.["@id"];
+                if (!key) return null;
+
+                const firstMeasure = Array.isArray(station?.measures)
+                    ? station.measures.find((measure) => typeof measure?.["@id"] === "string")
+                    : null;
+                const measureId = extractEaMeasureId(firstMeasure?.["@id"]);
+
+                if (!measureId) {
+                    return {
+                        key,
+                        reading: {
+                            loading: false,
+                            error: "No measure available",
+                            value: null,
+                            unitName: firstMeasure?.unitName || "",
+                            dateTime: "",
+                            parameterName: firstMeasure?.parameterName || "",
+                        },
+                    };
+                }
+
+                try {
+                    const response = await fetch(buildEaReadingsUrl(measureId), { cache: "no-store" });
+                    if (!response.ok) {
+                        throw new Error("Could not load reading");
+                    }
+
+                    const payload = await response.json();
+                    const latest = Array.isArray(payload?.items) ? payload.items[0] : null;
+
+                    return {
+                        key,
+                        reading: {
+                            loading: false,
+                            error: latest ? "" : "No readings yet",
+                            value: latest?.value ?? null,
+                            unitName: firstMeasure?.unitName || "",
+                            dateTime: latest?.dateTime || "",
+                            parameterName: firstMeasure?.parameterName || "",
+                        },
+                    };
+                } catch {
+                    return {
+                        key,
+                        reading: {
+                            loading: false,
+                            error: "Unavailable",
+                            value: null,
+                            unitName: firstMeasure?.unitName || "",
+                            dateTime: "",
+                            parameterName: firstMeasure?.parameterName || "",
+                        },
+                    };
+                }
+            }),
+        );
+
+        setLuneStationReadings((prev) => {
+            const next = { ...prev };
+
+            updates.forEach((update) => {
+                if (!update?.key) return;
+                next[update.key] = update.reading;
+            });
+
+            return next;
+        });
+    };
+
+    const fetchFloodAlerts = async () => {
+        setIsLoadingFloodAlerts(true);
+        setFloodAlertsError(null);
+        try {
+            const response = await fetch(EA_FLOODS_URL, { cache: "no-store" });
+            if (!response.ok) {
+                throw new Error("Could not load flood alerts");
+            }
+            const payload = await response.json();
+            const rawItems = Array.isArray(payload?.items) ? payload.items : [];
+            const shaped = rawItems
+                .filter((item) => typeof item?.severityLevel === "number" && item.severityLevel <= 3)
+                .map((item) => ({
+                    id: item?.["@id"] || item?.floodAreaID || String(Math.random()),
+                    severity: item?.severity || "Flood Alert",
+                    severityLevel: item?.severityLevel ?? 3,
+                    areaName: item?.eaAreaName || item?.floodAreaID || "Local area",
+                    message: item?.message || item?.description || "",
+                    timeIssued: formatEaReadingDateTime(item?.timeMessageIssued || item?.timeRaised || ""),
+                }));
+            shaped.sort((a, b) => a.severityLevel - b.severityLevel);
+            setFloodAlerts(shaped);
+            setFloodAlertsUpdatedAt(new Date().toLocaleTimeString("en-GB", { timeStyle: "short" }));
+        } catch {
+            setFloodAlertsError("unavailable");
+            setFloodAlerts([]);
+        } finally {
+            setIsLoadingFloodAlerts(false);
+        }
     };
 
     useEffect(() => {
@@ -4583,6 +5167,33 @@ function App() {
 
     useEffect(() => {
         fetchItems();
+    }, []);
+
+    useEffect(() => {
+        void fetchLuneStations();
+    }, []);
+
+    useEffect(() => {
+        if (!luneStations.length) return undefined;
+
+        void fetchLuneStationReadings(luneStations);
+        const intervalId = window.setInterval(() => {
+            void fetchLuneStationReadings(luneStations);
+        }, EA_READINGS_REFRESH_MS);
+
+        return () => {
+            window.clearInterval(intervalId);
+        };
+    }, [luneStations]);
+
+    useEffect(() => {
+        void fetchFloodAlerts();
+        const floodIntervalId = window.setInterval(() => {
+            void fetchFloodAlerts();
+        }, EA_READINGS_REFRESH_MS);
+        return () => {
+            window.clearInterval(floodIntervalId);
+        };
     }, []);
 
     useEffect(() => {
@@ -5641,7 +6252,8 @@ function App() {
           : "calc(100vh - 250px)";
     const controlFontSize = isMobile ? "0.95rem" : "0.85rem";
     const touchButtonSize = isMobile ? "38px" : "30px";
-    const activeFilterCount = Number(typeFilter !== "all") + Number(statusFilter !== "all");
+    const activeFilterCount =
+        Number(typeFilter !== "all") + Number(statusFilter !== "all") + Number(!isLuneStationsVisible);
     const selectedItem = useMemo(
         () => (selectedItemId ? items.find((item) => item.id === selectedItemId) || null : null),
         [items, selectedItemId],
@@ -5929,6 +6541,28 @@ function App() {
                             />
                         );
                     })}
+
+                    {isLuneStationsVisible
+                        ? luneStations.map((station) => {
+                              const lat = Number(station?.lat);
+                              const lng = Number(station?.long);
+                              if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+                              const stationKey = station?.stationReference || station?.notation || station?.["@id"];
+                              if (!stationKey) return null;
+
+                              return (
+                                  <Marker key={stationKey} position={[lat, lng]} icon={getStationIcon()}>
+                                      <Popup>
+                                          <StationPopupContent
+                                              station={station}
+                                              reading={luneStationReadings[stationKey]}
+                                          />
+                                      </Popup>
+                                  </Marker>
+                              );
+                          })
+                        : null}
                 </MapContainer>
 
                 {isMobile ? (
@@ -5983,11 +6617,21 @@ function App() {
                         controlFontSize={controlFontSize}
                         typeFilter={typeFilter}
                         statusFilter={statusFilter}
+                        isLuneStationsVisible={isLuneStationsVisible}
+                        setIsLuneStationsVisible={setIsLuneStationsVisible}
                         setTypeFilter={setTypeFilter}
                         setStatusFilter={setStatusFilter}
                         isOverlay
                     />
                 )}
+
+                <FloodStatusPanel
+                    floodAlerts={floodAlerts}
+                    isLoadingFloodAlerts={isLoadingFloodAlerts}
+                    floodAlertsError={floodAlertsError}
+                    floodAlertsUpdatedAt={floodAlertsUpdatedAt}
+                    isMobile={isMobile}
+                />
 
                 <div
                     style={{
@@ -6160,6 +6804,8 @@ function App() {
                             controlFontSize={controlFontSize}
                             typeFilter={typeFilter}
                             statusFilter={statusFilter}
+                            isLuneStationsVisible={isLuneStationsVisible}
+                            setIsLuneStationsVisible={setIsLuneStationsVisible}
                             setTypeFilter={setTypeFilter}
                             setStatusFilter={setStatusFilter}
                         />
