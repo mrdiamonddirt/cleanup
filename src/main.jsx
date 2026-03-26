@@ -4550,6 +4550,7 @@ function FloodStatusPanel({ floodAlerts, isLoadingFloodAlerts, floodAlertsError,
                     flexDirection: "column",
                     alignItems: "center",
                     pointerEvents: "auto",
+                    position: "relative",
                 }}
                 onMouseEnter={!isMobile ? () => setIsOpen(true) : undefined}
                 onMouseLeave={!isMobile ? () => setIsOpen(false) : undefined}
@@ -4608,10 +4609,14 @@ function FloodStatusPanel({ floodAlerts, isLoadingFloodAlerts, floodAlertsError,
 
                 <div
                     style={{
-                        marginTop: "5px",
+                        position: "absolute",
+                        top: "calc(100% + 5px)",
+                        left: "50%",
                         width: "min(90vw, 300px)",
                         opacity: isOpen ? 1 : 0,
-                        transform: isOpen ? "translateY(0) scale(1)" : "translateY(-6px) scale(0.97)",
+                        transform: isOpen
+                            ? "translateX(-50%) translateY(0) scale(1)"
+                            : "translateX(-50%) translateY(-6px) scale(0.97)",
                         transformOrigin: "top center",
                         transition: "opacity 160ms ease, transform 180ms ease",
                         pointerEvents: isOpen ? "auto" : "none",
