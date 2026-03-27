@@ -30,7 +30,7 @@ L.Marker.prototype.options.icon = DefaultIcon;
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || "";
 const HAS_MAPBOX_TOKEN = Boolean(MAPBOX_TOKEN && MAPBOX_TOKEN.trim());
 // River Lune, Lancaster — adjust if needed
-const RIVER_LUNE_CENTER = [54.0495, -2.7995];
+const RIVER_LUNE_CENTER = [54.052776, -2.801216];
 const RIVER_LUNE_ZOOM = 15;
 
 const TYPE_LABELS = {
@@ -70,6 +70,10 @@ const EA_STATIONS_URL =
 const EA_TARGET_RIVER_NAME = "River Lune";
 const EA_READINGS_REFRESH_MS = 15 * 60 * 1000;
 const EA_FLOODS_URL = `https://environment.data.gov.uk/flood-monitoring/id/floods?lat=${RIVER_LUNE_CENTER[0]}&long=${RIVER_LUNE_CENTER[1]}&dist=15`;
+const RAINVIEWER_MAPS_URL = "https://api.rainviewer.com/public/weather-maps.json";
+const RAINVIEWER_REFRESH_MS = 10 * 60 * 1000;
+const RAINVIEWER_MIN_SUPPORTED_ZOOM = 0;
+const RAINVIEWER_MAX_SUPPORTED_ZOOM = 7;
 const OWNER_GITHUB_LOGINS = (import.meta.env.VITE_OWNER_GITHUB_LOGINS || "mrdiamonddirt")
     .split(",")
     .map((value) => value.trim().toLowerCase())
@@ -2243,7 +2247,10 @@ function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impact
 function ControlToggles({
     isMobile,
     isTidePlannerCollapsed,
+    isWeatherOverlayEnabled,
+    weatherOverlayUpdatedLabel,
     onToggleTidePlanner,
+    onToggleWeatherOverlay,
 }) {
     return (
         <div
@@ -2303,9 +2310,118 @@ function ControlToggles({
                     <span>{isTidePlannerCollapsed ? "Show Tide Planner" : "Hide Tide Planner"}</span>
                     <span style={{ fontSize: "0.9em" }}>{isTidePlannerCollapsed ? "▾" : "▴"}</span>
                 </button>
+
+                <button
+                    onClick={onToggleWeatherOverlay}
+                    style={{
+                        border: isWeatherOverlayEnabled ? "1px solid #0f766e" : "1px solid #cbd5e1",
+                        background: isWeatherOverlayEnabled
+                            ? "linear-gradient(135deg, #ccfbf1, #ecfeff)"
+                            : "linear-gradient(135deg, #eff6ff, #f8fafc)",
+                        color: isWeatherOverlayEnabled ? "#115e59" : "#0f172a",
+                        borderRadius: UI_TOKENS.radius.pill,
+                        padding: isMobile ? "7px 10px" : "5px 10px",
+                        minHeight: "30px",
+                        width: "auto",
+                        fontSize: "0.8rem",
+                        fontWeight: 700,
+                        letterSpacing: "0.01em",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "8px",
+                        boxShadow: "0 4px 16px rgba(15,23,42,0.08)",
+                        cursor: "pointer",
+                    }}
+                    aria-pressed={isWeatherOverlayEnabled}
+                    aria-label={isWeatherOverlayEnabled ? "Turn radar weather off" : "Turn radar weather on"}
+                >
+                    <span>{isWeatherOverlayEnabled ? "Radar On" : "Radar Off"}</span>
+                </button>
+
+                <span
+                    style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "7px",
+                        borderRadius: UI_TOKENS.radius.pill,
+                        border: isWeatherOverlayEnabled ? "1px solid #99f6e4" : "1px solid #cbd5e1",
+                        background: isWeatherOverlayEnabled ? "rgba(204,251,241,0.58)" : "rgba(248,250,252,0.92)",
+                        color: isWeatherOverlayEnabled ? "#115e59" : "#64748b",
+                        fontSize: "0.72rem",
+                        fontWeight: 700,
+                        letterSpacing: "0.02em",
+                        lineHeight: 1,
+                        padding: "5px 10px",
+                        whiteSpace: "nowrap",
+                        minHeight: "30px",
+                    }}
+                    aria-label={isWeatherOverlayEnabled ? "Radar legend and status" : "Radar status"}
+                >
+                    <span
+                        aria-hidden="true"
+                        style={{
+                            width: "10px",
+                            height: "10px",
+                            borderRadius: "999px",
+                            background: isWeatherOverlayEnabled ? "#0ea5e9" : "#cbd5e1",
+                            boxShadow: isWeatherOverlayEnabled
+                                ? "0 0 0 1px rgba(14,165,233,0.25)"
+                                : "0 0 0 1px rgba(148,163,184,0.22)",
+                            flexShrink: 0,
+                        }}
+                    />
+                    <span>
+                        {isWeatherOverlayEnabled
+                            ? weatherOverlayUpdatedLabel
+                                ? `Radar live · Updated ${weatherOverlayUpdatedLabel}`
+                                : "Radar live"
+                            : "Radar overlay off"}
+                    </span>
+                </span>
             </div>
         </div>
     );
+}
+
+function WeatherOverlayZoomGuard({ isWeatherOverlayEnabled }) {
+    const map = useMap();
+    const wasEnabledRef = useRef(false);
+    const zoomBeforeRadarRef = useRef(null);
+
+    useEffect(() => {
+        if (!isWeatherOverlayEnabled) {
+            if (wasEnabledRef.current && Number.isFinite(zoomBeforeRadarRef.current)) {
+                const restoreZoom = zoomBeforeRadarRef.current;
+                const currentZoom = map.getZoom();
+
+                if (Math.abs(restoreZoom - currentZoom) >= 0.01) {
+                    map.flyTo(map.getCenter(), restoreZoom, { duration: 0.65 });
+                }
+            }
+
+            wasEnabledRef.current = false;
+            zoomBeforeRadarRef.current = null;
+            return;
+        }
+
+        const wasEnabled = wasEnabledRef.current;
+        wasEnabledRef.current = true;
+        if (wasEnabled) return;
+
+        const currentZoom = map.getZoom();
+        zoomBeforeRadarRef.current = currentZoom;
+        const clampedZoom = Math.min(
+            Math.max(currentZoom, RAINVIEWER_MIN_SUPPORTED_ZOOM),
+            RAINVIEWER_MAX_SUPPORTED_ZOOM,
+        );
+
+        if (Math.abs(clampedZoom - currentZoom) < 0.01) return;
+
+        map.flyTo(map.getCenter(), clampedZoom, { duration: 0.65 });
+    }, [map, isWeatherOverlayEnabled]);
+
+    return null;
 }
 
 function FilterControls({
@@ -5094,9 +5210,14 @@ function App() {
     const [isLoadingFloodAlerts, setIsLoadingFloodAlerts] = useState(false);
     const [floodAlertsError, setFloodAlertsError] = useState(null);
     const [floodAlertsUpdatedAt, setFloodAlertsUpdatedAt] = useState("");
+    const [isWeatherOverlayEnabled, setIsWeatherOverlayEnabled] = useState(false);
+    const [weatherOverlayTileUrl, setWeatherOverlayTileUrl] = useState("");
+    const [weatherOverlayUpdatedAt, setWeatherOverlayUpdatedAt] = useState("");
+    const [weatherOverlayError, setWeatherOverlayError] = useState("");
     const [pendingEstimatedWeight, setPendingEstimatedWeight] = useState("");
     const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
     const [isMapToolsOpen, setIsMapToolsOpen] = useState(false);
+    const [mapInstance, setMapInstance] = useState(null);
     const [copiedShareItemId, setCopiedShareItemId] = useState(null);
     const [shareCopyStatus, setShareCopyStatus] = useState("");
     const [isDeferredUiReady, setIsDeferredUiReady] = useState(false);
@@ -5107,6 +5228,23 @@ function App() {
     const geocodeAttemptedKeysRef = useRef(new Set());
     const shareCopyTimeoutRef = useRef(null);
     const canManageItems = useMemo(() => canUserManageItems(currentUser), [currentUser]);
+    const floatingMapButtonStyle = {
+        position: "absolute",
+        zIndex: 900,
+        border: "1px solid #cbd5e1",
+        background: "rgba(255,255,255,0.94)",
+        color: "#0f172a",
+        borderRadius: "999px",
+        padding: "7px 11px",
+        fontSize: "0.78rem",
+        fontWeight: 700,
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "7px",
+        boxShadow: "0 6px 18px rgba(15,23,42,0.14)",
+        backdropFilter: "blur(8px)",
+        cursor: "pointer",
+    };
 
     const copyShareLinkForItem = async (itemId) => {
         const shareUrl = buildShareItemUrl(itemId);
@@ -6078,6 +6216,20 @@ function App() {
         return null;
     }
 
+    function MapInstanceBinder({ onMapReady }) {
+        const map = useMap();
+
+        useEffect(() => {
+            onMapReady(map);
+
+            return () => {
+                onMapReady(null);
+            };
+        }, [map, onMapReady]);
+
+        return null;
+    }
+
     function LiveLocationAutoCenter() {
         const map = useMap();
         const hasCenteredRef = useRef(false);
@@ -6641,6 +6793,17 @@ function App() {
         () => (selectedItem ? getItemStory(selectedItem) : null),
         [selectedItem, localItemStory, dbStoryFieldSupport],
     );
+    const weatherOverlayUpdatedLabel = useMemo(() => {
+        if (!weatherOverlayUpdatedAt) return "";
+
+        const parsed = new Date(weatherOverlayUpdatedAt);
+        if (Number.isNaN(parsed.getTime())) return "";
+
+        return parsed.toLocaleTimeString("en-GB", {
+            hour: "2-digit",
+            minute: "2-digit",
+        });
+    }, [weatherOverlayUpdatedAt]);
 
     useEffect(() => {
         if (!selectedGps || !selectedGeoLookupKey) {
@@ -6702,6 +6865,61 @@ function App() {
             isCancelled = true;
         };
     }, [selectedGps, selectedGeoLookupKey, selectedGeoLookup, selectedItem?.id]);
+
+    useEffect(() => {
+        if (!isWeatherOverlayEnabled) {
+            setWeatherOverlayError("");
+            return undefined;
+        }
+
+        let isCancelled = false;
+
+        const refreshRainRadar = async () => {
+            try {
+                const response = await fetch(RAINVIEWER_MAPS_URL, { cache: "no-store" });
+                if (!response.ok) {
+                    throw new Error("Weather overlay fetch failed");
+                }
+
+                const payload = await response.json();
+                const host = typeof payload?.host === "string" && payload.host
+                    ? payload.host
+                    : "https://tilecache.rainviewer.com";
+                const pastFrames = Array.isArray(payload?.radar?.past) ? payload.radar.past : [];
+                const nowcastFrames = Array.isArray(payload?.radar?.nowcast) ? payload.radar.nowcast : [];
+                const frameCandidates = [...pastFrames, ...nowcastFrames].filter(
+                    (frame) => typeof frame?.path === "string" && frame.path,
+                );
+                const latestFrame = frameCandidates.length
+                    ? frameCandidates[frameCandidates.length - 1]
+                    : null;
+
+                if (!latestFrame?.path) {
+                    throw new Error("Weather overlay frame missing");
+                }
+
+                const nextTileUrl = `${host}${latestFrame.path}/256/{z}/{x}/{y}/2/1_1.png`;
+                if (isCancelled) return;
+
+                setWeatherOverlayTileUrl(nextTileUrl);
+                setWeatherOverlayUpdatedAt(new Date().toISOString());
+                setWeatherOverlayError("");
+            } catch {
+                if (isCancelled) return;
+
+                setWeatherOverlayTileUrl("");
+                setWeatherOverlayError("Weather radar is temporarily unavailable.");
+            }
+        };
+
+        void refreshRainRadar();
+        const intervalId = window.setInterval(refreshRainRadar, RAINVIEWER_REFRESH_MS);
+
+        return () => {
+            isCancelled = true;
+            window.clearInterval(intervalId);
+        };
+    }, [isWeatherOverlayEnabled]);
 
     return (
         <div
@@ -6765,7 +6983,10 @@ function App() {
             <ControlToggles
                 isMobile={isMobile}
                 isTidePlannerCollapsed={isTidePlannerCollapsed}
+                isWeatherOverlayEnabled={isWeatherOverlayEnabled}
+                weatherOverlayUpdatedLabel={weatherOverlayUpdatedLabel}
                 onToggleTidePlanner={() => setIsTidePlannerCollapsed((prev) => !prev)}
+                onToggleWeatherOverlay={() => setIsWeatherOverlayEnabled((prev) => !prev)}
             />
 
             {isDeferredUiReady ? (
@@ -6793,6 +7014,23 @@ function App() {
                 filteredItemCount={filteredItems.length}
                 isMobile={isMobile}
             />
+
+            {isWeatherOverlayEnabled && weatherOverlayError ? (
+                <div
+                    style={{
+                        marginBottom: "8px",
+                        padding: isMobile ? "9px 10px" : "8px 10px",
+                        borderRadius: "10px",
+                        border: "1px solid #fcd34d",
+                        background: "#fffbeb",
+                        color: "#92400e",
+                        fontSize: "0.82rem",
+                        lineHeight: 1.4,
+                    }}
+                >
+                    {weatherOverlayError}
+                </div>
+            ) : null}
 
             <div
                 ref={mapOverlayRootRef}
@@ -6841,6 +7079,18 @@ function App() {
                             maxZoom={19}
                         />
                     )}
+                    {isWeatherOverlayEnabled && weatherOverlayTileUrl ? (
+                        <TileLayer
+                            key={`rainviewer-${weatherOverlayUpdatedAt || "live"}`}
+                            url={weatherOverlayTileUrl}
+                            attribution='Weather radar &copy; <a href="https://www.rainviewer.com/">RainViewer</a>'
+                            opacity={0.58}
+                            maxZoom={19}
+                            maxNativeZoom={RAINVIEWER_MAX_SUPPORTED_ZOOM}
+                        />
+                    ) : null}
+                    <WeatherOverlayZoomGuard isWeatherOverlayEnabled={isWeatherOverlayEnabled} />
+                    <MapInstanceBinder onMapReady={setMapInstance} />
                     <MapEvents />
                     <LiveLocationAutoCenter />
 
@@ -6926,6 +7176,53 @@ function App() {
                         : null}
                 </MapContainer>
 
+                <button
+                    type="button"
+                    onClick={() => {
+                        if (!mapInstance) return;
+
+                        mapInstance.flyTo(RIVER_LUNE_CENTER, RIVER_LUNE_ZOOM, { duration: 0.65 });
+                    }}
+                    disabled={!mapInstance}
+                    aria-label="Center map on the default location"
+                    title="Center map on the default location"
+                    style={{
+                        ...floatingMapButtonStyle,
+                        top: "86px",
+                        left: "10px",
+                        width: isMobile ? "38px" : "36px",
+                        height: isMobile ? "38px" : "36px",
+                        padding: "0",
+                        justifyContent: "center",
+                        gap: "0",
+                        opacity: mapInstance ? 1 : 0.65,
+                    }}
+                >
+                    <span
+                        aria-hidden="true"
+                        style={{
+                            width: "14px",
+                            height: "14px",
+                            borderRadius: "999px",
+                            border: "1.8px solid currentColor",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            boxSizing: "border-box",
+                        }}
+                    >
+                        <span
+                            style={{
+                                width: "4px",
+                                height: "4px",
+                                borderRadius: "999px",
+                                background: "currentColor",
+                                display: "block",
+                            }}
+                        />
+                    </span>
+                </button>
+
                 {isMobile ? (
                     <button
                         type="button"
@@ -6934,21 +7231,9 @@ function App() {
                             setIsMapToolsOpen(false);
                         }}
                         style={{
-                            position: "absolute",
                             top: "10px",
                             right: "10px",
-                            zIndex: 900,
-                            border: "1px solid #cbd5e1",
-                            background: "rgba(255,255,255,0.96)",
-                            color: "#0f172a",
-                            borderRadius: "999px",
-                            padding: "7px 11px",
-                            fontSize: "0.78rem",
-                            fontWeight: 700,
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "7px",
-                            boxShadow: "0 6px 18px rgba(15,23,42,0.14)",
+                            ...floatingMapButtonStyle,
                         }}
                     >
                         <span>Filters</span>
