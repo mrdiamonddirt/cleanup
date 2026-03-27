@@ -2,7 +2,7 @@ name: Refresh Lancaster Tides
 
 on:
   schedule:
-    - cron: "15 */6 * * *"
+    - cron: "15 1 * * *"
   workflow_dispatch:
 
 permissions:

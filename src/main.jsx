@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { createPortal } from "react-dom";
 import {
@@ -83,6 +83,11 @@ const OWNER_SUPABASE_IDS = (import.meta.env.VITE_OWNER_SUPABASE_IDS || "")
     .map((value) => value.trim())
     .filter(Boolean);
 
+const LazyTidePlanner = lazy(() => import("./components/panels/TidePlanner"));
+const LazyFloodStatusPanel = lazy(() => import("./components/panels/FloodStatusPanel"));
+const LazySelectedItemDrawer = lazy(() => import("./components/panels/SelectedItemDrawer"));
+const LazyFullscreenImageViewer = lazy(() => import("./components/panels/FullscreenImageViewer"));
+
 const UI_TOKENS = {
     radius: {
         sm: "10px",
@@ -111,8 +116,11 @@ const extractEaMeasureId = (value) => {
     return parts.length ? parts[parts.length - 1] : null;
 };
 
-const buildEaReadingsUrl = (measureId) =>
-    `https://environment.data.gov.uk/flood-monitoring/id/measures/${encodeURIComponent(measureId)}/readings?latest`;
+const buildEaReadingsUrl = (measureId) => {
+    const baseUrl = `https://environment.data.gov.uk/flood-monitoring/id/measures/${encodeURIComponent(measureId)}/readings`;
+
+    return `${baseUrl}?_sorted&_limit=24`;
+};
 
 const formatEaReadingDateTime = (value) => {
     if (typeof value !== "string" || !value.trim()) return null;
@@ -124,6 +132,112 @@ const formatEaReadingDateTime = (value) => {
         dateStyle: "medium",
         timeStyle: "short",
     });
+};
+
+const formatEaRelativeAge = (value) => {
+    if (typeof value !== "string" || !value.trim()) return null;
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return null;
+
+    const deltaMs = Date.now() - parsed.getTime();
+    if (!Number.isFinite(deltaMs)) return null;
+
+    if (deltaMs < 60 * 1000) return "just now";
+
+    const minutes = Math.round(deltaMs / (60 * 1000));
+    if (minutes < 60) return `${minutes} min ago`;
+
+    const hours = Math.round(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+
+    const days = Math.round(hours / 24);
+    return `${days}d ago`;
+};
+
+const formatEaElapsedSpan = (deltaMs) => {
+    if (!Number.isFinite(deltaMs) || deltaMs <= 0) return null;
+
+    const totalMinutes = Math.round(deltaMs / (60 * 1000));
+    if (totalMinutes < 60) return `${totalMinutes}m`;
+
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    if (hours < 24) return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+
+    const days = Math.floor(hours / 24);
+    const remHours = hours % 24;
+    return remHours > 0 ? `${days}d ${remHours}h` : `${days}d`;
+};
+
+const getEaDeltaDirection = (deltaValue) => {
+    if (!Number.isFinite(deltaValue) || Math.abs(deltaValue) < 0.0005) return "flat";
+    return deltaValue > 0 ? "up" : "down";
+};
+
+const inferEaTrendFromRecentReadings = (recentReadings) => {
+    if (!Array.isArray(recentReadings) || recentReadings.length < 2) {
+        return {
+            direction: "flat",
+            label: "Trend unavailable",
+            deltaValue: null,
+        };
+    }
+
+    const newest = Number(recentReadings[0]?.value);
+    const oldest = Number(recentReadings[recentReadings.length - 1]?.value);
+    if (!Number.isFinite(newest) || !Number.isFinite(oldest)) {
+        return {
+            direction: "flat",
+            label: "Trend unavailable",
+            deltaValue: null,
+        };
+    }
+
+    const chronological = [...recentReadings].reverse();
+    const stepDirections = [];
+    for (let index = 1; index < chronological.length; index += 1) {
+        const previousValue = Number(chronological[index - 1]?.value);
+        const currentValue = Number(chronological[index]?.value);
+        if (!Number.isFinite(previousValue) || !Number.isFinite(currentValue)) continue;
+        stepDirections.push(getEaDeltaDirection(currentValue - previousValue));
+    }
+
+    const nonFlatSteps = stepDirections.filter((step) => step !== "flat");
+    const totalDelta = newest - oldest;
+    const direction = getEaDeltaDirection(totalDelta);
+    const allUp = nonFlatSteps.length > 0 && nonFlatSteps.every((step) => step === "up");
+    const allDown = nonFlatSteps.length > 0 && nonFlatSteps.every((step) => step === "down");
+
+    if (direction === "flat") {
+        return {
+            direction,
+            label: "Stable",
+            deltaValue: totalDelta,
+        };
+    }
+
+    if (allUp) {
+        return {
+            direction,
+            label: "Rising",
+            deltaValue: totalDelta,
+        };
+    }
+
+    if (allDown) {
+        return {
+            direction,
+            label: "Falling",
+            deltaValue: totalDelta,
+        };
+    }
+
+    return {
+        direction,
+        label: direction === "up" ? "Choppy rise" : "Choppy fall",
+        deltaValue: totalDelta,
+    };
 };
 
 const parseGpsNumber = (value) => {
@@ -350,6 +464,43 @@ const readStoredJson = (storageKey, fallbackValue, isValid) => {
     } catch {
         return fallbackValue;
     }
+};
+
+const isPlainObjectRecord = (value) => value && typeof value === "object" && !Array.isArray(value);
+
+const deferUntilIdle = (callback, timeoutMs = 1200) => {
+    if (typeof window === "undefined") {
+        callback();
+        return () => {};
+    }
+
+    if (typeof window.requestIdleCallback === "function") {
+        const idleId = window.requestIdleCallback(() => {
+            callback();
+        }, { timeout: timeoutMs });
+
+        return () => {
+            window.cancelIdleCallback(idleId);
+        };
+    }
+
+    const timerId = window.setTimeout(() => {
+        callback();
+    }, 0);
+
+    return () => {
+        window.clearTimeout(timerId);
+    };
+};
+
+const storedItemsBootstrap = readStoredJson(ITEMS_STORAGE_KEY, [], Array.isArray);
+const startupStoredState = {
+    items: storedItemsBootstrap,
+    counts: readStoredJson(COUNT_STORAGE_KEY, {}, isPlainObjectRecord),
+    gps: readStoredJson(GPS_STORAGE_KEY, {}, isPlainObjectRecord),
+    weights: readStoredJson(WEIGHT_STORAGE_KEY, {}, isPlainObjectRecord),
+    geolookup: readStoredJson(GEOLOOKUP_STORAGE_KEY, {}, isPlainObjectRecord),
+    itemStory: readStoredJson(ITEM_STORY_STORAGE_KEY, {}, isPlainObjectRecord),
 };
 
 const inferDbCountFieldSupport = (items) => {
@@ -681,6 +832,8 @@ const buildTideChartData = (rows, updatedAt) => {
         width,
         height,
         padding,
+        minTime,
+        maxTime,
         baselineY: padding.top + chartHeight,
         medianY: getY(medianHeight),
         points,
@@ -4419,6 +4572,36 @@ function StationPopupContent({ station, reading }) {
     const readingText = hasValue
         ? `${valueText}${reading?.unitName ? ` ${reading.unitName}` : ""}`
         : "Reading unavailable";
+    const readingUnit = reading?.unitName || "";
+    const trendRawDelta = Number(reading?.trendDeltaValue);
+    const hasTrendDelta = Number.isFinite(trendRawDelta);
+    const trendDeltaSign = hasTrendDelta && trendRawDelta > 0 ? "+" : "";
+    const trendDeltaText = hasTrendDelta
+        ? `${trendDeltaSign}${trendRawDelta.toLocaleString(undefined, { maximumFractionDigits: 3 })}${readingUnit ? ` ${readingUnit}` : ""}`
+        : null;
+    const trendLabel = typeof reading?.trendLabel === "string" && reading.trendLabel ? reading.trendLabel : "Trend unavailable";
+    const trendDirection = typeof reading?.trendDirection === "string" ? reading.trendDirection : "flat";
+    const trendColor =
+        trendDirection === "up"
+            ? "#047857"
+            : trendDirection === "down"
+              ? "#c2410c"
+              : "#334155";
+    const trendSymbol = trendDirection === "up" ? "↑" : trendDirection === "down" ? "↓" : "→";
+    const recentReadings = Array.isArray(reading?.recentReadings) ? reading.recentReadings.slice(0, 3) : [];
+    const [activeRecentIndex, setActiveRecentIndex] = useState(0);
+
+    useEffect(() => {
+        setActiveRecentIndex(0);
+    }, [station?.stationReference, station?.notation, station?.["@id"], reading?.dateTime]);
+
+    useEffect(() => {
+        if (!recentReadings.length) return;
+        if (activeRecentIndex <= recentReadings.length - 1) return;
+        setActiveRecentIndex(recentReadings.length - 1);
+    }, [activeRecentIndex, recentReadings]);
+
+    const activeRecent = recentReadings[activeRecentIndex] || null;
 
     return (
         <div
@@ -4449,11 +4632,103 @@ function StationPopupContent({ station, reading }) {
                 <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "#0f766e", letterSpacing: "0.04em", textTransform: "uppercase" }}>
                     {parameterName}
                 </div>
-                <div style={{ fontSize: "0.98rem", fontWeight: 800, color: "#134e4a" }}>
-                    {reading?.loading ? "Loading latest reading..." : readingText}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "6px" }}>
+                    <div style={{ fontSize: "0.98rem", fontWeight: 800, color: "#134e4a" }}>
+                        {reading?.loading ? "Loading latest reading..." : readingText}
+                    </div>
+                    {!reading?.loading && !reading?.error && hasValue ? (
+                        <div
+                            style={{
+                                border: `1px solid ${trendColor === "#334155" ? "#cbd5e1" : trendColor}`,
+                                background: "#ffffff",
+                                color: trendColor,
+                                fontSize: "0.67rem",
+                                fontWeight: 800,
+                                borderRadius: "999px",
+                                padding: "2px 7px",
+                                whiteSpace: "nowrap",
+                            }}
+                        >
+                            {trendSymbol} {trendLabel}
+                        </div>
+                    ) : null}
                 </div>
                 {reading?.error && !reading?.loading ? (
                     <div style={{ fontSize: "0.72rem", color: "#b91c1c" }}>Could not load current value.</div>
+                ) : null}
+                {!reading?.loading && !reading?.error && recentReadings.length ? (
+                    <div
+                        style={{
+                            marginTop: "2px",
+                            borderTop: "1px solid #ccfbf1",
+                            paddingTop: "4px",
+                            display: "grid",
+                            gap: "4px",
+                        }}
+                    >
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "6px" }}>
+                            <div style={{ fontSize: "0.68rem", color: "#0f766e", fontWeight: 700, letterSpacing: "0.02em" }}>LAST 3 READINGS</div>
+                            {recentReadings.length > 1 ? (
+                                <div style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveRecentIndex((prev) => (prev - 1 + recentReadings.length) % recentReadings.length)}
+                                        style={{ border: "1px solid #99f6e4", borderRadius: "999px", background: "#ffffff", color: "#0f766e", width: "18px", height: "18px", lineHeight: 1, fontSize: "0.68rem", padding: 0, cursor: "pointer" }}
+                                        aria-label="Show previous reading"
+                                    >
+                                        ‹
+                                    </button>
+                                    <div style={{ fontSize: "0.64rem", color: "#0f766e", fontWeight: 700 }}>
+                                        {activeRecentIndex + 1}/{recentReadings.length}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveRecentIndex((prev) => (prev + 1) % recentReadings.length)}
+                                        style={{ border: "1px solid #99f6e4", borderRadius: "999px", background: "#ffffff", color: "#0f766e", width: "18px", height: "18px", lineHeight: 1, fontSize: "0.68rem", padding: 0, cursor: "pointer" }}
+                                        aria-label="Show next reading"
+                                    >
+                                        ›
+                                    </button>
+                                </div>
+                            ) : null}
+                        </div>
+                        {activeRecent ? (
+                            <div style={{ border: "1px dashed #99f6e4", borderRadius: "8px", padding: "4px 6px", background: "#ffffff", display: "grid", gap: "2px" }}>
+                                <div style={{ fontSize: "0.8rem", color: "#134e4a", fontWeight: 800 }}>
+                                    {Number(activeRecent.value).toLocaleString(undefined, { maximumFractionDigits: 3 })}
+                                    {readingUnit ? ` ${readingUnit}` : ""}
+                                </div>
+                                <div style={{ fontSize: "0.68rem", color: "#475569" }}>
+                                    {activeRecent.ageLabel || "Age unavailable"}
+                                    {activeRecent.dateTime ? ` • ${formatEaReadingDateTime(activeRecent.dateTime) || ""}` : ""}
+                                </div>
+                            </div>
+                        ) : null}
+                        <div style={{ fontSize: "0.72rem", color: trendColor, fontWeight: 700 }}>
+                            {trendSymbol} {trendDeltaText || "Change unavailable"} over latest {recentReadings.length}
+                        </div>
+                        {recentReadings.length > 1 ? (
+                            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                                {recentReadings.map((_, index) => (
+                                    <button
+                                        key={`reading-dot-${index}`}
+                                        type="button"
+                                        onClick={() => setActiveRecentIndex(index)}
+                                        aria-label={`Show reading ${index + 1}`}
+                                        style={{
+                                            width: index === activeRecentIndex ? "9px" : "7px",
+                                            height: index === activeRecentIndex ? "9px" : "7px",
+                                            borderRadius: "50%",
+                                            border: "none",
+                                            padding: 0,
+                                            background: index === activeRecentIndex ? "#0f766e" : "#99f6e4",
+                                            cursor: "pointer",
+                                        }}
+                                    />
+                                ))}
+                            </div>
+                        ) : null}
+                    </div>
                 ) : null}
                 {!reading?.loading && timestampText ? (
                     <div style={{ fontSize: "0.72rem", color: "#0f766e" }}>Updated {timestampText}</div>
@@ -4748,7 +5023,7 @@ function App() {
         return smallViewport || coarsePointer;
     };
 
-    const [items, setItems] = useState(() => readStoredJson(ITEMS_STORAGE_KEY, [], Array.isArray));
+    const [items, setItems] = useState(() => startupStoredState.items);
     const [typeFilter, setTypeFilter] = useState("all");
     const [statusFilter, setStatusFilter] = useState("all");
     const [pendingLocation, setPendingLocation] = useState(null);
@@ -4785,36 +5060,26 @@ function App() {
     const [currentUser, setCurrentUser] = useState(null);
     const [isAuthActionLoading, setIsAuthActionLoading] = useState(false);
     const [authError, setAuthError] = useState("");
-    const [localCounts, setLocalCounts] = useState(() =>
-        readStoredJson(COUNT_STORAGE_KEY, {}, (value) => value && typeof value === "object" && !Array.isArray(value)),
-    );
-    const [localGps, setLocalGps] = useState(() =>
-        readStoredJson(GPS_STORAGE_KEY, {}, (value) => value && typeof value === "object" && !Array.isArray(value)),
-    );
-    const [localWeights, setLocalWeights] = useState(() =>
-        readStoredJson(WEIGHT_STORAGE_KEY, {}, (value) => value && typeof value === "object" && !Array.isArray(value)),
-    );
-    const [localGeoLookup, setLocalGeoLookup] = useState(() =>
-        readStoredJson(GEOLOOKUP_STORAGE_KEY, {}, (value) => value && typeof value === "object" && !Array.isArray(value)),
-    );
-    const [localItemStory, setLocalItemStory] = useState(() =>
-        readStoredJson(ITEM_STORY_STORAGE_KEY, {}, (value) => value && typeof value === "object" && !Array.isArray(value)),
-    );
+    const [localCounts, setLocalCounts] = useState(() => startupStoredState.counts);
+    const [localGps, setLocalGps] = useState(() => startupStoredState.gps);
+    const [localWeights, setLocalWeights] = useState(() => startupStoredState.weights);
+    const [localGeoLookup, setLocalGeoLookup] = useState(() => startupStoredState.geolookup);
+    const [localItemStory, setLocalItemStory] = useState(() => startupStoredState.itemStory);
     const [isResolvingGeoLookup, setIsResolvingGeoLookup] = useState(false);
     const [dbCountFieldSupport, setDbCountFieldSupport] = useState(() =>
-        inferDbCountFieldSupport(readStoredJson(ITEMS_STORAGE_KEY, [], Array.isArray)),
+        inferDbCountFieldSupport(startupStoredState.items),
     );
     const [dbGpsFieldSupport, setDbGpsFieldSupport] = useState(() =>
-        inferDbGpsFieldSupport(readStoredJson(ITEMS_STORAGE_KEY, [], Array.isArray)),
+        inferDbGpsFieldSupport(startupStoredState.items),
     );
     const [dbWeightFieldSupport, setDbWeightFieldSupport] = useState(() =>
-        inferDbWeightFieldSupport(readStoredJson(ITEMS_STORAGE_KEY, [], Array.isArray)),
+        inferDbWeightFieldSupport(startupStoredState.items),
     );
     const [dbGeoFieldSupport, setDbGeoFieldSupport] = useState(() =>
-        inferDbGeoFieldSupport(readStoredJson(ITEMS_STORAGE_KEY, [], Array.isArray)),
+        inferDbGeoFieldSupport(startupStoredState.items),
     );
     const [dbStoryFieldSupport, setDbStoryFieldSupport] = useState(() =>
-        inferDbStoryFieldSupport(readStoredJson(ITEMS_STORAGE_KEY, [], Array.isArray)),
+        inferDbStoryFieldSupport(startupStoredState.items),
     );
     const [isMobile, setIsMobile] = useState(detectMobileViewport);
     const [waybackReleases, setWaybackReleases] = useState([]);
@@ -4834,6 +5099,7 @@ function App() {
     const [isMapToolsOpen, setIsMapToolsOpen] = useState(false);
     const [copiedShareItemId, setCopiedShareItemId] = useState(null);
     const [shareCopyStatus, setShareCopyStatus] = useState("");
+    const [isDeferredUiReady, setIsDeferredUiReady] = useState(false);
     const ignoreNextMapClickRef = useRef(false);
     const mapOverlayRootRef = useRef(null);
     const liveLocationWatchIdRef = useRef(null);
@@ -4994,6 +5260,16 @@ function App() {
                             unitName: firstMeasure?.unitName || "",
                             dateTime: "",
                             parameterName: firstMeasure?.parameterName || "",
+                            previousValue: null,
+                            previousUnitName: firstMeasure?.unitName || "",
+                            previousDateTime: "",
+                            previousAgeLabel: "",
+                            deltaValue: null,
+                            deltaDirection: "flat",
+                            trendLabel: "Trend unavailable",
+                            trendDirection: "flat",
+                            trendDeltaValue: null,
+                            recentReadings: [],
                         },
                     };
                 }
@@ -5005,7 +5281,33 @@ function App() {
                     }
 
                     const payload = await response.json();
-                    const latest = Array.isArray(payload?.items) ? payload.items[0] : null;
+                    const items = Array.isArray(payload?.items) ? payload.items : [];
+                    const sortedReadings = [...items].sort((a, b) => {
+                        const aTime = new Date(a?.dateTime || "").getTime();
+                        const bTime = new Date(b?.dateTime || "").getTime();
+
+                        if (!Number.isFinite(aTime) && !Number.isFinite(bTime)) return 0;
+                        if (!Number.isFinite(aTime)) return 1;
+                        if (!Number.isFinite(bTime)) return -1;
+
+                        return bTime - aTime;
+                    });
+                    const latest = sortedReadings[0] || null;
+                    const previous = sortedReadings[1] || null;
+                    const latestValue = Number(latest?.value);
+                    const previousValue = Number(previous?.value);
+                    const hasDelta = Number.isFinite(latestValue) && Number.isFinite(previousValue);
+                    const deltaValue = hasDelta ? latestValue - previousValue : null;
+                    const deltaDirection = getEaDeltaDirection(deltaValue);
+                    const recentReadings = sortedReadings
+                        .filter((item) => Number.isFinite(Number(item?.value)))
+                        .slice(0, 3)
+                        .map((item) => ({
+                            value: Number(item?.value),
+                            dateTime: item?.dateTime || "",
+                            ageLabel: formatEaRelativeAge(item?.dateTime || "") || "",
+                        }));
+                    const trend = inferEaTrendFromRecentReadings(recentReadings);
 
                     return {
                         key,
@@ -5016,6 +5318,16 @@ function App() {
                             unitName: firstMeasure?.unitName || "",
                             dateTime: latest?.dateTime || "",
                             parameterName: firstMeasure?.parameterName || "",
+                            previousValue: previous?.value ?? null,
+                            previousUnitName: firstMeasure?.unitName || "",
+                            previousDateTime: previous?.dateTime || "",
+                            previousAgeLabel: formatEaRelativeAge(previous?.dateTime || "") || "",
+                            deltaValue,
+                            deltaDirection,
+                            trendLabel: trend.label,
+                            trendDirection: trend.direction,
+                            trendDeltaValue: trend.deltaValue,
+                            recentReadings,
                         },
                     };
                 } catch {
@@ -5028,6 +5340,16 @@ function App() {
                             unitName: firstMeasure?.unitName || "",
                             dateTime: "",
                             parameterName: firstMeasure?.parameterName || "",
+                            previousValue: null,
+                            previousUnitName: firstMeasure?.unitName || "",
+                            previousDateTime: "",
+                            previousAgeLabel: "",
+                            deltaValue: null,
+                            deltaDirection: "flat",
+                            trendLabel: "Trend unavailable",
+                            trendDirection: "flat",
+                            trendDeltaValue: null,
+                            recentReadings: [],
                         },
                     };
                 }
@@ -5143,31 +5465,35 @@ function App() {
     }, [isLiveLocationEnabled]);
 
     useEffect(() => {
-        fetch("https://s3-us-west-2.amazonaws.com/config.maptiles.arcgis.com/waybackconfig.json")
-            .then((r) => r.json())
-            .then((data) => {
-                // The config is a plain object keyed by release number:
-                // { "10": { itemTitle: "World Imagery Wayback YYYY-MM-DD", snapshotId: 10, ... }, ... }
-                let list;
-                if (Array.isArray(data)) {
-                    list = data;
-                } else {
-                    list = Object.entries(data).map(([key, val]) => ({
-                        releaseNum: Number(key),
-                        releaseName: val.itemTitle || val.snapshotLabel || `Snapshot ${key}`,
-                        ...val,
-                    }));
-                }
-                // Sort most-recent first; keep up to 80 snapshots
-                const sorted = [...list]
-                    .filter((r) => r.releaseNum)
-                    .sort((a, b) => b.releaseNum - a.releaseNum)
-                    .slice(0, 80);
-                setWaybackReleases(sorted);
-                // Default to the latest World Imagery snapshot
-                if (sorted.length > 0) setSelectedWaybackId(sorted[0].releaseNum);
-            })
-            .catch(() => {});
+        const cancelIdle = deferUntilIdle(() => {
+            fetch("https://s3-us-west-2.amazonaws.com/config.maptiles.arcgis.com/waybackconfig.json")
+                .then((r) => r.json())
+                .then((data) => {
+                    // The config is a plain object keyed by release number:
+                    // { "10": { itemTitle: "World Imagery Wayback YYYY-MM-DD", snapshotId: 10, ... }, ... }
+                    let list;
+                    if (Array.isArray(data)) {
+                        list = data;
+                    } else {
+                        list = Object.entries(data).map(([key, val]) => ({
+                            releaseNum: Number(key),
+                            releaseName: val.itemTitle || val.snapshotLabel || `Snapshot ${key}`,
+                            ...val,
+                        }));
+                    }
+                    // Sort most-recent first; keep up to 80 snapshots
+                    const sorted = [...list]
+                        .filter((r) => r.releaseNum)
+                        .sort((a, b) => b.releaseNum - a.releaseNum)
+                        .slice(0, 80);
+                    setWaybackReleases(sorted);
+                    // Default to the latest World Imagery snapshot
+                    if (sorted.length > 0) setSelectedWaybackId(sorted[0].releaseNum);
+                })
+                .catch(() => {});
+        });
+
+        return cancelIdle;
     }, []);
 
     useEffect(() => {
@@ -5175,7 +5501,19 @@ function App() {
     }, []);
 
     useEffect(() => {
-        void fetchLuneStations();
+        const cancelIdle = deferUntilIdle(() => {
+            setIsDeferredUiReady(true);
+        });
+
+        return cancelIdle;
+    }, []);
+
+    useEffect(() => {
+        const cancelIdle = deferUntilIdle(() => {
+            void fetchLuneStations();
+        });
+
+        return cancelIdle;
     }, []);
 
     useEffect(() => {
@@ -5192,11 +5530,16 @@ function App() {
     }, [luneStations]);
 
     useEffect(() => {
-        void fetchFloodAlerts();
+        const cancelIdle = deferUntilIdle(() => {
+            void fetchFloodAlerts();
+        });
+
         const floodIntervalId = window.setInterval(() => {
             void fetchFloodAlerts();
         }, EA_READINGS_REFRESH_MS);
+
         return () => {
+            cancelIdle();
             window.clearInterval(floodIntervalId);
         };
     }, []);
@@ -5328,7 +5671,11 @@ function App() {
     }, [pendingLocation]);
 
     useEffect(() => {
-        fetchLancasterTides();
+        const cancelIdle = deferUntilIdle(() => {
+            void fetchLancasterTides();
+        });
+
+        return cancelIdle;
     }, []);
 
     async function fetchLancasterTides() {
@@ -6421,15 +6768,24 @@ function App() {
                 onToggleTidePlanner={() => setIsTidePlannerCollapsed((prev) => !prev)}
             />
 
-            <TidePlanner
-                isTidePlannerCollapsed={isTidePlannerCollapsed}
-                isMobile={isMobile}
-                isLoadingLancasterTides={isLoadingLancasterTides}
-                fetchLancasterTides={fetchLancasterTides}
-                lancasterTideUpdatedAt={lancasterTideUpdatedAt}
-                lancasterTideError={lancasterTideError}
-                tideChartData={tideChartData}
-            />
+            {isDeferredUiReady ? (
+                <Suspense fallback={null}>
+                    <LazyTidePlanner
+                        isTidePlannerCollapsed={isTidePlannerCollapsed}
+                        isMobile={isMobile}
+                        isLoadingLancasterTides={isLoadingLancasterTides}
+                        fetchLancasterTides={fetchLancasterTides}
+                        lancasterTideUpdatedAt={lancasterTideUpdatedAt}
+                        lancasterTideError={lancasterTideError}
+                        tideChartData={tideChartData}
+                        tideChartUrl={LANCASTER_TIDE_CHART_URL}
+                        buildCurrentTideMarker={buildCurrentTideMarker}
+                        formatTideTime={formatTideTime}
+                        formatTideClockTime={formatTideClockTime}
+                        formatTideDay={formatTideDay}
+                    />
+                </Suspense>
+            ) : null}
 
             <MapStatusBanner
                 isLoadingItems={isLoadingItems}
@@ -6630,13 +6986,19 @@ function App() {
                     />
                 )}
 
-                <FloodStatusPanel
-                    floodAlerts={floodAlerts}
-                    isLoadingFloodAlerts={isLoadingFloodAlerts}
-                    floodAlertsError={floodAlertsError}
-                    floodAlertsUpdatedAt={floodAlertsUpdatedAt}
-                    isMobile={isMobile}
-                />
+                {isDeferredUiReady ? (
+                    <Suspense fallback={null}>
+                        <LazyFloodStatusPanel
+                            floodAlerts={floodAlerts}
+                            isLoadingFloodAlerts={isLoadingFloodAlerts}
+                            floodAlertsError={floodAlertsError}
+                            floodAlertsUpdatedAt={floodAlertsUpdatedAt}
+                            isMobile={isMobile}
+                            uiTokens={UI_TOKENS}
+                            SurfaceCard={SurfaceCard}
+                        />
+                    </Suspense>
+                ) : null}
 
                 <div
                     style={{
@@ -6818,46 +7180,67 @@ function App() {
                 </>
             ) : null}
 
-            <SelectedItemDrawer
-                selectedItem={selectedItem}
-                selectedCounts={selectedCounts}
-                selectedStory={selectedStory}
-                selectedGps={selectedGps}
-                selectedGeoLookup={selectedGeoLookup}
-                isResolvingGeoLookup={isResolvingGeoLookup}
-                selectedMapsUrl={selectedMapsUrl}
-                selectedWeight={selectedWeight}
-                editingItemId={editingItemId}
-                editForm={editForm}
-                isUpdatingItemId={isUpdatingItemId}
-                isMobile={isMobile}
-                setSelectedItemId={setSelectedItemId}
-                setEditingItemId={setEditingItemId}
-                setEditForm={setEditForm}
-                setIsImageViewerOpen={setIsImageViewerOpen}
-                saveItemEdits={saveItemEdits}
-                removeLocation={removeLocation}
-                startEditingItem={startEditingItem}
-                canManageItems={canManageItems}
-                onUploadReferenceImage={uploadReferenceImageFromEdit}
-                isUploadingReferenceImage={isUploadingReferenceImage}
-                onCopyShareLink={copyShareLinkForItem}
-                copiedShareItemId={copiedShareItemId}
-                shareCopyStatus={shareCopyStatus}
-            />
+            <Suspense fallback={null}>
+                <LazySelectedItemDrawer
+                    selectedItem={selectedItem}
+                    selectedCounts={selectedCounts}
+                    selectedStory={selectedStory}
+                    selectedGps={selectedGps}
+                    selectedGeoLookup={selectedGeoLookup}
+                    isResolvingGeoLookup={isResolvingGeoLookup}
+                    selectedMapsUrl={selectedMapsUrl}
+                    selectedWeight={selectedWeight}
+                    editingItemId={editingItemId}
+                    editForm={editForm}
+                    isUpdatingItemId={isUpdatingItemId}
+                    isMobile={isMobile}
+                    setSelectedItemId={setSelectedItemId}
+                    setEditingItemId={setEditingItemId}
+                    setEditForm={setEditForm}
+                    setIsImageViewerOpen={setIsImageViewerOpen}
+                    saveItemEdits={saveItemEdits}
+                    removeLocation={removeLocation}
+                    startEditingItem={startEditingItem}
+                    canManageItems={canManageItems}
+                    onUploadReferenceImage={uploadReferenceImageFromEdit}
+                    isUploadingReferenceImage={isUploadingReferenceImage}
+                    onCopyShareLink={copyShareLinkForItem}
+                    copiedShareItemId={copiedShareItemId}
+                    shareCopyStatus={shareCopyStatus}
+                    TYPE_LABELS={TYPE_LABELS}
+                    normalizeType={normalizeType}
+                    formatTimeInRiver={formatTimeInRiver}
+                    isItemStoryEmpty={isItemStoryEmpty}
+                    formatStoryDate={formatStoryDate}
+                    DetailBadge={DetailBadge}
+                    formatWeightKg={formatWeightKg}
+                    LocationDetailsBlock={LocationDetailsBlock}
+                    getDefaultWeightForType={getDefaultWeightForType}
+                    parseEstimatedWeightKg={parseEstimatedWeightKg}
+                    clampInt={clampInt}
+                    normalizeOptionalDateInput={normalizeOptionalDateInput}
+                />
+            </Suspense>
 
-            <FullscreenImageViewer
-                isOpen={isImageViewerOpen}
-                isMobile={isMobile}
-                selectedItem={selectedItem}
-                selectedCounts={selectedCounts}
-                selectedStory={selectedStory}
-                selectedGps={selectedGps}
-                selectedGeoLookup={selectedGeoLookup}
-                isResolvingGeoLookup={isResolvingGeoLookup}
-                selectedMapsUrl={selectedMapsUrl}
-                onClose={() => setIsImageViewerOpen(false)}
-            />
+            <Suspense fallback={null}>
+                <LazyFullscreenImageViewer
+                    isOpen={isImageViewerOpen}
+                    isMobile={isMobile}
+                    selectedItem={selectedItem}
+                    selectedCounts={selectedCounts}
+                    selectedStory={selectedStory}
+                    selectedGps={selectedGps}
+                    selectedGeoLookup={selectedGeoLookup}
+                    isResolvingGeoLookup={isResolvingGeoLookup}
+                    selectedMapsUrl={selectedMapsUrl}
+                    onClose={() => setIsImageViewerOpen(false)}
+                    TYPE_LABELS={TYPE_LABELS}
+                    normalizeType={normalizeType}
+                    formatStoryDate={formatStoryDate}
+                    formatTimeInRiver={formatTimeInRiver}
+                    LocationDetailsBlock={LocationDetailsBlock}
+                />
+            </Suspense>
         </div>
     );
 }
