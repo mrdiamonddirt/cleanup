@@ -363,6 +363,10 @@ const buildMessengerThreadUrl = (recipientId) => {
     return `https://www.messenger.com/t/${encodeURIComponent(normalizedId)}`;
 };
 
+const preserveReportNoteInput = (value) =>
+    String(value || "")
+        .slice(0, REPORT_NOTE_MAX_LENGTH);
+
 const sanitizeReportNote = (value) =>
     String(value || "")
         .replace(/\s+/g, " ")
@@ -7761,7 +7765,7 @@ function App() {
                         reportNote={reportNote}
                         reportStatus={reportStatus}
                         isMobile={isMobile}
-                        onNoteChange={(nextValue) => setReportNote(sanitizeReportNote(nextValue))}
+                        onNoteChange={(nextValue) => setReportNote(preserveReportNoteInput(nextValue))}
                         onOpenMessenger={handleOpenMessengerForReport}
                         onOpenEmail={handleOpenEmailForReport}
                         onCancel={() => {
