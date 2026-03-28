@@ -3042,11 +3042,11 @@ function FilterControls({
                     display: "flex",
                     flexWrap: isOverlay ? "nowrap" : isMobile ? "nowrap" : "wrap",
                     flexDirection: isOverlay ? "column" : isMobile ? "column" : "row",
-                    gap: isOverlay ? "7px" : "8px",
+                    gap: isOverlay ? "5px" : "8px",
                     marginBottom: isOverlay ? "0" : "8px",
                     marginTop: isOverlay ? "0" : "8px",
                     alignItems: isOverlay ? "stretch" : isMobile ? "stretch" : "center",
-                    padding: isOverlay ? (isMobile ? "7px" : "8px") : "0",
+                    padding: isOverlay ? (isMobile ? "6px" : "6px") : "0",
                     borderRadius: isOverlay ? "6px" : "0",
                     border: isOverlay ? "2px solid rgba(0,0,0,0.2)" : "none",
                     background: isOverlay ? "rgba(255,255,255,0.97)" : "transparent",
@@ -3176,10 +3176,10 @@ function FilterControls({
                                 style={{
                                     border: isOverlay ? "1px solid #9ca3af" : "1px solid #cbd5e1",
                                     borderRadius: isOverlay ? "4px" : "8px",
-                                    padding: isOverlay ? "6px 8px" : isMobile ? "9px 10px" : "5px 8px",
+                                    padding: isOverlay ? "5px 6px" : isMobile ? "9px 10px" : "5px 8px",
                                     fontSize: isOverlay ? "0.78rem" : controlFontSize,
                                     background: "#fff",
-                                    minHeight: isOverlay ? "30px" : isMobile ? "40px" : "32px",
+                                    minHeight: isOverlay ? "28px" : isMobile ? "40px" : "32px",
                                     width: isOverlay ? "100%" : isMobile ? "100%" : "auto",
                                 }}
                             >
@@ -3199,10 +3199,10 @@ function FilterControls({
                                 style={{
                                     border: isOverlay ? "1px solid #9ca3af" : "1px solid #cbd5e1",
                                     borderRadius: isOverlay ? "4px" : "8px",
-                                    padding: isOverlay ? "6px 8px" : isMobile ? "9px 10px" : "5px 8px",
+                                    padding: isOverlay ? "5px 6px" : isMobile ? "9px 10px" : "5px 8px",
                                     fontSize: isOverlay ? "0.78rem" : controlFontSize,
                                     background: "#fff",
-                                    minHeight: isOverlay ? "30px" : isMobile ? "40px" : "32px",
+                                    minHeight: isOverlay ? "28px" : isMobile ? "40px" : "32px",
                                     width: isOverlay ? "100%" : isMobile ? "100%" : "auto",
                                 }}
                             >
@@ -3218,13 +3218,13 @@ function FilterControls({
                             style={{
                                 border: isLuneStationsVisible ? "1px solid #0f766e" : "1px solid #99f6e4",
                                 borderRadius: isOverlay ? "4px" : UI_TOKENS.radius.pill,
-                                padding: isOverlay ? "6px 8px" : isMobile ? "9px 10px" : "5px 10px",
+                                padding: isOverlay ? "5px 6px" : isMobile ? "9px 10px" : "5px 10px",
                                 fontSize: isOverlay ? "0.78rem" : controlFontSize,
                                 background: isLuneStationsVisible
                                     ? "linear-gradient(135deg, #ccfbf1, #ecfeff)"
                                     : "linear-gradient(135deg, #f8fafc, #ffffff)",
                                 color: isLuneStationsVisible ? "#115e59" : "#475569",
-                                minHeight: isOverlay ? "30px" : isMobile ? "40px" : "32px",
+                                minHeight: isOverlay ? "28px" : isMobile ? "40px" : "32px",
                                 width: isOverlay ? "100%" : isMobile ? "100%" : "auto",
                                 fontWeight: 700,
                                 cursor: "pointer",
@@ -3241,13 +3241,13 @@ function FilterControls({
                             style={{
                                 border: isContributorsVisible ? "1px solid #ca8a04" : "1px solid #fcd34d",
                                 borderRadius: isOverlay ? "4px" : UI_TOKENS.radius.pill,
-                                padding: isOverlay ? "6px 8px" : isMobile ? "9px 10px" : "5px 10px",
+                                padding: isOverlay ? "5px 6px" : isMobile ? "9px 10px" : "5px 10px",
                                 fontSize: isOverlay ? "0.78rem" : controlFontSize,
                                 background: isContributorsVisible
                                     ? "linear-gradient(135deg, #fef3c7, #fffbeb)"
                                     : "linear-gradient(135deg, #f8fafc, #ffffff)",
                                 color: isContributorsVisible ? "#854d0e" : "#475569",
-                                minHeight: isOverlay ? "30px" : isMobile ? "40px" : "32px",
+                                minHeight: isOverlay ? "28px" : isMobile ? "40px" : "32px",
                                 width: isOverlay ? "100%" : isMobile ? "100%" : "auto",
                                 fontWeight: 700,
                                 cursor: "pointer",
