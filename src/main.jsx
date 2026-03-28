@@ -14,6 +14,7 @@ import L from "leaflet";
 import * as exifr from "exifr";
 import "leaflet/dist/leaflet.css";
 import { hasSupabaseConfig, supabase } from "./supabaseClient";
+import ContributorBusinessPanel from "./components/panels/ContributorBusinessPanel";
 
 // --- LEAFLET ICON FIX ---
 import markerIcon from "leaflet/dist/images/marker-icon.png";
@@ -1009,6 +1010,86 @@ const getStationIcon = () =>
         iconSize: [38, 38],
         iconAnchor: [19, 19],
     });
+
+const getContributorIcon = (logoUrl, businessName) => {
+    const hasLogo = typeof logoUrl === "string" && logoUrl.trim();
+    const safeLogoUrl = hasLogo ? logoUrl.replace(/"/g, "&quot;") : "";
+    const safeBusinessName = String(businessName || "Business")
+        .replace(/&/g, "&amp;")
+        .replace(/"/g, "&quot;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    const initials = String(businessName || "?")
+        .trim()
+        .split(/\s+/)
+        .slice(0, 2)
+        .map((part) => part.charAt(0).toUpperCase())
+        .join("") || "?";
+
+    return L.divIcon({
+        className: "",
+        html: `
+            <div
+                aria-label="Contributor business marker"
+                style="
+                    position: relative;
+                    width: 38px;
+                    height: 38px;
+                    border-radius: 10px;
+                    border: 3px solid #ca8a04;
+                    background: linear-gradient(160deg, #fffbeb 0%, #fef3c7 100%);
+                    box-shadow: 0 6px 14px rgba(146, 64, 14, 0.24);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    box-sizing: border-box;
+                "
+            >
+                <span
+                    style="
+                        width: 24px;
+                        height: 24px;
+                        border-radius: 6px;
+                        border: 1px solid #f59e0b;
+                        background: #ffffff;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        overflow: hidden;
+                        box-sizing: border-box;
+                    "
+                >
+                    ${hasLogo
+                        ? `<img src="${safeLogoUrl}" alt="${safeBusinessName} logo" style="width: 24px; height: 24px; max-width: 24px; max-height: 24px; object-fit: contain; display: block;" />`
+                        : `<span style="font-size: 10px; font-weight: 800; color: #92400e; line-height: 1; letter-spacing: 0.04em;">${initials}</span>`}
+                </span>
+                <span
+                    aria-hidden="true"
+                    style="
+                        position: absolute;
+                        top: -5px;
+                        right: -5px;
+                        width: 14px;
+                        height: 14px;
+                        border-radius: 999px;
+                        border: 2px solid #fffbeb;
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        background: #facc15;
+                        color: #78350f;
+                        font-size: 8px;
+                        font-weight: 800;
+                        line-height: 1;
+                    "
+                >★</span>
+            </div>
+        `,
+        iconSize: [38, 38],
+        iconAnchor: [19, 19],
+        popupAnchor: [0, -19],
+    });
+};
 
 const formatCoordinate = (value, digits = 6) => {
     const parsed = Number(value);
@@ -2273,6 +2354,7 @@ function AppTopBar({
     onSignIn,
     onSignOut,
     isLoadingItems,
+    onOpenContributorPanel,
 }) {
     const signedIn = Boolean(currentUser);
     const syncLabel = isLoadingItems ? "Syncing" : "Up to date";
@@ -2417,6 +2499,26 @@ function AppTopBar({
                         <path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.97h-1.514c-1.491 0-1.956.93-1.956 1.886v2.268h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/>
                     </svg>
                 </a>
+
+                <button
+                    type="button"
+                    onClick={onOpenContributorPanel}
+                    style={{
+                        border: "1px solid #f59e0b",
+                        background: "#fef3c7",
+                        color: "#92400e",
+                        borderRadius: UI_TOKENS.radius.pill,
+                        minHeight: "34px",
+                        padding: isMobile ? "0 10px" : "0 11px",
+                        fontSize: "0.76rem",
+                        fontWeight: 700,
+                        whiteSpace: "nowrap",
+                        cursor: "pointer",
+                    }}
+                    aria-label={canManageItems ? "Open contributor manager" : "Open contributors list"}
+                >
+                    {isMobile ? "★" : "★ Contributors"}
+                </button>
 
                 <button
                     type="button"
@@ -2686,9 +2788,11 @@ function ControlToggles({
     isMobile,
     isTidePlannerCollapsed,
     isWeatherOverlayEnabled,
+    isContributorsVisible,
     weatherOverlayUpdatedLabel,
     onToggleTidePlanner,
     onToggleWeatherOverlay,
+    onToggleContributors,
 }) {
     return (
         <div
@@ -2747,6 +2851,34 @@ function ControlToggles({
                 >
                     <span>{isTidePlannerCollapsed ? "Show Tide Planner" : "Hide Tide Planner"}</span>
                     <span style={{ fontSize: "0.9em" }}>{isTidePlannerCollapsed ? "▾" : "▴"}</span>
+                </button>
+
+                <button
+                    onClick={onToggleContributors}
+                    style={{
+                        border: isContributorsVisible ? "1px solid #ca8a04" : "1px solid #fcd34d",
+                        background: isContributorsVisible
+                            ? "linear-gradient(135deg, #fef3c7, #fffbeb)"
+                            : "linear-gradient(135deg, #eff6ff, #f8fafc)",
+                        color: isContributorsVisible ? "#854d0e" : "#0f172a",
+                        borderRadius: UI_TOKENS.radius.pill,
+                        padding: isMobile ? "7px 10px" : "5px 10px",
+                        minHeight: "30px",
+                        width: "auto",
+                        fontSize: "0.8rem",
+                        fontWeight: 700,
+                        letterSpacing: "0.01em",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "8px",
+                        boxShadow: "0 4px 16px rgba(15,23,42,0.08)",
+                        cursor: "pointer",
+                    }}
+                    aria-pressed={isContributorsVisible}
+                    aria-label={isContributorsVisible ? "Hide contributors" : "Show contributors"}
+                >
+                    <span>{isContributorsVisible ? "Contributors On" : "Contributors Off"}</span>
                 </button>
 
                 <button
@@ -2868,7 +3000,9 @@ function FilterControls({
     typeFilter,
     statusFilter,
     isLuneStationsVisible,
+    isContributorsVisible,
     setIsLuneStationsVisible,
+    setIsContributorsVisible,
     setTypeFilter,
     setStatusFilter,
     isOverlay = false,
@@ -3008,6 +3142,29 @@ function FilterControls({
                                 </button>
                             </div>
                         </div>
+
+                        <div style={{ display: "grid", gap: "6px" }}>
+                            <span style={{ fontSize: "0.72rem", fontWeight: 700, color: "#854d0e", textTransform: "uppercase", letterSpacing: "0.04em" }}>Contributors</span>
+                            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsContributorsVisible((prev) => !prev)}
+                                    style={{
+                                        border: isContributorsVisible ? "1px solid #ca8a04" : "1px solid #fcd34d",
+                                        background: isContributorsVisible ? "#fef3c7" : "#f8fafc",
+                                        color: isContributorsVisible ? "#854d0e" : "#475569",
+                                        borderRadius: UI_TOKENS.radius.pill,
+                                        padding: "7px 10px",
+                                        fontSize: "0.8rem",
+                                        fontWeight: 700,
+                                        minHeight: "34px",
+                                    }}
+                                    aria-pressed={isContributorsVisible}
+                                >
+                                    {isContributorsVisible ? "Contributors On" : "Contributors Off"}
+                                </button>
+                            </div>
+                        </div>
                     </>
                 ) : (
                     <>
@@ -3076,6 +3233,29 @@ function FilterControls({
                             aria-label={isLuneStationsVisible ? "Hide sensor stations" : "Show sensor stations"}
                         >
                             {isLuneStationsVisible ? "Sensor Stations: On" : "Sensor Stations: Off"}
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => setIsContributorsVisible((prev) => !prev)}
+                            style={{
+                                border: isContributorsVisible ? "1px solid #ca8a04" : "1px solid #fcd34d",
+                                borderRadius: isOverlay ? "4px" : UI_TOKENS.radius.pill,
+                                padding: isOverlay ? "6px 8px" : isMobile ? "9px 10px" : "5px 10px",
+                                fontSize: isOverlay ? "0.78rem" : controlFontSize,
+                                background: isContributorsVisible
+                                    ? "linear-gradient(135deg, #fef3c7, #fffbeb)"
+                                    : "linear-gradient(135deg, #f8fafc, #ffffff)",
+                                color: isContributorsVisible ? "#854d0e" : "#475569",
+                                minHeight: isOverlay ? "30px" : isMobile ? "40px" : "32px",
+                                width: isOverlay ? "100%" : isMobile ? "100%" : "auto",
+                                fontWeight: 700,
+                                cursor: "pointer",
+                            }}
+                            aria-pressed={isContributorsVisible}
+                            aria-label={isContributorsVisible ? "Hide contributors" : "Show contributors"}
+                        >
+                            {isContributorsVisible ? "Contributors: On" : "Contributors: Off"}
                         </button>
                     </>
                 )}
@@ -5644,6 +5824,9 @@ function App() {
     const [luneStations, setLuneStations] = useState([]);
     const [luneStationReadings, setLuneStationReadings] = useState({});
     const [isLuneStationsVisible, setIsLuneStationsVisible] = useState(true);
+    const [isContributorsVisible, setIsContributorsVisible] = useState(true);
+    const [contributors, setContributors] = useState([]);
+    const [isContributorPanelOpen, setIsContributorPanelOpen] = useState(false);
     const [floodAlerts, setFloodAlerts] = useState([]);
     const [isLoadingFloodAlerts, setIsLoadingFloodAlerts] = useState(false);
     const [floodAlertsError, setFloodAlertsError] = useState(null);
@@ -6206,7 +6389,8 @@ function App() {
     }, []);
 
     useEffect(() => {
-        fetchItems();
+        void fetchItems();
+        void fetchContributors();
     }, []);
 
     useEffect(() => {
@@ -6635,6 +6819,25 @@ function App() {
         setDbStoryFieldSupport(inferDbStoryFieldSupport(nextItems));
         setItems(nextItems);
         setIsLoadingItems(false);
+        return true;
+    }
+
+    async function fetchContributors() {
+        if (!hasSupabaseConfig) {
+            setContributors([]);
+            return false;
+        }
+
+        const { data, error } = await supabase
+            .from("contributors")
+            .select("*");
+
+        if (error) {
+            setContributors([]);
+            return false;
+        }
+
+        setContributors(Array.isArray(data) ? data : []);
         return true;
     }
 
@@ -7374,7 +7577,7 @@ function App() {
     const controlFontSize = isMobile ? "0.95rem" : "0.85rem";
     const touchButtonSize = isMobile ? "38px" : "30px";
     const activeFilterCount =
-        Number(typeFilter !== "all") + Number(statusFilter !== "all") + Number(!isLuneStationsVisible);
+        Number(typeFilter !== "all") + Number(statusFilter !== "all") + Number(!isLuneStationsVisible) + Number(!isContributorsVisible);
     const selectedItem = useMemo(
         () => (selectedItemId ? items.find((item) => item.id === selectedItemId) || null : null),
         [items, selectedItemId],
@@ -7571,6 +7774,7 @@ function App() {
                 onSignIn={signInWithGitHub}
                 onSignOut={signOut}
                 isLoadingItems={isLoadingItems}
+                onOpenContributorPanel={() => setIsContributorPanelOpen(true)}
             />
 
             {isMobile && authError ? (
@@ -7601,9 +7805,11 @@ function App() {
                 isMobile={isMobile}
                 isTidePlannerCollapsed={isTidePlannerCollapsed}
                 isWeatherOverlayEnabled={isWeatherOverlayEnabled}
+                isContributorsVisible={isContributorsVisible}
                 weatherOverlayUpdatedLabel={weatherOverlayUpdatedLabel}
                 onToggleTidePlanner={() => setIsTidePlannerCollapsed((prev) => !prev)}
                 onToggleWeatherOverlay={() => setIsWeatherOverlayEnabled((prev) => !prev)}
+                onToggleContributors={() => setIsContributorsVisible((prev) => !prev)}
             />
 
             {isDeferredUiReady ? (
@@ -7797,6 +8003,243 @@ function App() {
                         );
                     })}
 
+                    {isContributorsVisible
+                        ? contributors.map((contributor) => {
+                              const lat = Number(contributor?.lat);
+                              const lng = Number(contributor?.lng);
+                              if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+                              return (
+                                  <Marker
+                                      key={`contributor-${contributor.id}`}
+                                      position={[lat, lng]}
+                                      icon={getContributorIcon(contributor.logo_url, contributor.name)}
+                                      eventHandlers={{
+                                          click: (event) => event.target.openPopup(),
+                                      }}
+                                  >
+                                      <Popup
+                                          className="contributor-popup"
+                                          autoPan
+                                          keepInView
+                                          autoPanPadding={[20, 20]}
+                                          maxWidth={520}
+                                          minWidth={260}
+                                      >
+                                          <div
+                                              className="contributor-popup-content"
+                                              style={{
+                                                  display: "flex",
+                                                  flexDirection: "row",
+                                                  flexWrap: "wrap",
+                                                  alignItems: "stretch",
+                                                  gap: "8px",
+                                                  minWidth: 0,
+                                                  width: "min(468px, calc(100vw - 44px))",
+                                                  maxWidth: "100%",
+                                                  boxSizing: "border-box",
+                                              }}
+                                          >
+                                              <div
+                                                  className="contributor-popup-panel contributor-popup-header"
+                                                  style={{
+                                                      borderRadius: "12px",
+                                                      border: "1px solid #dbe5f4",
+                                                      background: "linear-gradient(140deg, #f8fafc 0%, #eef4ff 100%)",
+                                                      display: "grid",
+                                                      justifyItems: "center",
+                                                      gap: "10px",
+                                                      padding: "12px 12px 10px",
+                                                      flex: "0 1 160px",
+                                                      minWidth: "136px",
+                                                      overflow: "hidden",
+                                                  }}
+                                              >
+                                                  <div
+                                                      className="contributor-popup-logo-frame"
+                                                      style={{
+                                                          width: "84px",
+                                                          height: "84px",
+                                                          borderRadius: "14px",
+                                                          border: "1px solid #cbd5e1",
+                                                          background: "#f8fafc",
+                                                          boxShadow: "inset 0 1px 0 rgba(255, 255, 255, 0.7)",
+                                                          display: "grid",
+                                                          placeItems: "center",
+                                                          overflow: "hidden",
+                                                      }}
+                                                  >
+                                                      {contributor.logo_url ? (
+                                                          <img
+                                                              src={contributor.logo_url}
+                                                              alt={`${contributor.name || "Business"} logo`}
+                                                              className="contributor-popup-logo"
+                                                              style={{
+                                                                  width: "100%",
+                                                                  height: "100%",
+                                                                  maxWidth: "74px",
+                                                                  maxHeight: "74px",
+                                                                  objectFit: "contain",
+                                                                  borderRadius: "8px",
+                                                                  flexShrink: 0,
+                                                              }}
+                                                          />
+                                                      ) : (
+                                                          <div
+                                                              className="contributor-popup-logo-placeholder"
+                                                              aria-hidden="true"
+                                                              style={{
+                                                                  width: "100%",
+                                                                  height: "100%",
+                                                                  maxWidth: "74px",
+                                                                  maxHeight: "74px",
+                                                                  borderRadius: "10px",
+                                                                  border: "1px dashed #94a3b8",
+                                                                  background: "linear-gradient(140deg, #e2e8f0, #cbd5e1)",
+                                                                  flexShrink: 0,
+                                                              }}
+                                                          />
+                                                      )}
+                                                  </div>
+                                                  <div
+                                                      className="contributor-popup-title-row"
+                                                      style={{
+                                                          display: "flex",
+                                                          flexDirection: "column",
+                                                          alignItems: "center",
+                                                          gap: "4px",
+                                                          marginBottom: 0,
+                                                          minWidth: 0,
+                                                          width: "100%",
+                                                      }}
+                                                  >
+                                                      <strong
+                                                          style={{
+                                                              color: "#0f172a",
+                                                              fontSize: "0.94rem",
+                                                              fontWeight: 700,
+                                                              lineHeight: 1.2,
+                                                              overflowWrap: "anywhere",
+                                                              wordBreak: "break-word",
+                                                              textAlign: "center",
+                                                          }}
+                                                      >
+                                                          {contributor.name || "Contributor"}
+                                                      </strong>
+                                                      <span className="contributor-popup-badge">Contributed</span>
+                                                  </div>
+                                                  <div
+                                                      style={{
+                                                          display: "flex",
+                                                          flexDirection: "column",
+                                                          gap: "6px",
+                                                          width: "100%",
+                                                          minWidth: 0,
+                                                      }}
+                                                  >
+                                                      {contributor.website_url ? (
+                                                          <a
+                                                              href={contributor.website_url}
+                                                              target="_blank"
+                                                              rel="noreferrer"
+                                                              style={{
+                                                                  display: "inline-flex",
+                                                                  justifyContent: "center",
+                                                                  alignItems: "center",
+                                                                  width: "100%",
+                                                                  minHeight: "30px",
+                                                                  padding: "0 9px",
+                                                                  borderRadius: "999px",
+                                                                  border: "1px solid #93c5fd",
+                                                                  background: "#eff6ff",
+                                                                  color: "#1d4ed8",
+                                                                  fontSize: "0.74rem",
+                                                                  fontWeight: 700,
+                                                                  textDecoration: "none",
+                                                                  boxSizing: "border-box",
+                                                              }}
+                                                          >
+                                                              Visit Website
+                                                          </a>
+                                                      ) : null}
+                                                      <a
+                                                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lat},${lng}`)}`}
+                                                          target="_blank"
+                                                          rel="noreferrer"
+                                                          style={{
+                                                              display: "inline-flex",
+                                                              justifyContent: "center",
+                                                              alignItems: "center",
+                                                              width: "100%",
+                                                              minHeight: "30px",
+                                                              padding: "0 9px",
+                                                              borderRadius: "999px",
+                                                              border: "1px solid #2563eb",
+                                                              background: "linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%)",
+                                                              color: "#ffffff",
+                                                              fontSize: "0.74rem",
+                                                              fontWeight: 700,
+                                                              textDecoration: "none",
+                                                              boxSizing: "border-box",
+                                                          }}
+                                                      >
+                                                          Open In Google Maps
+                                                      </a>
+                                                  </div>
+                                              </div>
+                                              <div
+                                                  className="contributor-popup-panel contributor-popup-details"
+                                                  style={{
+                                                      borderRadius: "12px",
+                                                      border: "1px solid #dbe5f4",
+                                                      background: "#ffffff",
+                                                      display: "grid",
+                                                      gap: "8px",
+                                                      flex: "1 1 240px",
+                                                      minWidth: 0,
+                                                      padding: "10px 11px",
+                                                      textAlign: "left",
+                                                      overflow: "hidden",
+                                                  }}
+                                              >
+                                                  {contributor.description ? (
+                                                      <p
+                                                          style={{
+                                                              margin: 0,
+                                                              color: "#334155",
+                                                              fontSize: "0.8rem",
+                                                              lineHeight: 1.45,
+                                                              overflowWrap: "anywhere",
+                                                              wordBreak: "break-word",
+                                                          }}
+                                                      >
+                                                          {contributor.description}
+                                                      </p>
+                                                  ) : null}
+                                                  {contributor.contribution_note ? (
+                                                      <p
+                                                          className="contributor-popup-note"
+                                                          style={{
+                                                              margin: 0,
+                                                              color: "#1e3a8a",
+                                                              fontSize: "0.8rem",
+                                                              fontWeight: 600,
+                                                              lineHeight: 1.45,
+                                                              overflowWrap: "anywhere",
+                                                              wordBreak: "break-word",
+                                                          }}
+                                                      >
+                                                          {contributor.contribution_note}
+                                                      </p>
+                                                  ) : null}
+                                              </div>
+                                          </div>
+                                      </Popup>
+                                  </Marker>
+                              );
+                          })
+                        : null}
+
                     {isLuneStationsVisible
                         ? luneStations.map((station) => {
                               const lat = Number(station?.lat);
@@ -7908,7 +8351,9 @@ function App() {
                         typeFilter={typeFilter}
                         statusFilter={statusFilter}
                         isLuneStationsVisible={isLuneStationsVisible}
+                        isContributorsVisible={isContributorsVisible}
                         setIsLuneStationsVisible={setIsLuneStationsVisible}
+                        setIsContributorsVisible={setIsContributorsVisible}
                         setTypeFilter={setTypeFilter}
                         setStatusFilter={setStatusFilter}
                         isOverlay
@@ -8186,13 +8631,26 @@ function App() {
                             typeFilter={typeFilter}
                             statusFilter={statusFilter}
                             isLuneStationsVisible={isLuneStationsVisible}
+                            isContributorsVisible={isContributorsVisible}
                             setIsLuneStationsVisible={setIsLuneStationsVisible}
+                            setIsContributorsVisible={setIsContributorsVisible}
                             setTypeFilter={setTypeFilter}
                             setStatusFilter={setStatusFilter}
                         />
                     </SurfaceCard>
                 </>
             ) : null}
+
+            <ContributorBusinessPanel
+                isOpen={isContributorPanelOpen}
+                onClose={() => setIsContributorPanelOpen(false)}
+                contributors={contributors}
+                supabase={supabase}
+                canManageItems={canManageItems}
+                onContributorAdded={fetchContributors}
+                onContributorUpdated={fetchContributors}
+                onContributorDeleted={fetchContributors}
+            />
 
             <Suspense fallback={null}>
                 <LazySelectedItemDrawer
