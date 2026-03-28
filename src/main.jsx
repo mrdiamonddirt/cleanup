@@ -86,6 +86,14 @@ const OWNER_SUPABASE_IDS = (import.meta.env.VITE_OWNER_SUPABASE_IDS || "")
     .split(",")
     .map((value) => value.trim())
     .filter(Boolean);
+const FACEBOOK_PAGE_RECIPIENT_ID = (import.meta.env.VITE_FACEBOOK_PAGE_RECIPIENT_ID || "").trim();
+const COMMUNITY_EMAIL_ACCOUNT = (import.meta.env.VITE_COMMUNITY_EMAIL_ACCOUNT || "").trim();
+const ENABLE_PUBLIC_REPORTS = String(import.meta.env.VITE_ENABLE_PUBLIC_REPORTS ?? "true")
+    .trim()
+    .toLowerCase() !== "false";
+const REPORT_NOTE_MAX_LENGTH = 280;
+const REPORT_ACTION_COOLDOWN_MS = 12_000;
+const REPORT_CONSENT_STORAGE_KEY = "cleanup-report-consent-v1";
 
 const LazyTidePlanner = lazy(() => import("./components/panels/TidePlanner"));
 const LazyFloodStatusPanel = lazy(() => import("./components/panels/FloodStatusPanel"));
@@ -346,6 +354,47 @@ const buildShareItemUrl = (itemId) => {
     const prefix = basePath && basePath !== "/" ? basePath : "";
 
     return `${window.location.origin}${prefix}/share/${encodeURIComponent(normalizedId)}/`;
+};
+
+const buildMessengerThreadUrl = (recipientId) => {
+    const normalizedId = String(recipientId || "").trim();
+    if (!normalizedId) return "";
+
+    return `https://www.messenger.com/t/${encodeURIComponent(normalizedId)}`;
+};
+
+const sanitizeReportNote = (value) =>
+    String(value || "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, REPORT_NOTE_MAX_LENGTH);
+
+const buildPublicReportMessage = ({ latitude, longitude, note, reporterLabel, sourceUrl }) => {
+    const latText = formatCoordinate(latitude, 6) || String(latitude);
+    const lngText = formatCoordinate(longitude, 6) || String(longitude);
+    const mapsUrl = createMapsUrl(latitude, longitude);
+    const timestamp = new Date().toISOString();
+    const cleanedNote = sanitizeReportNote(note);
+    const lines = [
+        "Hi River Lune Cleanup team,",
+        "",
+        "I am sending a report from the cleanup map.",
+        `GPS: ${latText}, ${lngText}`,
+        `Google Maps: ${mapsUrl}`,
+        `Reporter: ${reporterLabel || "Anonymous website visitor"}`,
+    ];
+
+    if (cleanedNote) {
+        lines.push(`Details: ${cleanedNote}`);
+    }
+
+    if (sourceUrl) {
+        lines.push(`Source page: ${sourceUrl}`);
+    }
+
+    lines.push(`Timestamp (UTC): ${timestamp}`);
+
+    return lines.join("\n");
 };
 
 const readSelectedItemIdFromQuery = () => {
@@ -1641,6 +1690,343 @@ function PendingPlacementOverlay({
                     {uploadProgressText || "Uploading and saving item..."}
                 </div>
             )}
+        </div>
+    );
+
+    if (overlayPortalElement) {
+        return createPortal(panelNode, overlayPortalElement);
+    }
+
+    return panelNode;
+}
+
+function PublicReportOverlay({
+    reportLocation,
+    reportNote,
+    reportStatus,
+    isMobile,
+    onNoteChange,
+    onOpenMessenger,
+    onOpenEmail,
+    onCancel,
+    markOverlayInteraction,
+    hasMessengerTarget,
+    hasEmailTarget,
+    overlayPortalElement,
+}) {
+    const map = useMap();
+    const panelRef = useRef(null);
+    const rafRef = useRef(null);
+    const [panelPosition, setPanelPosition] = useState({
+        left: 12,
+        top: 12,
+        arrowLeft: 28,
+        placement: "above",
+        ready: false,
+    });
+
+    useEffect(() => {
+        if (!panelRef.current) return undefined;
+
+        const panelElement = panelRef.current;
+        const markInteraction = () => {
+            markOverlayInteraction();
+        };
+
+        const stopEvent = (event) => {
+            L.DomEvent.stopPropagation(event);
+        };
+
+        L.DomEvent.disableClickPropagation(panelElement);
+        L.DomEvent.disableScrollPropagation(panelElement);
+        panelElement.addEventListener("pointerdown", markInteraction);
+        panelElement.addEventListener("mousedown", markInteraction);
+        panelElement.addEventListener("touchstart", markInteraction, { passive: true });
+        panelElement.addEventListener("pointerdown", stopEvent);
+        panelElement.addEventListener("touchstart", stopEvent, { passive: true });
+
+        return () => {
+            panelElement.removeEventListener("pointerdown", markInteraction);
+            panelElement.removeEventListener("mousedown", markInteraction);
+            panelElement.removeEventListener("touchstart", markInteraction);
+            panelElement.removeEventListener("pointerdown", stopEvent);
+            panelElement.removeEventListener("touchstart", stopEvent);
+        };
+    }, [markOverlayInteraction]);
+
+    useEffect(() => {
+        if (!reportLocation) return undefined;
+
+        if (isMobile) {
+            setPanelPosition((prev) => ({ ...prev, ready: true }));
+            return undefined;
+        }
+
+        const updatePosition = () => {
+            const container = map.getContainer();
+            const point = map.latLngToContainerPoint([reportLocation.y, reportLocation.x]);
+            const panelWidth = panelRef.current?.offsetWidth || 332;
+            const panelHeight = panelRef.current?.offsetHeight || 240;
+            const gap = 22;
+            const minInset = 12;
+            const maxLeft = Math.max(minInset, container.clientWidth - panelWidth - minInset);
+            const preferredLeft = point.x + 18;
+            const left = Math.min(Math.max(preferredLeft, minInset), maxLeft);
+
+            let top = point.y - panelHeight - gap;
+            let placement = "above";
+            if (top < minInset) {
+                top = point.y + gap;
+                placement = "below";
+            }
+
+            const maxTop = Math.max(minInset, container.clientHeight - panelHeight - minInset);
+            top = Math.min(Math.max(top, minInset), maxTop);
+            const arrowLeft = Math.min(Math.max(point.x - left, 24), panelWidth - 24);
+
+            setPanelPosition({ left, top, arrowLeft, placement, ready: true });
+        };
+
+        const scheduleUpdate = () => {
+            if (rafRef.current !== null) return;
+
+            rafRef.current = window.requestAnimationFrame(() => {
+                rafRef.current = null;
+                updatePosition();
+            });
+        };
+
+        scheduleUpdate();
+        map.on("move", scheduleUpdate);
+        map.on("zoom", scheduleUpdate);
+        map.on("resize", scheduleUpdate);
+
+        return () => {
+            if (rafRef.current !== null) {
+                window.cancelAnimationFrame(rafRef.current);
+                rafRef.current = null;
+            }
+
+            map.off("move", scheduleUpdate);
+            map.off("zoom", scheduleUpdate);
+            map.off("resize", scheduleUpdate);
+        };
+    }, [isMobile, map, reportLocation, reportNote, reportStatus]);
+
+    if (!reportLocation) return null;
+
+    const latText = formatCoordinate(reportLocation.y, 6) || String(reportLocation.y);
+    const lngText = formatCoordinate(reportLocation.x, 6) || String(reportLocation.x);
+
+    const panelNode = (
+        <div
+            ref={panelRef}
+            style={{
+                position: isMobile ? "fixed" : "absolute",
+                left: isMobile ? "8px" : `${panelPosition.left}px`,
+                right: isMobile ? "8px" : "auto",
+                bottom: isMobile ? "calc(env(safe-area-inset-bottom, 0px) + 8px)" : "auto",
+                top: isMobile ? "auto" : `${panelPosition.top}px`,
+                width: isMobile ? "auto" : "332px",
+                maxHeight: isMobile ? "66svh" : "none",
+                overflowY: isMobile ? "auto" : "visible",
+                padding: isMobile ? "12px" : "11px 13px",
+                border: "1px solid #93c5fd",
+                borderRadius: isMobile ? "16px" : "10px",
+                background: "rgba(239,246,255,0.97)",
+                boxShadow: "0 14px 32px rgba(15,23,42,0.2)",
+                backdropFilter: "blur(6px)",
+                zIndex: isMobile ? 1400 : 1100,
+                boxSizing: "border-box",
+                opacity: panelPosition.ready ? 1 : 0,
+                transform: panelPosition.ready ? "translateY(0)" : "translateY(4px)",
+                transition: "opacity 140ms ease, transform 180ms ease",
+            }}
+        >
+            {!isMobile ? (
+                <div
+                    aria-hidden="true"
+                    style={{
+                        position: "absolute",
+                        left: `${panelPosition.arrowLeft}px`,
+                        width: "14px",
+                        height: "14px",
+                        background: "rgba(239,246,255,0.97)",
+                        borderLeft: "1px solid #93c5fd",
+                        borderTop: "1px solid #93c5fd",
+                        transform: panelPosition.placement === "above"
+                            ? "translateX(-50%) translateY(50%) rotate(225deg)"
+                            : "translateX(-50%) translateY(-50%) rotate(45deg)",
+                        boxShadow: panelPosition.placement === "above"
+                            ? "4px 4px 12px rgba(15,23,42,0.08)"
+                            : "-4px -4px 12px rgba(15,23,42,0.08)",
+                        bottom: panelPosition.placement === "above" ? "0" : "auto",
+                        top: panelPosition.placement === "below" ? "0" : "auto",
+                        zIndex: -1,
+                    }}
+                />
+            ) : null}
+
+            <div
+                style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "10px",
+                    marginBottom: "7px",
+                }}
+            >
+                <div style={{ fontSize: "0.9rem", fontWeight: 700, color: "#0f172a" }}>
+                    Send this report
+                </div>
+                <button
+                    type="button"
+                    onClick={onCancel}
+                    aria-label="Close report popup"
+                    title="Close"
+                    style={{
+                        width: "28px",
+                        height: "28px",
+                        borderRadius: "999px",
+                        border: "1px solid #cbd5e1",
+                        background: "rgba(255,255,255,0.85)",
+                        color: "#475569",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "1rem",
+                        lineHeight: 1,
+                        cursor: "pointer",
+                    }}
+                >
+                    ×
+                </button>
+            </div>
+            <div style={{ fontSize: "0.8rem", color: "#334155", marginBottom: "8px", lineHeight: 1.4 }}>
+                GPS to share: {latText}, {lngText}
+            </div>
+
+            <div
+                style={{
+                    fontSize: "0.75rem",
+                    color: "#1e3a8a",
+                    background: "rgba(191,219,254,0.5)",
+                    border: "1px solid #bfdbfe",
+                    borderRadius: "8px",
+                    padding: "7px 8px",
+                    lineHeight: 1.35,
+                    marginBottom: "9px",
+                }}
+            >
+                Your note and GPS are sent through Facebook Messenger, not saved in this app.
+            </div>
+
+            <label style={{ display: "grid", gap: "5px", marginBottom: "9px" }}>
+                <span style={{ fontSize: "0.76rem", color: "#334155", fontWeight: 700 }}>
+                    Quick details (optional)
+                </span>
+                <textarea
+                    value={reportNote}
+                    onChange={(event) => onNoteChange(event.target.value)}
+                    maxLength={REPORT_NOTE_MAX_LENGTH}
+                    placeholder="Example: shopping trolley snagged in branches near footbridge"
+                    style={{
+                        border: "1px solid #bfdbfe",
+                        borderRadius: "8px",
+                        minHeight: "72px",
+                        resize: "vertical",
+                        padding: "8px",
+                        fontSize: "0.82rem",
+                        color: "#0f172a",
+                        boxSizing: "border-box",
+                        width: "100%",
+                    }}
+                />
+                <span style={{ fontSize: "0.72rem", color: "#64748b" }}>
+                    {reportNote.length}/{REPORT_NOTE_MAX_LENGTH}
+                </span>
+            </label>
+
+            <div
+                style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                    gap: "8px",
+                    alignItems: "stretch",
+                }}
+            >
+                <button
+                    type="button"
+                    onClick={onOpenMessenger}
+                    disabled={!hasMessengerTarget}
+                    style={{
+                        border: "1px solid #1877f2",
+                        background: hasMessengerTarget ? "linear-gradient(135deg, #1d4ed8 0%, #1877f2 65%, #36a2ff 100%)" : "#cbd5e1",
+                        color: "#ffffff",
+                        borderRadius: "10px",
+                        minHeight: isMobile ? "42px" : "38px",
+                        padding: isMobile ? "10px 14px" : "8px 13px",
+                        fontSize: isMobile ? "0.9rem" : "0.83rem",
+                        fontWeight: 700,
+                        cursor: hasMessengerTarget ? "pointer" : "not-allowed",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "7px",
+                        boxShadow: hasMessengerTarget ? "0 8px 18px rgba(24,119,242,0.34)" : "none",
+                        width: "100%",
+                    }}
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M12 2C6.48 2 2 6.15 2 11.29c0 2.93 1.46 5.54 3.74 7.24V22l3.23-1.77c.96.27 1.98.41 3.03.41 5.52 0 10-4.15 10-9.29S17.52 2 12 2Zm1.12 12.51-2.54-2.71-4.95 2.71 5.44-5.76 2.61 2.71 4.87-2.71-5.43 5.76Z"/>
+                    </svg>
+                    Send via Messenger
+                </button>
+                <button
+                    type="button"
+                    onClick={onOpenEmail}
+                    disabled={!hasEmailTarget}
+                    style={{
+                        border: "1px solid #0369a1",
+                        background: hasEmailTarget ? "#ecfeff" : "#e2e8f0",
+                        color: hasEmailTarget ? "#075985" : "#64748b",
+                        borderRadius: "10px",
+                        minHeight: isMobile ? "42px" : "38px",
+                        padding: isMobile ? "10px 14px" : "8px 13px",
+                        fontSize: isMobile ? "0.9rem" : "0.83rem",
+                        fontWeight: 700,
+                        cursor: hasEmailTarget ? "pointer" : "not-allowed",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "7px",
+                        width: "100%",
+                    }}
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.89 2 1.99 2H20c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2Zm0 4-8 5-8-5V6l8 5 8-5v2Z"/>
+                    </svg>
+                    Send by Email
+                </button>
+            </div>
+
+            {!hasMessengerTarget ? (
+                <div style={{ marginTop: "8px", fontSize: "0.75rem", color: "#7f1d1d" }}>
+                    Reporting is unavailable because Facebook recipient ID is not configured.
+                </div>
+            ) : null}
+
+            {!hasEmailTarget ? (
+                <div style={{ marginTop: "6px", fontSize: "0.75rem", color: "#7f1d1d" }}>
+                    Email fallback is unavailable because VITE_COMMUNITY_EMAIL_ACCOUNT is not configured.
+                </div>
+            ) : null}
+
+            {reportStatus ? (
+                <div style={{ marginTop: "8px", fontSize: "0.76rem", color: "#1e3a8a" }}>
+                    {reportStatus}
+                </div>
+            ) : null}
         </div>
     );
 
@@ -5263,6 +5649,15 @@ function App() {
     const [weatherOverlayUpdatedAt, setWeatherOverlayUpdatedAt] = useState("");
     const [weatherOverlayError, setWeatherOverlayError] = useState("");
     const [pendingEstimatedWeight, setPendingEstimatedWeight] = useState("");
+    const [reportLocation, setReportLocation] = useState(null);
+    const [pendingReportLocation, setPendingReportLocation] = useState(null);
+    const [reportNote, setReportNote] = useState("");
+    const [reportStatus, setReportStatus] = useState("");
+    const [isReportConsentOpen, setIsReportConsentOpen] = useState(false);
+    const [hasAcceptedReportConsent, setHasAcceptedReportConsent] = useState(() =>
+        readStoredJson(REPORT_CONSENT_STORAGE_KEY, false, (value) => typeof value === "boolean"),
+    );
+    const [reportCooldownUntil, setReportCooldownUntil] = useState(0);
     const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
     const [isMapToolsOpen, setIsMapToolsOpen] = useState(false);
     const [mapInstance, setMapInstance] = useState(null);
@@ -5275,7 +5670,19 @@ function App() {
     const liveLocationBestRef = useRef(null);
     const geocodeAttemptedKeysRef = useRef(new Set());
     const shareCopyTimeoutRef = useRef(null);
+    const reportStatusTimeoutRef = useRef(null);
     const canManageItems = useMemo(() => canUserManageItems(currentUser), [currentUser]);
+    const canUsePublicReports = ENABLE_PUBLIC_REPORTS && !canManageItems;
+    const hasMessengerTarget = Boolean(FACEBOOK_PAGE_RECIPIENT_ID);
+    const hasCommunityEmailTarget = Boolean(COMMUNITY_EMAIL_ACCOUNT);
+    const messengerThreadUrl = useMemo(
+        () => buildMessengerThreadUrl(FACEBOOK_PAGE_RECIPIENT_ID),
+        [],
+    );
+    const reportSourceUrl = useMemo(() => {
+        if (typeof window === "undefined") return "";
+        return `${window.location.origin}${window.location.pathname}`;
+    }, []);
     const floatingMapButtonStyle = {
         position: "absolute",
         zIndex: 900,
@@ -5358,6 +5765,118 @@ function App() {
             setShareCopyStatus("");
             shareCopyTimeoutRef.current = null;
         }, 2400);
+    };
+
+    const setReportStatusMessage = (message, timeoutMs = 2600) => {
+        setReportStatus(message);
+
+        if (reportStatusTimeoutRef.current) {
+            window.clearTimeout(reportStatusTimeoutRef.current);
+        }
+
+        reportStatusTimeoutRef.current = window.setTimeout(() => {
+            setReportStatus("");
+            reportStatusTimeoutRef.current = null;
+        }, timeoutMs);
+    };
+
+    const copyTextToClipboard = async (textValue) => {
+        if (!textValue) return false;
+
+        try {
+            if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(textValue);
+                return true;
+            }
+
+            const textArea = document.createElement("textarea");
+            textArea.value = textValue;
+            textArea.setAttribute("readonly", "");
+            textArea.style.position = "absolute";
+            textArea.style.left = "-9999px";
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand("copy");
+            document.body.removeChild(textArea);
+            return true;
+        } catch {
+            return false;
+        }
+    };
+
+    const buildCurrentReportMessage = () => {
+        if (!reportLocation) return "";
+
+        const githubLogin = getGitHubLoginFromUser(currentUser);
+        const reporterLabel = githubLogin
+            ? `@${githubLogin}`
+            : currentUser?.email || "Anonymous website visitor";
+
+        return buildPublicReportMessage({
+            latitude: reportLocation.y,
+            longitude: reportLocation.x,
+            note: reportNote,
+            reporterLabel,
+            sourceUrl: reportSourceUrl,
+        });
+    };
+
+    const handleOpenMessengerForReport = async () => {
+        if (!reportLocation) return;
+        if (!hasMessengerTarget || !messengerThreadUrl) {
+            setReportStatusMessage("Messenger target is not configured yet.");
+            return;
+        }
+
+        const now = Date.now();
+        if (reportCooldownUntil > now) {
+            setReportStatusMessage("Please wait a few seconds before sending another report.");
+            return;
+        }
+
+        const message = buildCurrentReportMessage();
+        const copied = await copyTextToClipboard(message);
+        setReportCooldownUntil(Date.now() + REPORT_ACTION_COOLDOWN_MS);
+
+        const messengerUrl = `${messengerThreadUrl}?text=${encodeURIComponent(message)}`;
+
+        setReportStatusMessage(
+            copied
+                ? "Opening Messenger. Report text copied to your clipboard."
+                : "Opening Messenger. Clipboard blocked, so paste manually.",
+            3600,
+        );
+
+        window.open(messengerUrl, "_blank", "noopener,noreferrer");
+    };
+
+    const handleOpenEmailForReport = async () => {
+        if (!reportLocation) return;
+        if (!hasCommunityEmailTarget) {
+            setReportStatusMessage("Community email is not configured yet.");
+            return;
+        }
+
+        const now = Date.now();
+        if (reportCooldownUntil > now) {
+            setReportStatusMessage("Please wait a few seconds before sending another report.");
+            return;
+        }
+
+        const message = buildCurrentReportMessage();
+        const copied = await copyTextToClipboard(message);
+        const subject = "River Lune report from cleanup map";
+        const mailtoUrl = `mailto:${encodeURIComponent(COMMUNITY_EMAIL_ACCOUNT)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`;
+
+        setReportCooldownUntil(Date.now() + REPORT_ACTION_COOLDOWN_MS);
+        setReportStatusMessage(
+            copied
+                ? "Opening email draft with report details."
+                : "Opening email draft. If body is empty, paste details manually.",
+            3600,
+        );
+
+        window.location.href = mailtoUrl;
     };
 
     const markOverlayInteraction = () => {
@@ -5799,6 +6318,10 @@ function App() {
     }, [localItemStory]);
 
     useEffect(() => {
+        localStorage.setItem(REPORT_CONSENT_STORAGE_KEY, JSON.stringify(hasAcceptedReportConsent));
+    }, [hasAcceptedReportConsent]);
+
+    useEffect(() => {
         const handleResize = () => {
             setIsMobile(detectMobileViewport());
         };
@@ -5828,6 +6351,11 @@ function App() {
                 window.clearTimeout(shareCopyTimeoutRef.current);
                 shareCopyTimeoutRef.current = null;
             }
+
+            if (reportStatusTimeoutRef.current) {
+                window.clearTimeout(reportStatusTimeoutRef.current);
+                reportStatusTimeoutRef.current = null;
+            }
         };
     }, []);
 
@@ -5851,10 +6379,30 @@ function App() {
     }, [canManageItems]);
 
     useEffect(() => {
-        if (!pendingLocation) return;
+        if (!canManageItems) return;
+
+        setReportLocation(null);
+        setPendingReportLocation(null);
+        setIsReportConsentOpen(false);
+        setReportNote("");
+        setReportStatus("");
+    }, [canManageItems]);
+
+    useEffect(() => {
+        if (canUsePublicReports) return;
+
+        setReportLocation(null);
+        setPendingReportLocation(null);
+        setIsReportConsentOpen(false);
+        setReportNote("");
+        setReportStatus("");
+    }, [canUsePublicReports]);
+
+    useEffect(() => {
+        if (!pendingLocation && !reportLocation) return;
         setIsFilterSheetOpen(false);
         setIsMapToolsOpen(false);
-    }, [pendingLocation]);
+    }, [pendingLocation, reportLocation]);
 
     useEffect(() => {
         const cancelIdle = deferUntilIdle(() => {
@@ -6244,8 +6792,6 @@ function App() {
     function MapEvents() {
         useMapEvents({
             click: async (e) => {
-                if (!canManageItems) return;
-
                 if (ignoreNextMapClickRef.current) {
                     ignoreNextMapClickRef.current = false;
                     return;
@@ -6253,12 +6799,31 @@ function App() {
 
                 if (isSavingItem) return;
 
-                setPendingItemType(null);
-                setPendingEstimatedWeight("");
-                setPendingLocation({
+                if (canManageItems) {
+                    setPendingItemType(null);
+                    setPendingEstimatedWeight("");
+                    setPendingLocation({
+                        y: e.latlng.lat,
+                        x: e.latlng.lng,
+                    });
+                    return;
+                }
+
+                if (!canUsePublicReports) return;
+
+                const nextLocation = {
                     y: e.latlng.lat,
                     x: e.latlng.lng,
-                });
+                };
+
+                if (!hasAcceptedReportConsent) {
+                    setPendingReportLocation(nextLocation);
+                    setIsReportConsentOpen(true);
+                    return;
+                }
+
+                setReportLocation(nextLocation);
+                setReportStatus("");
             },
         });
         return null;
@@ -7163,6 +7728,14 @@ function App() {
                         />
                     )}
 
+                    {reportLocation && (
+                        <Marker
+                            position={[reportLocation.y, reportLocation.x]}
+                            icon={pendingPlacementIcon}
+                            interactive={false}
+                        />
+                    )}
+
                     <PendingPlacementOverlay
                         pendingLocation={pendingLocation}
                         pendingItemType={pendingItemType}
@@ -7180,6 +7753,25 @@ function App() {
                         setPendingLocation={setPendingLocation}
                         handleTypePick={handleTypePick}
                         markOverlayInteraction={markOverlayInteraction}
+                        overlayPortalElement={mapOverlayRootRef.current}
+                    />
+
+                    <PublicReportOverlay
+                        reportLocation={canUsePublicReports ? reportLocation : null}
+                        reportNote={reportNote}
+                        reportStatus={reportStatus}
+                        isMobile={isMobile}
+                        onNoteChange={(nextValue) => setReportNote(sanitizeReportNote(nextValue))}
+                        onOpenMessenger={handleOpenMessengerForReport}
+                        onOpenEmail={handleOpenEmailForReport}
+                        onCancel={() => {
+                            setReportLocation(null);
+                            setReportNote("");
+                            setReportStatus("");
+                        }}
+                        markOverlayInteraction={markOverlayInteraction}
+                        hasMessengerTarget={hasMessengerTarget}
+                        hasEmailTarget={hasCommunityEmailTarget}
                         overlayPortalElement={mapOverlayRootRef.current}
                     />
 
@@ -7444,6 +8036,91 @@ function App() {
                     </SurfaceCard>
                 </div>
             </div>
+
+            {isReportConsentOpen ? (
+                <>
+                    <div
+                        onClick={() => {
+                            setIsReportConsentOpen(false);
+                            setPendingReportLocation(null);
+                        }}
+                        style={{
+                            position: "fixed",
+                            inset: 0,
+                            background: "rgba(2,6,23,0.42)",
+                            zIndex: 1300,
+                        }}
+                    />
+                    <SurfaceCard
+                        style={{
+                            position: "fixed",
+                            zIndex: 1301,
+                            left: isMobile ? "10px" : "50%",
+                            right: isMobile ? "10px" : "auto",
+                            top: isMobile ? "auto" : "50%",
+                            bottom: isMobile ? "calc(env(safe-area-inset-bottom, 0px) + 10px)" : "auto",
+                            transform: isMobile ? "none" : "translate(-50%, -50%)",
+                            width: isMobile ? "auto" : "min(440px, calc(100vw - 32px))",
+                            padding: isMobile ? "12px" : "14px",
+                            borderColor: "#93c5fd",
+                            background: "linear-gradient(180deg, #ffffff 0%, #eff6ff 100%)",
+                            boxShadow: "0 20px 44px rgba(15,23,42,0.24)",
+                        }}
+                    >
+                        <div style={{ fontSize: "1rem", fontWeight: 800, color: "#0f172a", marginBottom: "8px" }}>
+                            Share GPS to send a report
+                        </div>
+                        <p style={{ margin: 0, fontSize: "0.84rem", color: "#334155", lineHeight: 1.45 }}>
+                            Reporting opens Facebook Messenger and includes map coordinates. This app does not store the report details.
+                        </p>
+                        <div style={{ marginTop: "10px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setHasAcceptedReportConsent(true);
+                                    setIsReportConsentOpen(false);
+                                    if (pendingReportLocation) {
+                                        setReportLocation(pendingReportLocation);
+                                    }
+                                    setPendingReportLocation(null);
+                                    setReportStatus("");
+                                }}
+                                style={{
+                                    border: "1px solid #1877f2",
+                                    background: "#1877f2",
+                                    color: "#fff",
+                                    borderRadius: "8px",
+                                    padding: "9px 13px",
+                                    fontSize: "0.82rem",
+                                    fontWeight: 700,
+                                    cursor: "pointer",
+                                }}
+                            >
+                                I understand, continue
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIsReportConsentOpen(false);
+                                    setPendingReportLocation(null);
+                                }}
+                                style={{
+                                    border: "1px solid #cbd5e1",
+                                    background: "#fff",
+                                    color: "#475569",
+                                    borderRadius: "8px",
+                                    padding: "9px 13px",
+                                    fontSize: "0.82rem",
+                                    fontWeight: 700,
+                                    cursor: "pointer",
+                                }}
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </SurfaceCard>
+                </>
+            ) : null}
 
             {isMobile && isFilterSheetOpen ? (
                 <>
