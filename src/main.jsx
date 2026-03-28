@@ -8203,18 +8203,30 @@ function App() {
                                                   }}
                                               >
                                                   {contributor.description ? (
-                                                      <p
+                                                      <div
                                                           style={{
-                                                              margin: 0,
-                                                              color: "#334155",
-                                                              fontSize: "0.8rem",
-                                                              lineHeight: 1.45,
-                                                              overflowWrap: "anywhere",
-                                                              wordBreak: "break-word",
+                                                              borderRadius: "8px",
+                                                              border: "1px solid #e2e8f0",
+                                                              background: "#f8fafc",
+                                                              padding: "6px 7px",
+                                                              maxHeight: "108px",
+                                                              overflowX: "hidden",
+                                                              overflowY: "auto",
                                                           }}
                                                       >
-                                                          {contributor.description}
-                                                      </p>
+                                                          <p
+                                                              style={{
+                                                                  margin: 0,
+                                                                  color: "#334155",
+                                                                  fontSize: "0.8rem",
+                                                                  lineHeight: 1.45,
+                                                                  overflowWrap: "anywhere",
+                                                                  wordBreak: "break-word",
+                                                              }}
+                                                          >
+                                                              {contributor.description}
+                                                          </p>
+                                                      </div>
                                                   ) : null}
                                                   {contributor.contribution_note ? (
                                                       <p

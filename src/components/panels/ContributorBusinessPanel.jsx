@@ -58,6 +58,10 @@ export default function ContributorBusinessPanel({
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSearchingAddress, setIsSearchingAddress] = useState(false);
     const [statusMessage, setStatusMessage] = useState("");
+    const [isCompactViewport, setIsCompactViewport] = useState(() => {
+        if (typeof window === "undefined") return false;
+        return window.matchMedia("(max-width: 760px)").matches;
+    });
 
     useEffect(() => {
         if (!isOpen) {
@@ -68,6 +72,25 @@ export default function ContributorBusinessPanel({
             setIsSearchingAddress(false);
         }
     }, [isOpen]);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return undefined;
+
+        const mediaQuery = window.matchMedia("(max-width: 760px)");
+        const handleViewportChange = (event) => {
+            setIsCompactViewport(event.matches);
+        };
+
+        setIsCompactViewport(mediaQuery.matches);
+
+        if (typeof mediaQuery.addEventListener === "function") {
+            mediaQuery.addEventListener("change", handleViewportChange);
+            return () => mediaQuery.removeEventListener("change", handleViewportChange);
+        }
+
+        mediaQuery.addListener(handleViewportChange);
+        return () => mediaQuery.removeListener(handleViewportChange);
+    }, []);
 
     const sortedContributors = useMemo(() => {
         if (!Array.isArray(contributors)) return [];
@@ -323,6 +346,7 @@ export default function ContributorBusinessPanel({
                             padding: "10px",
                             display: "grid",
                             gap: "8px",
+                            gridTemplateRows: "auto 1fr",
                         }}
                     >
                         <div style={{ fontSize: "0.82rem", fontWeight: 700, color: "#1e3a8a" }}>
@@ -332,9 +356,11 @@ export default function ContributorBusinessPanel({
                             style={{
                                 display: "grid",
                                 gap: "8px",
-                                maxHeight: canManageItems ? "45dvh" : "60dvh",
-                                overflow: "auto",
-                                gridTemplateColumns: canManageItems ? "1fr" : "repeat(auto-fit, minmax(260px, 1fr))",
+                                maxHeight: isCompactViewport ? "none" : canManageItems ? "56dvh" : "62dvh",
+                                overflow: isCompactViewport ? "visible" : "auto",
+                                gridTemplateColumns: "1fr",
+                                paddingRight: isCompactViewport ? 0 : "2px",
+                                scrollbarGutter: isCompactViewport ? "auto" : "stable",
                             }}
                         >
                             {sortedContributors.length ? (
@@ -347,7 +373,7 @@ export default function ContributorBusinessPanel({
                                             background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
                                             padding: "9px",
                                             display: "grid",
-                                            gap: "7px",
+                                            gap: "8px",
                                         }}
                                     >
                                         <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
@@ -430,6 +456,9 @@ export default function ContributorBusinessPanel({
                                                     color: "#334155",
                                                     lineHeight: 1.42,
                                                     wordBreak: "break-word",
+                                                    maxHeight: isCompactViewport ? "88px" : "68px",
+                                                    overflowY: "auto",
+                                                    paddingRight: "4px",
                                                 }}
                                             >
                                                 {contributor.description}
@@ -447,6 +476,8 @@ export default function ContributorBusinessPanel({
                                                     borderRadius: "8px",
                                                     padding: "6px 7px",
                                                     wordBreak: "break-word",
+                                                    maxHeight: isCompactViewport ? "88px" : "68px",
+                                                    overflowY: "auto",
                                                 }}
                                             >
                                                 {contributor.contribution_note}
@@ -515,7 +546,16 @@ export default function ContributorBusinessPanel({
                                             </div>
                                         ) : null}
                                         {canManageItems ? (
-                                            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                                            <div
+                                                style={{
+                                                    display: "flex",
+                                                    gap: "6px",
+                                                    flexWrap: "wrap",
+                                                    justifyContent: "flex-end",
+                                                    borderTop: "1px solid #e2e8f0",
+                                                    paddingTop: "7px",
+                                                }}
+                                            >
                                                 <button
                                                     type="button"
                                                     onClick={() => startEditing(contributor)}
