@@ -12,9 +12,10 @@ jobs:
   refresh-and-deploy:
     runs-on: ubuntu-latest
     env:
-      SEO_SITE_URL: https://rivercleanup.co.uk
       VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
       VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      VITE_MAPBOX_TOKEN: ${{ secrets.VITE_MAPBOX_TOKEN }}
+      REPO_VARS_JSON: ${{ toJSON(vars) }}
 
     steps:
       - name: Checkout repository
@@ -22,20 +23,62 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Validate required Supabase secrets
+      - name: Validate production env configuration
         run: |
+          site_url="$(jq -r '.SEO_SITE_URL // empty' <<< "${REPO_VARS_JSON}")"
+
           if [ -z "${VITE_SUPABASE_URL}" ] || [ -z "${VITE_SUPABASE_ANON_KEY}" ]; then
             echo "Missing required Supabase secrets. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in repository secrets."
             exit 1
           fi
 
+          if [ -z "${VITE_MAPBOX_TOKEN}" ]; then
+            echo "Warning: VITE_MAPBOX_TOKEN is not configured. The deployed map will fall back to non-Mapbox behavior."
+          fi
+
+          if [ -z "${site_url}" ]; then
+            echo "SEO_SITE_URL is not configured in repository variables. Falling back to https://rivercleanup.co.uk."
+          fi
+
       - name: Write .env.production for Vite build
         run: |
+          site_url="$(jq -r '.SEO_SITE_URL // empty' <<< "${REPO_VARS_JSON}")"
+          facebook_page_recipient_id="$(jq -r '.VITE_FACEBOOK_PAGE_RECIPIENT_ID // empty' <<< "${REPO_VARS_JSON}")"
+          community_email_account="$(jq -r '.VITE_COMMUNITY_EMAIL_ACCOUNT // empty' <<< "${REPO_VARS_JSON}")"
+          owner_github_logins="$(jq -r '.VITE_OWNER_GITHUB_LOGINS // empty' <<< "${REPO_VARS_JSON}")"
+          owner_emails="$(jq -r '.VITE_OWNER_EMAILS // empty' <<< "${REPO_VARS_JSON}")"
+          owner_supabase_ids="$(jq -r '.VITE_OWNER_SUPABASE_IDS // empty' <<< "${REPO_VARS_JSON}")"
+          enable_public_reports="$(jq -r '.VITE_ENABLE_PUBLIC_REPORTS // empty' <<< "${REPO_VARS_JSON}")"
+
+          site_url="${site_url:-https://rivercleanup.co.uk}"
+
           cat <<EOF > .env.production
           VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
           VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
-          SEO_SITE_URL=${SEO_SITE_URL}
+          VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN}
+          VITE_FACEBOOK_PAGE_RECIPIENT_ID=${facebook_page_recipient_id}
+          VITE_COMMUNITY_EMAIL_ACCOUNT=${community_email_account}
+          VITE_OWNER_GITHUB_LOGINS=${owner_github_logins}
+          VITE_OWNER_EMAILS=${owner_emails}
+          VITE_OWNER_SUPABASE_IDS=${owner_supabase_ids}
+          VITE_ENABLE_PUBLIC_REPORTS=${enable_public_reports}
+          SEO_SITE_URL=${site_url}
           EOF
+
+      - name: Verify generated env file keys
+        run: |
+          required_keys=(
+            "VITE_SUPABASE_URL"
+            "VITE_SUPABASE_ANON_KEY"
+            "SEO_SITE_URL"
+          )
+
+          for key in "${required_keys[@]}"; do
+            if ! grep -q "^${key}=" .env.production; then
+              echo "Missing ${key} in generated .env.production"
+              exit 1
+            fi
+          done
 
       - name: Set up Node.js
         uses: actions/setup-node@v5

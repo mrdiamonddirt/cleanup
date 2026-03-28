@@ -32,18 +32,34 @@ To maintain the aspect ratio of the aerial imagery, I implemented a custom `CRS.
 - Each share page contains crawler-friendly Open Graph/Twitter metadata from Supabase item data.
 - Human visitors can open the app directly with `?item=<id>` deep links.
 
-To enable Supabase-backed SEO generation in GitHub Actions, configure repository secrets:
+Auto rebuilds on GitHub Actions generate a `.env.production` file during the workflow. Any production `VITE_*` key used by the app needs to be configured in GitHub as part of that rebuild path.
+
+Required repository secrets:
 
 ```env
 VITE_SUPABASE_URL=...
 VITE_SUPABASE_ANON_KEY=...
 ```
 
-Optional site URL override:
+Sensitive optional repository secrets:
 
 ```env
-SEO_SITE_URL=https://mrdiamonddirt.github.io/cleanup
+VITE_MAPBOX_TOKEN=...
 ```
+
+Repository variables for non-sensitive production config:
+
+```env
+SEO_SITE_URL=https://rivercleanup.co.uk
+VITE_FACEBOOK_PAGE_RECIPIENT_ID=
+VITE_COMMUNITY_EMAIL_ACCOUNT=
+VITE_OWNER_GITHUB_LOGINS=mrdiamonddirt
+VITE_OWNER_EMAILS=
+VITE_OWNER_SUPABASE_IDS=
+VITE_ENABLE_PUBLIC_REPORTS=true
+```
+
+If you add a new production `VITE_*` key, update both [`.github/workflows/refresh-lancaster-tides.yml`](.github/workflows/refresh-lancaster-tides.yml) and `.env.example` in the same change so the scheduled rebuild does not drop it.
 
 ## 🔐 Auth (GitHub + Owner Write Access)
 - Sign-in uses Supabase Auth with the GitHub provider.
