@@ -11,7 +11,6 @@ import {
     useMapEvents,
 } from "react-leaflet";
 import L from "leaflet";
-import * as exifr from "exifr";
 import "leaflet/dist/leaflet.css";
 import { hasSupabaseConfig, supabase } from "./supabaseClient";
 import ContributorBusinessPanel from "./components/panels/ContributorBusinessPanel";
@@ -917,24 +916,119 @@ const buildTideChartData = (rows, updatedAt) => {
     };
 };
 
-const extractGpsFromImage = async (file) => {
+const SANITIZED_IMAGE_QUALITY = 0.92;
+
+const IMAGE_MIME_TO_EXTENSION = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+};
+
+const isSupportedSanitizedMimeType = (mimeType) =>
+    mimeType === "image/jpeg" || mimeType === "image/png" || mimeType === "image/webp";
+
+const getSanitizedImageMimeType = (mimeType) => {
+    if (isSupportedSanitizedMimeType(mimeType)) return mimeType;
+    return "image/jpeg";
+};
+
+const getImageExtensionFromMimeType = (mimeType) => IMAGE_MIME_TO_EXTENSION[mimeType] || "jpg";
+
+const buildFileNameWithExtension = (originalName, extension) => {
+    const baseName = (originalName || "image")
+        .replace(/\.[^.]*$/, "")
+        .trim()
+        .replace(/\s+/g, "-")
+        .replace(/[^a-zA-Z0-9-_]/g, "");
+
+    return `${baseName || "image"}.${extension}`;
+};
+
+const blobToDataUrl = (blob) =>
+    new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error("Could not read image data."));
+        reader.readAsDataURL(blob);
+    });
+
+const loadImageFromDataUrl = (dataUrl) =>
+    new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = () => reject(new Error("Could not decode selected image."));
+        image.src = dataUrl;
+    });
+
+const canvasToBlob = (canvas, mimeType, quality) =>
+    new Promise((resolve, reject) => {
+        canvas.toBlob(
+            (blob) => {
+                if (blob) {
+                    resolve(blob);
+                    return;
+                }
+                reject(new Error("Could not prepare sanitized image."));
+            },
+            mimeType,
+            quality,
+        );
+    });
+
+const sanitizeImageFile = async (file) => {
+    if (!file || typeof file.type !== "string" || !file.type.startsWith("image/")) {
+        return file;
+    }
+
+    const outputMimeType = getSanitizedImageMimeType(file.type);
+    const quality = outputMimeType === "image/png" ? undefined : SANITIZED_IMAGE_QUALITY;
+    let canvas = null;
+
     try {
-        const gps = await exifr.gps(file);
-        if (!gps) return null;
+        if (typeof OffscreenCanvas === "function" && typeof createImageBitmap === "function") {
+            const bitmap = await createImageBitmap(file);
+            canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+            const context = canvas.getContext("2d");
 
-        const latitude = parseGpsNumber(gps.latitude);
-        const longitude = parseGpsNumber(gps.longitude);
+            if (!context) {
+                bitmap.close?.();
+                throw new Error("Could not get image context.");
+            }
 
-        if (latitude === null || longitude === null) return null;
-        if (latitude < -90 || latitude > 90) return null;
-        if (longitude < -180 || longitude > 180) return null;
+            context.drawImage(bitmap, 0, 0);
+            bitmap.close?.();
+            const blob = await canvas.convertToBlob({ type: outputMimeType, quality });
 
-        return {
-            latitude,
-            longitude,
-        };
+            return new File(
+                [blob],
+                buildFileNameWithExtension(file.name, getImageExtensionFromMimeType(blob.type || outputMimeType)),
+                { type: blob.type || outputMimeType, lastModified: Date.now() },
+            );
+        }
+
+        const imageDataUrl = await blobToDataUrl(file);
+        const image = await loadImageFromDataUrl(imageDataUrl);
+
+        canvas = document.createElement("canvas");
+        canvas.width = image.naturalWidth || image.width;
+        canvas.height = image.naturalHeight || image.height;
+        const context = canvas.getContext("2d");
+
+        if (!context) {
+            throw new Error("Could not get image context.");
+        }
+
+        context.drawImage(image, 0, 0);
+        const blob = await canvasToBlob(canvas, outputMimeType, quality);
+
+        return new File(
+            [blob],
+            buildFileNameWithExtension(file.name, getImageExtensionFromMimeType(blob.type || outputMimeType)),
+            { type: blob.type || outputMimeType, lastModified: Date.now() },
+        );
     } catch {
-        return null;
+        // Do not block the upload if sanitization fails.
+        return file;
     }
 };
 
@@ -6978,7 +7072,7 @@ function App() {
             return {
                 latitude: fromDbLatitude,
                 longitude: fromDbLongitude,
-                source: "exif",
+                source: "map-selected",
             };
         }
 
@@ -6993,7 +7087,7 @@ function App() {
         return {
             latitude: localLatitude,
             longitude: localLongitude,
-            source: "exif",
+            source: "map-selected",
         };
     };
 
@@ -7194,14 +7288,19 @@ function App() {
     }
 
     async function uploadImage(file) {
-        const fileExt = file.name.split(".").pop();
-        const fileName = `${Math.random()}.${fileExt}`;
+        const fileType = (file?.type || "").toLowerCase();
+        const fileExt =
+            getImageExtensionFromMimeType(fileType) ||
+            (file?.name && file.name.includes(".") ? file.name.split(".").pop().toLowerCase() : "jpg");
+        const fileName = `${Math.random().toString(36).slice(2)}.${fileExt}`;
         const filePath = `${fileName}`;
 
     // Upload the file to the Supabase Bucket
         const { error: uploadError } = await supabase.storage
             .from("debris-images")
-            .upload(filePath, file);
+            .upload(filePath, file, {
+                contentType: file?.type || undefined,
+            });
 
         if (uploadError) throw uploadError;
 
@@ -7221,8 +7320,59 @@ function App() {
         const input = document.createElement("input");
         input.type = "file";
         input.accept = "image/*";
+        setUploadProgressText("Opening gallery...");
+
+        let hasResolvedPicker = false;
+        let fallbackTimerId = null;
+        let focusTimerId = null;
+
+        const releasePickerListeners = () => {
+            window.removeEventListener("focus", handleWindowFocus);
+
+            if (fallbackTimerId) {
+                window.clearTimeout(fallbackTimerId);
+                fallbackTimerId = null;
+            }
+
+            if (focusTimerId) {
+                window.clearTimeout(focusTimerId);
+                focusTimerId = null;
+            }
+        };
+
+        const handleWindowFocus = () => {
+            if (hasResolvedPicker) return;
+
+            focusTimerId = window.setTimeout(() => {
+                if (hasResolvedPicker) return;
+                releasePickerListeners();
+                setUploadProgressText((current) =>
+                    current.startsWith("Opening ") ? "" : current,
+                );
+            }, 250);
+        };
+
+        const resolvePicker = () => {
+            if (hasResolvedPicker) return;
+            hasResolvedPicker = true;
+            releasePickerListeners();
+        };
+
+        const handlePickerFailure = (message, clearAfterMs = 1800) => {
+            resolvePicker();
+            setUploadProgressText(message);
+            window.setTimeout(() => setUploadProgressText(""), clearAfterMs);
+        };
+
+        window.addEventListener("focus", handleWindowFocus, { once: true });
+
+        fallbackTimerId = window.setTimeout(() => {
+            if (hasResolvedPicker) return;
+            handlePickerFailure("Could not open gallery. Please try again.", 2200);
+        }, 6000);
 
         input.onchange = async (event) => {
+            resolvePicker();
             const file = event.target.files?.[0];
 
             if (!file) {
@@ -7232,10 +7382,12 @@ function App() {
             }
 
             setIsUploadingReferenceImage(true);
-            setUploadProgressText("Uploading reference image...");
+            setUploadProgressText("Removing photo metadata...");
 
             try {
-                const referenceImageUrl = await uploadImage(file);
+                const sanitizedFile = await sanitizeImageFile(file);
+                setUploadProgressText("Uploading reference image...");
+                const referenceImageUrl = await uploadImage(sanitizedFile);
                 setEditForm((prev) => ({
                     ...prev,
                     referenceImageUrl,
@@ -7251,11 +7403,14 @@ function App() {
         };
 
         input.oncancel = () => {
-            setUploadProgressText("No image selected.");
-            window.setTimeout(() => setUploadProgressText(""), 1500);
+            handlePickerFailure("No image selected.", 1500);
         };
 
-        input.click();
+        try {
+            input.click();
+        } catch {
+            handlePickerFailure("Could not open gallery. Please try again.", 2200);
+        }
     }
 
     async function signInWithGitHub() {
@@ -7394,26 +7549,76 @@ function App() {
         }
 
         const point = pendingLocation;
-        setUploadProgressText(imageSource === "camera" ? "Opening camera..." : "Opening gallery...");
+        const openingMessage = imageSource === "camera" ? "Opening camera..." : "Opening gallery...";
+        const launchFailureMessage = imageSource === "camera"
+            ? "Could not open camera. Please try again."
+            : "Could not open gallery. Please try again.";
+
+        setUploadProgressText(openingMessage);
         setIsPickingImage(true);
 
-        const resetPickerState = () => {
+        let hasResolvedPicker = false;
+        let fallbackTimerId = null;
+        let focusTimerId = null;
+
+        const releasePickerListeners = () => {
+            window.removeEventListener("focus", handleWindowFocus);
+
+            if (fallbackTimerId) {
+                window.clearTimeout(fallbackTimerId);
+                fallbackTimerId = null;
+            }
+
+            if (focusTimerId) {
+                window.clearTimeout(focusTimerId);
+                focusTimerId = null;
+            }
+        };
+
+        const unlockPickerState = () => {
             setIsPickingImage(false);
         };
 
         const handleWindowFocus = () => {
-            window.setTimeout(() => {
-                resetPickerState();
+            if (hasResolvedPicker) return;
+
+            focusTimerId = window.setTimeout(() => {
+                if (hasResolvedPicker) return;
+                releasePickerListeners();
+                unlockPickerState();
+                setUploadProgressText((current) =>
+                    current.startsWith("Opening ") ? "" : current,
+                );
             }, 250);
         };
 
+        const resolvePicker = () => {
+            if (hasResolvedPicker) return;
+            hasResolvedPicker = true;
+            releasePickerListeners();
+            unlockPickerState();
+        };
+
+        const handlePickerFailure = (message, clearAfterMs = 2200) => {
+            resolvePicker();
+            setUploadProgressText(message);
+            if (clearAfterMs > 0) {
+                window.setTimeout(() => setUploadProgressText(""), clearAfterMs);
+            }
+        };
+
         window.addEventListener("focus", handleWindowFocus, { once: true });
+
+        fallbackTimerId = window.setTimeout(() => {
+            if (hasResolvedPicker) return;
+            handlePickerFailure(launchFailureMessage);
+        }, 6000);
 
         input.onchange = async (event) => {
             const file = event.target.files?.[0];
             const estimatedWeightKg = parseEstimatedWeightKg(pendingEstimatedWeight) || getDefaultWeightForType(selectedType);
             let saveSucceeded = false;
-            resetPickerState();
+            resolvePicker();
 
             if (!file) {
                 setUploadProgressText("No image selected.");
@@ -7422,16 +7627,15 @@ function App() {
             }
 
             setIsSavingItem(true);
-            setUploadProgressText("Reading photo details...");
+            setUploadProgressText("Removing photo metadata...");
 
             try {
-                const imageGps = await extractGpsFromImage(file);
+                const sanitizedFile = await sanitizeImageFile(file);
                 setUploadProgressText("Uploading photo...");
-                const imageUrl = await uploadImage(file);
+                const imageUrl = await uploadImage(sanitizedFile);
                 let gpsSavedToDb = false;
                 let weightSavedToDb = false;
-                // Use EXIF GPS if available, otherwise fall back to the map-click location
-                const gpsSource = imageGps || { latitude: point.y, longitude: point.x };
+                const gpsSource = { latitude: point.y, longitude: point.x };
 
                 const insertPayload = {
                     y: point.y,
@@ -7534,7 +7738,7 @@ function App() {
                 alert("Upload failed. Please try again.");
             } finally {
                 setIsSavingItem(false);
-                resetPickerState();
+                resolvePicker();
 
                 if (saveSucceeded) {
                     setPendingItemType(null);
@@ -7546,12 +7750,14 @@ function App() {
         };
 
         input.oncancel = () => {
-            resetPickerState();
-            setUploadProgressText("No image selected.");
-            window.setTimeout(() => setUploadProgressText(""), 1500);
+            handlePickerFailure("No image selected.", 1500);
         };
 
-        input.click();
+        try {
+            input.click();
+        } catch {
+            handlePickerFailure(launchFailureMessage);
+        }
     }
 
     function startEditingItem(item) {
