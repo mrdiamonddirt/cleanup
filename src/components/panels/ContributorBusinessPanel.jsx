@@ -5,6 +5,7 @@ const emptyFormState = {
     name: "",
     description: "",
     websiteUrl: "",
+    googleMapsLink: "",
     contributionNote: "",
     logoUrl: "",
     lat: "",
@@ -33,6 +34,31 @@ const normalizeWebsiteUrl = (value) => {
     if (!trimmed) return "";
     if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) return trimmed;
     return `https://${trimmed}`;
+};
+
+const isValidHttpUrl = (value) => {
+    if (!value) return true;
+
+    try {
+        const parsed = new URL(value);
+        return parsed.protocol === "http:" || parsed.protocol === "https:";
+    } catch {
+        return false;
+    }
+};
+
+const hasValidCoordinates = (lat, lng) =>
+    Number.isFinite(Number(lat)) && Number.isFinite(Number(lng));
+
+const resolveContributorMapsUrl = (contributor) => {
+    const directUrl = String(
+        contributor?.google_maps_link || contributor?.googleMapsLink || "",
+    ).trim();
+    if (directUrl) return directUrl;
+
+    if (!hasValidCoordinates(contributor?.lat, contributor?.lng)) return "";
+
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${contributor.lat},${contributor.lng}`)}`;
 };
 
 const getErrorMessage = (error, fallbackMessage) => {
@@ -116,6 +142,7 @@ export default function ContributorBusinessPanel({
             name: contributor.name || "",
             description: contributor.description || "",
             websiteUrl: contributor.website_url || "",
+            googleMapsLink: contributor.google_maps_link || contributor.googleMapsLink || "",
             contributionNote: contributor.contribution_note || "",
             logoUrl: contributor.logo_url || "",
             lat: contributor.lat != null ? String(contributor.lat) : "",
@@ -193,6 +220,7 @@ export default function ContributorBusinessPanel({
         const name = String(form.name || "").trim();
         const lat = parseCoordinate(form.lat, "lat");
         const lng = parseCoordinate(form.lng, "lng");
+        const normalizedGoogleMapsLink = normalizeWebsiteUrl(form.googleMapsLink);
 
         if (!name) {
             setStatusMessage("Business name is required.");
@@ -201,6 +229,11 @@ export default function ContributorBusinessPanel({
 
         if (lat === null || lng === null) {
             setStatusMessage("Valid latitude and longitude are required.");
+            return;
+        }
+
+        if (!isValidHttpUrl(normalizedGoogleMapsLink)) {
+            setStatusMessage("Google Maps link must be a valid http/https URL.");
             return;
         }
 
@@ -213,6 +246,7 @@ export default function ContributorBusinessPanel({
                 name,
                 description: String(form.description || "").trim() || null,
                 website_url: normalizeWebsiteUrl(form.websiteUrl) || null,
+                google_maps_link: normalizedGoogleMapsLink || null,
                 contribution_note: String(form.contributionNote || "").trim() || null,
                 logo_url: finalLogoUrl || null,
                 lat,
@@ -364,7 +398,10 @@ export default function ContributorBusinessPanel({
                             }}
                         >
                             {sortedContributors.length ? (
-                                sortedContributors.map((contributor) => (
+                                sortedContributors.map((contributor) => {
+                                    const contributorMapsUrl = resolveContributorMapsUrl(contributor);
+
+                                    return (
                                     <div
                                         key={contributor.id}
                                         style={{
@@ -483,7 +520,7 @@ export default function ContributorBusinessPanel({
                                                 {contributor.contribution_note}
                                             </div>
                                         ) : null}
-                                        {contributor.website_url || (Number.isFinite(Number(contributor.lat)) && Number.isFinite(Number(contributor.lng))) ? (
+                                        {contributor.website_url || contributorMapsUrl ? (
                                             <div
                                                 style={{
                                                     display: "flex",
@@ -518,9 +555,9 @@ export default function ContributorBusinessPanel({
                                                         Visit Website
                                                     </a>
                                                 ) : null}
-                                                {Number.isFinite(Number(contributor.lat)) && Number.isFinite(Number(contributor.lng)) ? (
+                                                {contributorMapsUrl ? (
                                                     <a
-                                                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${contributor.lat},${contributor.lng}`)}`}
+                                                        href={contributorMapsUrl}
                                                         target="_blank"
                                                         rel="noreferrer"
                                                         style={{
@@ -591,7 +628,8 @@ export default function ContributorBusinessPanel({
                                             </div>
                                         ) : null}
                                     </div>
-                                ))
+                                );
+                                })
                             ) : (
                                 <div style={{ fontSize: "0.78rem", color: "#64748b" }}>
                                     No contributors yet.
@@ -644,6 +682,17 @@ export default function ContributorBusinessPanel({
                                 value={form.websiteUrl}
                                 onChange={(event) => setForm((prev) => ({ ...prev, websiteUrl: event.target.value }))}
                                 placeholder="https://example.com"
+                                style={{ border: "1px solid #cbd5e1", borderRadius: "8px", padding: "8px" }}
+                            />
+                        </label>
+
+                        <label style={{ display: "grid", gap: "4px", fontSize: "0.75rem", color: "#475569" }}>
+                            <span>Google Maps Link (optional)</span>
+                            <input
+                                type="url"
+                                value={form.googleMapsLink}
+                                onChange={(event) => setForm((prev) => ({ ...prev, googleMapsLink: event.target.value }))}
+                                placeholder="https://maps.google.com/..."
                                 style={{ border: "1px solid #cbd5e1", borderRadius: "8px", padding: "8px" }}
                             />
                         </label>

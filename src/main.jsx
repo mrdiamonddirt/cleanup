@@ -122,6 +122,22 @@ const UI_TOKENS = {
 const createMapsUrl = (lat, lng) =>
     `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lat},${lng}`)}`;
 
+const hasValidCoordinatePair = (lat, lng) =>
+    Number.isFinite(Number(lat)) && Number.isFinite(Number(lng));
+
+const resolveContributorMapsUrl = (contributor) => {
+    const directUrl = String(
+        contributor?.google_maps_link || contributor?.googleMapsLink || "",
+    ).trim();
+    if (directUrl) return directUrl;
+
+    const lat = Number(contributor?.lat);
+    const lng = Number(contributor?.lng);
+    if (!hasValidCoordinatePair(lat, lng)) return "";
+
+    return createMapsUrl(lat, lng);
+};
+
 const extractEaMeasureId = (value) => {
     if (typeof value !== "string") return null;
 
@@ -8007,6 +8023,7 @@ function App() {
                         ? contributors.map((contributor) => {
                               const lat = Number(contributor?.lat);
                               const lng = Number(contributor?.lng);
+                              const contributorMapsUrl = resolveContributorMapsUrl(contributor);
                               if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
 
                               return (
@@ -8162,29 +8179,31 @@ function App() {
                                                               Visit Website
                                                           </a>
                                                       ) : null}
-                                                      <a
-                                                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lat},${lng}`)}`}
-                                                          target="_blank"
-                                                          rel="noreferrer"
-                                                          style={{
-                                                              display: "inline-flex",
-                                                              justifyContent: "center",
-                                                              alignItems: "center",
-                                                              width: "100%",
-                                                              minHeight: "30px",
-                                                              padding: "0 9px",
-                                                              borderRadius: "999px",
-                                                              border: "1px solid #2563eb",
-                                                              background: "linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%)",
-                                                              color: "#ffffff",
-                                                              fontSize: "0.74rem",
-                                                              fontWeight: 700,
-                                                              textDecoration: "none",
-                                                              boxSizing: "border-box",
-                                                          }}
-                                                      >
-                                                          Open In Google Maps
-                                                      </a>
+                                                      {contributorMapsUrl ? (
+                                                          <a
+                                                              href={contributorMapsUrl}
+                                                              target="_blank"
+                                                              rel="noreferrer"
+                                                              style={{
+                                                                  display: "inline-flex",
+                                                                  justifyContent: "center",
+                                                                  alignItems: "center",
+                                                                  width: "100%",
+                                                                  minHeight: "30px",
+                                                                  padding: "0 9px",
+                                                                  borderRadius: "999px",
+                                                                  border: "1px solid #2563eb",
+                                                                  background: "linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%)",
+                                                                  color: "#ffffff",
+                                                                  fontSize: "0.74rem",
+                                                                  fontWeight: 700,
+                                                                  textDecoration: "none",
+                                                                  boxSizing: "border-box",
+                                                              }}
+                                                          >
+                                                              Open In Google Maps
+                                                          </a>
+                                                      ) : null}
                                                   </div>
                                               </div>
                                               <div
