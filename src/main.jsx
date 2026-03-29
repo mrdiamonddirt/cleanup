@@ -5764,6 +5764,294 @@ function FloodStatusPanel({ floodAlerts, isLoadingFloodAlerts, floodAlertsError,
     );
 }
 
+function ContributorMobileSheet({ contributor, mapsUrl, onClose }) {
+    useEffect(() => {
+        if (!contributor) return undefined;
+
+        const handleKeyDown = (event) => {
+            if (event.key === "Escape") onClose();
+        };
+
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [contributor, onClose]);
+
+    if (!contributor || typeof document === "undefined") return null;
+
+    return createPortal(
+        <>
+            <div
+                onClick={onClose}
+                style={{
+                    position: "fixed",
+                    inset: 0,
+                    background: "rgba(2, 6, 23, 0.36)",
+                    zIndex: 1501,
+                }}
+            />
+
+            <div
+                role="dialog"
+                aria-modal="true"
+                aria-label={`${contributor.name || "Contributor"} details`}
+                style={{
+                    position: "fixed",
+                    left: "8px",
+                    right: "8px",
+                    bottom: "max(8px, env(safe-area-inset-bottom, 0px))",
+                    maxHeight: "calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 16px)",
+                    borderRadius: "22px",
+                    border: "1px solid #dbe5f4",
+                    background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
+                    boxShadow: "0 22px 48px rgba(2, 6, 23, 0.34)",
+                    zIndex: 1502,
+                    display: "flex",
+                    flexDirection: "column",
+                    overflow: "hidden",
+                }}
+            >
+                <div
+                    aria-hidden="true"
+                    style={{
+                        width: "44px",
+                        height: "5px",
+                        borderRadius: "999px",
+                        background: "#d5dde9",
+                        margin: "10px auto 8px",
+                        flexShrink: 0,
+                    }}
+                />
+
+                <div
+                    style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "flex-start",
+                        gap: "10px",
+                        padding: "0 12px 10px",
+                        borderBottom: "1px solid #e2e8f0",
+                    }}
+                >
+                    <div style={{ minWidth: 0, display: "grid", gap: "4px" }}>
+                        <strong
+                            style={{
+                                color: "#0f172a",
+                                fontSize: "1.06rem",
+                                lineHeight: 1.15,
+                                overflowWrap: "anywhere",
+                                wordBreak: "break-word",
+                            }}
+                        >
+                            {contributor.name || "Contributor"}
+                        </strong>
+                        <span
+                            style={{
+                                display: "inline-flex",
+                                width: "fit-content",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                padding: "2px 7px",
+                                borderRadius: "999px",
+                                border: "1px solid #fcd34d",
+                                background: "#fffbeb",
+                                color: "#92400e",
+                                fontSize: "0.64rem",
+                                fontWeight: 700,
+                                letterSpacing: "0.02em",
+                                textTransform: "uppercase",
+                            }}
+                        >
+                            Contributed
+                        </span>
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        style={{
+                            border: "1px solid #dbe3ee",
+                            background: "#fff",
+                            borderRadius: "999px",
+                            width: "34px",
+                            height: "34px",
+                            fontWeight: 700,
+                            color: "#475569",
+                            boxShadow: "0 8px 18px rgba(15,23,42,0.09)",
+                            cursor: "pointer",
+                            flexShrink: 0,
+                        }}
+                        aria-label="Close contributor details"
+                    >
+                        ×
+                    </button>
+                </div>
+
+                <div
+                    style={{
+                        overflowY: "auto",
+                        padding: "10px 12px calc(env(safe-area-inset-bottom, 0px) + 12px)",
+                        display: "grid",
+                        gap: "10px",
+                    }}
+                >
+                    <div
+                        style={{
+                            borderRadius: "14px",
+                            border: "1px solid #dbe5f4",
+                            background: "linear-gradient(140deg, #f8fafc 0%, #eef4ff 100%)",
+                            display: "grid",
+                            gap: "10px",
+                            padding: "11px",
+                        }}
+                    >
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                            <div
+                                style={{
+                                    width: "72px",
+                                    height: "72px",
+                                    borderRadius: "12px",
+                                    border: "1px solid #cbd5e1",
+                                    background: "#f8fafc",
+                                    display: "grid",
+                                    placeItems: "center",
+                                    overflow: "hidden",
+                                    flexShrink: 0,
+                                }}
+                            >
+                                {contributor.logo_url ? (
+                                    <img
+                                        src={contributor.logo_url}
+                                        alt={`${contributor.name || "Business"} logo`}
+                                        style={{
+                                            width: "100%",
+                                            height: "100%",
+                                            maxWidth: "64px",
+                                            maxHeight: "64px",
+                                            objectFit: "contain",
+                                            borderRadius: "8px",
+                                        }}
+                                    />
+                                ) : (
+                                    <div
+                                        aria-hidden="true"
+                                        style={{
+                                            width: "64px",
+                                            height: "64px",
+                                            borderRadius: "10px",
+                                            border: "1px dashed #94a3b8",
+                                            background: "linear-gradient(140deg, #e2e8f0, #cbd5e1)",
+                                        }}
+                                    />
+                                )}
+                            </div>
+
+                            <p
+                                style={{
+                                    margin: 0,
+                                    color: "#334155",
+                                    fontSize: "0.82rem",
+                                    lineHeight: 1.45,
+                                    overflowWrap: "anywhere",
+                                    wordBreak: "break-word",
+                                }}
+                            >
+                                Local business supporting river cleanup efforts.
+                            </p>
+                        </div>
+
+                        <div style={{ display: "grid", gap: "8px", gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+                            {contributor.website_url ? (
+                                <a
+                                    href={contributor.website_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    style={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        minHeight: "34px",
+                                        borderRadius: "999px",
+                                        border: "1px solid #93c5fd",
+                                        background: "#eff6ff",
+                                        color: "#1d4ed8",
+                                        textDecoration: "none",
+                                        fontSize: "0.76rem",
+                                        fontWeight: 700,
+                                        padding: "0 9px",
+                                    }}
+                                >
+                                    Visit website
+                                </a>
+                            ) : null}
+                            {mapsUrl ? (
+                                <a
+                                    href={mapsUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    style={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        minHeight: "34px",
+                                        borderRadius: "999px",
+                                        border: "1px solid #2563eb",
+                                        background: "linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%)",
+                                        color: "#ffffff",
+                                        textDecoration: "none",
+                                        fontSize: "0.76rem",
+                                        fontWeight: 700,
+                                        padding: "0 9px",
+                                    }}
+                                >
+                                    Open in Maps
+                                </a>
+                            ) : null}
+                        </div>
+                    </div>
+
+                    {contributor.description ? (
+                        <div
+                            style={{
+                                borderRadius: "12px",
+                                border: "1px solid #e2e8f0",
+                                background: "#ffffff",
+                                padding: "10px",
+                                color: "#334155",
+                                fontSize: "0.83rem",
+                                lineHeight: 1.5,
+                                overflowWrap: "anywhere",
+                                wordBreak: "break-word",
+                            }}
+                        >
+                            {contributor.description}
+                        </div>
+                    ) : null}
+
+                    {contributor.contribution_note ? (
+                        <div
+                            style={{
+                                borderRadius: "12px",
+                                border: "1px solid #bfdbfe",
+                                background: "#eff6ff",
+                                padding: "10px",
+                                color: "#1e3a8a",
+                                fontSize: "0.82rem",
+                                fontWeight: 600,
+                                lineHeight: 1.5,
+                                overflowWrap: "anywhere",
+                                wordBreak: "break-word",
+                            }}
+                        >
+                            {contributor.contribution_note}
+                        </div>
+                    ) : null}
+                </div>
+            </div>
+        </>,
+        document.body,
+    );
+}
+
 function App() {
     const detectMobileViewport = () => {
         if (typeof window === "undefined") return false;
@@ -5842,6 +6130,7 @@ function App() {
     const [isLuneStationsVisible, setIsLuneStationsVisible] = useState(true);
     const [isContributorsVisible, setIsContributorsVisible] = useState(true);
     const [contributors, setContributors] = useState([]);
+    const [selectedContributorId, setSelectedContributorId] = useState(null);
     const [isContributorPanelOpen, setIsContributorPanelOpen] = useState(false);
     const [floodAlerts, setFloodAlerts] = useState([]);
     const [isLoadingFloodAlerts, setIsLoadingFloodAlerts] = useState(false);
@@ -7629,6 +7918,19 @@ function App() {
         () => (selectedItem ? getItemStory(selectedItem) : null),
         [selectedItem, localItemStory, dbStoryFieldSupport],
     );
+    const selectedContributor = useMemo(
+        () =>
+            selectedContributorId === null
+                ? null
+                : contributors.find(
+                    (contributor) => String(contributor?.id) === String(selectedContributorId),
+                ) || null,
+        [contributors, selectedContributorId],
+    );
+    const selectedContributorMapsUrl = useMemo(
+        () => (selectedContributor ? resolveContributorMapsUrl(selectedContributor) : ""),
+        [selectedContributor],
+    );
     const weatherOverlayUpdatedLabel = useMemo(() => {
         if (!weatherOverlayUpdatedAt) return "";
 
@@ -7701,6 +8003,27 @@ function App() {
             isCancelled = true;
         };
     }, [selectedGps, selectedGeoLookupKey, selectedGeoLookup, selectedItem?.id]);
+
+    useEffect(() => {
+        if (isMobile) return;
+        setSelectedContributorId(null);
+    }, [isMobile]);
+
+    useEffect(() => {
+        if (isContributorsVisible) return;
+        setSelectedContributorId(null);
+    }, [isContributorsVisible]);
+
+    useEffect(() => {
+        if (selectedContributorId === null) return;
+
+        const contributorStillExists = contributors.some(
+            (contributor) => String(contributor?.id) === String(selectedContributorId),
+        );
+        if (!contributorStillExists) {
+            setSelectedContributorId(null);
+        }
+    }, [contributors, selectedContributorId]);
 
     useEffect(() => {
         if (!isWeatherOverlayEnabled) {
@@ -8032,17 +8355,25 @@ function App() {
                                       position={[lat, lng]}
                                       icon={getContributorIcon(contributor.logo_url, contributor.name)}
                                       eventHandlers={{
-                                          click: (event) => event.target.openPopup(),
+                                          click: (event) => {
+                                              if (isMobile) {
+                                                  setSelectedContributorId(contributor.id);
+                                                  return;
+                                              }
+
+                                              event.target.openPopup();
+                                          },
                                       }}
                                   >
-                                      <Popup
-                                          className="contributor-popup"
-                                          autoPan
-                                          keepInView
-                                          autoPanPadding={[20, 20]}
-                                          maxWidth={520}
-                                          minWidth={260}
-                                      >
+                                      {!isMobile ? (
+                                          <Popup
+                                              className="contributor-popup"
+                                              autoPan
+                                              keepInView
+                                              autoPanPadding={[20, 20]}
+                                              maxWidth={520}
+                                              minWidth={260}
+                                          >
                                           <div
                                               className="contributor-popup-content"
                                               style={{
@@ -8265,7 +8596,8 @@ function App() {
                                                   ) : null}
                                               </div>
                                           </div>
-                                      </Popup>
+                                          </Popup>
+                                      ) : null}
                                   </Marker>
                               );
                           })
@@ -8670,6 +9002,14 @@ function App() {
                         />
                     </SurfaceCard>
                 </>
+            ) : null}
+
+            {isMobile && selectedContributor ? (
+                <ContributorMobileSheet
+                    contributor={selectedContributor}
+                    mapsUrl={selectedContributorMapsUrl}
+                    onClose={() => setSelectedContributorId(null)}
+                />
             ) : null}
 
             <ContributorBusinessPanel
