@@ -7244,7 +7244,15 @@ function App() {
                     // Sort most-recent first; keep up to 80 snapshots
                     const sorted = [...list]
                         .filter((r) => r.releaseNum)
-                        .sort((a, b) => b.releaseNum - a.releaseNum)
+                        .sort((a, b) => {
+                            const getDate = (item) => {
+                                const match =
+                                    item.releaseName.match(/\d{4}-\d{2}-\d{2}/);
+                                return match ? new Date(match[0]) : new Date(0);
+                            };
+
+                            return getDate(b) - getDate(a); // newest first
+                        })
                         .slice(0, 80);
                     setWaybackReleases(sorted);
                     // Default to the latest World Imagery snapshot
