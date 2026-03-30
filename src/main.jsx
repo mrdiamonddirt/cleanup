@@ -3134,16 +3134,28 @@ function ControlToggles({
                         cursor: "pointer",
                     }}
                     aria-expanded={!isTidePlannerCollapsed}
-                    aria-label={isTidePlannerCollapsed ? "Show tide planner" : "Hide tide planner"}
+                    aria-label={
+                        isTidePlannerCollapsed
+                            ? "Show tide planner"
+                            : "Hide tide planner"
+                    }
                 >
-                    <span>{isTidePlannerCollapsed ? "Show Tide Planner" : "Hide Tide Planner"}</span>
-                    <span style={{ fontSize: "0.9em" }}>{isTidePlannerCollapsed ? "▾" : "▴"}</span>
+                    <span>
+                        {isTidePlannerCollapsed
+                            ? "Show Tide Planner"
+                            : "Hide Tide Planner"}
+                    </span>
+                    <span style={{ fontSize: "0.9em" }}>
+                        {isTidePlannerCollapsed ? "▾" : "▴"}
+                    </span>
                 </button>
 
                 <button
                     onClick={onToggleContributors}
                     style={{
-                        border: isContributorsVisible ? "1px solid #ca8a04" : "1px solid #fcd34d",
+                        border: isContributorsVisible
+                            ? "1px solid #ca8a04"
+                            : "1px solid #fcd34d",
                         background: isContributorsVisible
                             ? "linear-gradient(135deg, #fef3c7, #fffbeb)"
                             : "linear-gradient(135deg, #eff6ff, #f8fafc)",
@@ -3163,21 +3175,31 @@ function ControlToggles({
                         cursor: "pointer",
                     }}
                     aria-pressed={isContributorsVisible}
-                    aria-label={isContributorsVisible ? "Hide contributors" : "Show contributors"}
+                    aria-label={
+                        isContributorsVisible
+                            ? "Hide contributors"
+                            : "Show contributors"
+                    }
                 >
-                    <span>{isContributorsVisible ? "Contributors On" : "Contributors Off"}</span>
+                    <span>
+                        {isContributorsVisible
+                            ? "Contributors On"
+                            : "Contributors Off"}
+                    </span>
                 </button>
 
                 <button
                     onClick={onToggleWeatherOverlay}
                     style={{
-                        border: isWeatherOverlayEnabled ? "1px solid #0f766e" : "1px solid #cbd5e1",
+                        border: isWeatherOverlayEnabled
+                            ? "1px solid #0f766e"
+                            : "1px solid #cbd5e1",
                         background: isWeatherOverlayEnabled
                             ? "linear-gradient(135deg, #ccfbf1, #ecfeff)"
                             : "linear-gradient(135deg, #eff6ff, #f8fafc)",
                         color: isWeatherOverlayEnabled ? "#115e59" : "#0f172a",
                         borderRadius: UI_TOKENS.radius.pill,
-                        padding: isMobile ? "7px 10px" : "5px 10px",
+                        padding: isMobile ? "7px 12px" : "6px 12px",
                         minHeight: "30px",
                         width: "auto",
                         fontSize: "0.8rem",
@@ -3185,57 +3207,43 @@ function ControlToggles({
                         letterSpacing: "0.01em",
                         display: "inline-flex",
                         alignItems: "center",
-                        justifyContent: "center",
-                        gap: "8px",
+                        gap: "10px",
                         boxShadow: "0 4px 16px rgba(15,23,42,0.08)",
                         cursor: "pointer",
                     }}
                     aria-pressed={isWeatherOverlayEnabled}
-                    aria-label={isWeatherOverlayEnabled ? "Turn radar weather off" : "Turn radar weather on"}
+                    aria-label={
+                        isWeatherOverlayEnabled
+                            ? "Turn radar weather off"
+                            : "Turn radar weather on"
+                    }
                 >
-                    <span>{isWeatherOverlayEnabled ? "Radar On" : "Radar Off"}</span>
-                </button>
-
-                <span
-                    style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "7px",
-                        borderRadius: UI_TOKENS.radius.pill,
-                        border: isWeatherOverlayEnabled ? "1px solid #99f6e4" : "1px solid #cbd5e1",
-                        background: isWeatherOverlayEnabled ? "rgba(204,251,241,0.58)" : "rgba(248,250,252,0.92)",
-                        color: isWeatherOverlayEnabled ? "#115e59" : "#64748b",
-                        fontSize: "0.72rem",
-                        fontWeight: 700,
-                        letterSpacing: "0.02em",
-                        lineHeight: 1,
-                        padding: "5px 10px",
-                        whiteSpace: "nowrap",
-                        minHeight: "30px",
-                    }}
-                    aria-label={isWeatherOverlayEnabled ? "Radar legend and status" : "Radar status"}
-                >
+                    {/* Status dot */}
                     <span
                         aria-hidden="true"
                         style={{
                             width: "10px",
                             height: "10px",
                             borderRadius: "999px",
-                            background: isWeatherOverlayEnabled ? "#0ea5e9" : "#cbd5e1",
+                            background: isWeatherOverlayEnabled
+                                ? "#0ea5e9"
+                                : "#cbd5e1",
                             boxShadow: isWeatherOverlayEnabled
                                 ? "0 0 0 1px rgba(14,165,233,0.25)"
                                 : "0 0 0 1px rgba(148,163,184,0.22)",
                             flexShrink: 0,
                         }}
                     />
+
+                    {/* Label + status */}
                     <span>
                         {isWeatherOverlayEnabled
                             ? weatherOverlayUpdatedLabel
-                                ? `Radar live · Updated ${weatherOverlayUpdatedLabel}`
-                                : "Radar live"
-                            : "Radar overlay off"}
+                                ? `Radar On · Updated ${weatherOverlayUpdatedLabel}`
+                                : "Radar On · Live"
+                            : "Radar Off"}
                     </span>
-                </span>
+                </button>
             </div>
         </div>
     );
