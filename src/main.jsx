@@ -67,6 +67,8 @@ const TIDE_CHART_PIXELS_PER_POINT = 120;
 const CLEANUP_WINDOW_MINUTES = 120;
 const EA_STATIONS_URL =
     "https://environment.data.gov.uk/flood-monitoring/id/stations?riverName=River%20Lune";
+const EA_REGIONAL_FLOW_STATIONS_URL =
+    `https://environment.data.gov.uk/flood-monitoring/id/stations?parameter=flow&lat=${RIVER_LUNE_CENTER[0]}&long=${RIVER_LUNE_CENTER[1]}&dist=100`;
 const EA_TARGET_RIVER_NAME = "River Lune";
 const EA_READINGS_REFRESH_MS = 15 * 60 * 1000;
 const EA_FLOODS_URL = `https://environment.data.gov.uk/flood-monitoring/id/floods?lat=${RIVER_LUNE_CENTER[0]}&long=${RIVER_LUNE_CENTER[1]}&dist=15`;
@@ -142,6 +144,169 @@ const extractEaMeasureId = (value) => {
 
     const parts = value.split("/").filter(Boolean);
     return parts.length ? parts[parts.length - 1] : null;
+};
+
+const getEaStationKey = (station) =>
+    station?.stationReference || station?.notation || station?.["@id"] || "";
+
+const getEaMeasures = (station) =>
+    Array.isArray(station?.measures) ? station.measures.filter(Boolean) : [];
+
+const getEaMeasureByParameter = (station, parameter) => {
+    const target = String(parameter || "").trim().toLowerCase();
+    if (!target) return null;
+
+    const measures = getEaMeasures(station);
+    return (
+        measures.find((measure) => String(measure?.parameter || "").trim().toLowerCase() === target)
+        || null
+    );
+};
+
+const getEaPrimaryMeasure = (station, preferredParameter = "level") => {
+    const preferred = getEaMeasureByParameter(station, preferredParameter);
+    if (preferred) return preferred;
+
+    const measures = getEaMeasures(station);
+    return measures.find((measure) => typeof measure?.["@id"] === "string") || null;
+};
+
+const getEaStationCoordinates = (station) => {
+    const lat = Number(station?.lat);
+    const lng = Number(station?.long);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+
+    return { lat, lng };
+};
+
+const hasEaMeasureId = (measure) => Boolean(extractEaMeasureId(measure?.["@id"]));
+
+const isValidEaStationRecord = (
+    station,
+    {
+        expectedRiverName = "",
+        requireFlowMeasure = false,
+        requirePrimaryMeasure = false,
+        preferredParameter = "level",
+    } = {},
+) => {
+    const stationKey = getEaStationKey(station);
+    if (!stationKey) return false;
+
+    const coordinates = getEaStationCoordinates(station);
+    if (!coordinates) return false;
+
+    if (expectedRiverName && station?.riverName !== expectedRiverName) return false;
+
+    const measures = getEaMeasures(station);
+    if (!measures.length) return false;
+
+    if (requireFlowMeasure) {
+        const flowMeasure = getEaMeasureByParameter(station, "flow");
+        if (!hasEaMeasureId(flowMeasure)) return false;
+    }
+
+    if (requirePrimaryMeasure) {
+        const primaryMeasure = getEaPrimaryMeasure(station, preferredParameter);
+        if (!hasEaMeasureId(primaryMeasure)) return false;
+    }
+
+    return true;
+};
+
+const getUniqueEaStationsByKey = (stations) => {
+    const byKey = new Map();
+
+    stations.forEach((station) => {
+        const stationKey = getEaStationKey(station);
+        if (!stationKey || byKey.has(stationKey)) return;
+        byKey.set(stationKey, station);
+    });
+
+    return [...byKey.values()];
+};
+
+const buildEaEmptyReading = ({ primaryMeasure = null, error = "No measure available" } = {}) => ({
+    loading: false,
+    error,
+    value: null,
+    unitName: primaryMeasure?.unitName || "",
+    dateTime: "",
+    parameterName: primaryMeasure?.parameterName || "",
+    previousValue: null,
+    previousUnitName: primaryMeasure?.unitName || "",
+    previousDateTime: "",
+    previousAgeLabel: "",
+    deltaValue: null,
+    deltaDirection: "flat",
+    trendLabel: "Trend unavailable",
+    trendDirection: "flat",
+    trendDeltaValue: null,
+    recentReadings: [],
+    flowValue: null,
+    flowUnitName: "",
+    flowDateTime: "",
+    flowTrendLabel: "",
+    flowTrendDirection: "flat",
+});
+
+const parseEaMeasureReadings = (items) => {
+    const normalizedItems = Array.isArray(items) ? items : [];
+    const sortedReadings = [...normalizedItems].sort((a, b) => {
+        const aTime = new Date(a?.dateTime || "").getTime();
+        const bTime = new Date(b?.dateTime || "").getTime();
+
+        if (!Number.isFinite(aTime) && !Number.isFinite(bTime)) return 0;
+        if (!Number.isFinite(aTime)) return 1;
+        if (!Number.isFinite(bTime)) return -1;
+
+        return bTime - aTime;
+    });
+
+    const latest = sortedReadings[0] || null;
+    const previous = sortedReadings[1] || null;
+    const latestValue = Number(latest?.value);
+    const previousValue = Number(previous?.value);
+    const hasDelta = Number.isFinite(latestValue) && Number.isFinite(previousValue);
+    const deltaValue = hasDelta ? latestValue - previousValue : null;
+    const deltaDirection = getEaDeltaDirection(deltaValue);
+    const recentReadings = sortedReadings
+        .filter((item) => Number.isFinite(Number(item?.value)))
+        .slice(0, 3)
+        .map((item) => ({
+            value: Number(item?.value),
+            dateTime: item?.dateTime || "",
+            ageLabel: formatEaRelativeAge(item?.dateTime || "") || "",
+        }));
+    const trend = inferEaTrendFromRecentReadings(recentReadings);
+
+    return {
+        latest,
+        previous,
+        deltaValue,
+        deltaDirection,
+        recentReadings,
+        trend,
+    };
+};
+
+const fetchEaMeasureSnapshot = async (measure) => {
+    const measureId = extractEaMeasureId(measure?.["@id"]);
+    if (!measureId) return { error: "No measure available", parsed: null };
+
+    const response = await fetch(buildEaReadingsUrl(measureId), { cache: "no-store" });
+    if (!response.ok) {
+        throw new Error("Could not load reading");
+    }
+
+    const payload = await response.json();
+    const parsed = parseEaMeasureReadings(payload?.items);
+
+    return {
+        error: parsed.latest ? "" : "No readings yet",
+        parsed,
+    };
 };
 
 const buildEaReadingsUrl = (measureId) => {
@@ -1115,6 +1280,18 @@ const getStationIcon = () =>
         html: `
             <div style="width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; transform: rotate(45deg); border-radius: 8px; border: 2px solid #0f766e; background: linear-gradient(180deg, #ffffff 0%, #ecfeff 100%); box-shadow: 0 3px 10px rgba(15,118,110,0.3);">
                 <span style="transform: rotate(-45deg); color: #0f766e; font-size: 20px; font-weight: 700; line-height: 1;">≈</span>
+            </div>
+        `,
+        iconSize: [38, 38],
+        iconAnchor: [19, 19],
+    });
+
+const getFlowStationIcon = () =>
+    L.divIcon({
+        className: "ea-flow-station-marker",
+        html: `
+            <div style="width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; transform: rotate(45deg); border-radius: 8px; border: 2px solid #0369a1; background: linear-gradient(180deg, #ffffff 0%, #e0f2fe 100%); box-shadow: 0 3px 10px rgba(3,105,161,0.32);">
+                <span style="transform: rotate(-45deg); color: #0369a1; font-size: 18px; font-weight: 800; line-height: 1;">F</span>
             </div>
         `,
         iconSize: [38, 38],
@@ -3110,8 +3287,10 @@ function FilterControls({
     typeFilter,
     statusFilter,
     isLuneStationsVisible,
+    isRegionalFlowStationsVisible,
     isContributorsVisible,
     setIsLuneStationsVisible,
+    setIsRegionalFlowStationsVisible,
     setIsContributorsVisible,
     setTypeFilter,
     setStatusFilter,
@@ -3132,6 +3311,48 @@ function FilterControls({
     ];
 
     const useSegmentedMobile = isMobile && !isOverlay;
+    const useDesktopCompactLayout = !isMobile && !isOverlay;
+    const useDesktopOverlayLayout = isOverlay && !isMobile;
+    const [isOverlayCollapsed, setIsOverlayCollapsed] = useState(false);
+    const showOverlayCollapseToggle = useDesktopOverlayLayout;
+    const isOverlayContentHidden = showOverlayCollapseToggle && isOverlayCollapsed;
+    const desktopCompactGroupStyle = useDesktopCompactLayout
+        ? {
+              border: "1px solid #dbe3ef",
+              borderRadius: UI_TOKENS.radius.md,
+              padding: "8px 10px",
+              background: "linear-gradient(180deg, #f8fbff, #ffffff)",
+              boxShadow: "0 2px 8px rgba(15,23,42,0.04)",
+          }
+        : {};
+    const desktopPillRowStyle = {
+        display: "flex",
+        alignItems: "center",
+        gap: "6px",
+        flexWrap: "wrap",
+    };
+    const desktopPillButtonBaseStyle = {
+        borderRadius: UI_TOKENS.radius.pill,
+        padding: "5px 10px",
+        fontSize: "0.8rem",
+        minHeight: "30px",
+        fontWeight: 700,
+        cursor: "pointer",
+        width: "auto",
+        whiteSpace: "nowrap",
+    };
+    const overlayFieldGroupStyle = {};
+    const overlayLabelStyle = useDesktopOverlayLayout
+        ? {
+              fontSize: "0.68rem",
+              fontWeight: 700,
+              color: "#334155",
+              letterSpacing: "0.05em",
+              textTransform: "uppercase",
+          }
+        : {};
+    const overlaySelectStyle = {};
+    const overlayToggleButtonStyle = {};
 
     return (
         <div
@@ -3142,43 +3363,81 @@ function FilterControls({
                           top: isMobile ? "8px" : "10px",
                           right: isMobile ? "8px" : "10px",
                           zIndex: 700,
-                          maxWidth: isMobile ? "min(84vw, 240px)" : "250px",
+                                                    maxWidth: isMobile ? "min(84vw, 240px)" : "240px",
                       }
                     : {}),
             }}
         >
             <div
                 style={{
-                    display: "flex",
+                    display: useDesktopCompactLayout ? "grid" : "flex",
+                    gridTemplateColumns: useDesktopCompactLayout ? "repeat(2, minmax(190px, 1fr))" : "none",
                     flexWrap: isOverlay ? "nowrap" : isMobile ? "nowrap" : "wrap",
                     flexDirection: isOverlay ? "column" : isMobile ? "column" : "row",
-                    gap: isOverlay ? "5px" : "8px",
-                    marginBottom: isOverlay ? "0" : "8px",
-                    marginTop: isOverlay ? "0" : "8px",
+                    gap: isOverlay ? "4px" : useDesktopCompactLayout ? "6px" : "8px",
+                    marginBottom: isOverlay ? "0" : useDesktopCompactLayout ? "6px" : "8px",
+                    marginTop: isOverlay ? "0" : useDesktopCompactLayout ? "6px" : "8px",
                     alignItems: isOverlay ? "stretch" : isMobile ? "stretch" : "center",
+                    justifyItems: useDesktopCompactLayout ? "start" : "normal",
                     padding: isOverlay ? (isMobile ? "6px" : "6px") : "0",
-                    borderRadius: isOverlay ? "6px" : "0",
-                    border: isOverlay ? "2px solid rgba(0,0,0,0.2)" : "none",
-                    background: isOverlay ? "rgba(255,255,255,0.97)" : "transparent",
-                    boxShadow: isOverlay ? "0 1px 5px rgba(0,0,0,0.4)" : "none",
+                    borderRadius: isOverlay ? "8px" : "0",
+                    border: isOverlay ? "1px solid #cbd5e1" : "none",
+                    background: isOverlay ? "rgba(255,255,255,0.98)" : "transparent",
+                    boxShadow: isOverlay ? "0 4px 12px rgba(15,23,42,0.1)" : "none",
                 }}
             >
                 {isOverlay ? (
                     <div
                         style={{
-                            fontSize: "0.68rem",
-                            fontWeight: 700,
-                            color: "#475569",
-                            letterSpacing: "0.06em",
-                            textTransform: "uppercase",
-                            marginBottom: "1px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: "6px",
+                            marginBottom: useDesktopOverlayLayout ? "2px" : "1px",
                         }}
                     >
-                        Filters
+                        <span
+                            style={{
+                                fontSize: "0.68rem",
+                                fontWeight: 700,
+                                color: "#475569",
+                                letterSpacing: "0.06em",
+                                textTransform: "uppercase",
+                            }}
+                        >
+                            Filters
+                        </span>
+                        {showOverlayCollapseToggle ? (
+                            <button
+                                type="button"
+                                onClick={() => setIsOverlayCollapsed((prev) => !prev)}
+                                aria-expanded={!isOverlayCollapsed}
+                                aria-label={isOverlayCollapsed ? "Expand filters" : "Collapse filters"}
+                                title={isOverlayCollapsed ? "Expand filters" : "Collapse filters"}
+                                style={{
+                                    width: "18px",
+                                    height: "18px",
+                                    borderRadius: "6px",
+                                    border: "1px solid #cbd5e1",
+                                    background: "#f8fafc",
+                                    color: "#334155",
+                                    fontSize: "0.8rem",
+                                    lineHeight: 1,
+                                    fontWeight: 700,
+                                    padding: 0,
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    cursor: "pointer",
+                                }}
+                            >
+                                {isOverlayCollapsed ? "+" : "-"}
+                            </button>
+                        ) : null}
                     </div>
                 ) : null}
 
-                {useSegmentedMobile ? (
+                {!isOverlayContentHidden && (useSegmentedMobile ? (
                     <>
                         <div style={{ display: "grid", gap: "6px" }}>
                             <span style={{ fontSize: "0.72rem", fontWeight: 700, color: "#334155", textTransform: "uppercase", letterSpacing: "0.04em" }}>Type</span>
@@ -3250,6 +3509,23 @@ function FilterControls({
                                 >
                                     {isLuneStationsVisible ? "Sensor Stations On" : "Sensor Stations Off"}
                                 </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsRegionalFlowStationsVisible((prev) => !prev)}
+                                    style={{
+                                        border: isRegionalFlowStationsVisible ? "1px solid #0369a1" : "1px solid #bae6fd",
+                                        background: isRegionalFlowStationsVisible ? "#e0f2fe" : "#f8fafc",
+                                        color: isRegionalFlowStationsVisible ? "#0c4a6e" : "#475569",
+                                        borderRadius: UI_TOKENS.radius.pill,
+                                        padding: "7px 10px",
+                                        fontSize: "0.8rem",
+                                        fontWeight: 700,
+                                        minHeight: "34px",
+                                    }}
+                                    aria-pressed={isRegionalFlowStationsVisible}
+                                >
+                                    {isRegionalFlowStationsVisible ? "Regional Filters On" : "Regional Filters Off"}
+                                </button>
                             </div>
                         </div>
 
@@ -3278,8 +3554,26 @@ function FilterControls({
                     </>
                 ) : (
                     <>
-                        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexDirection: isOverlay ? "column" : "row" }}>
-                            <span style={{ fontSize: isOverlay ? "0.72rem" : controlFontSize, fontWeight: 600, alignSelf: isOverlay ? "flex-start" : "auto" }}>Type:</span>
+                        <div
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: isOverlay ? "2px" : "6px",
+                                flexDirection: isOverlay ? "column" : "row",
+                                ...desktopCompactGroupStyle,
+                                ...overlayFieldGroupStyle,
+                            }}
+                        >
+                            <span
+                                style={{
+                                    fontSize: isOverlay ? "0.72rem" : controlFontSize,
+                                    fontWeight: 600,
+                                    alignSelf: isOverlay ? "flex-start" : "auto",
+                                    ...overlayLabelStyle,
+                                }}
+                            >
+                                Type
+                            </span>
                             <select
                                 value={typeFilter}
                                 onChange={(e) => setTypeFilter(e.target.value)}
@@ -3291,6 +3585,7 @@ function FilterControls({
                                     background: "#fff",
                                     minHeight: isOverlay ? "28px" : isMobile ? "40px" : "32px",
                                     width: isOverlay ? "100%" : isMobile ? "100%" : "auto",
+                                    ...overlaySelectStyle,
                                 }}
                             >
                                 <option value="all">All</option>
@@ -3301,8 +3596,26 @@ function FilterControls({
                             </select>
                         </div>
 
-                        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexDirection: isOverlay ? "column" : "row" }}>
-                            <span style={{ fontSize: isOverlay ? "0.72rem" : controlFontSize, fontWeight: 600, alignSelf: isOverlay ? "flex-start" : "auto" }}>Status:</span>
+                        <div
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: isOverlay ? "2px" : "6px",
+                                flexDirection: isOverlay ? "column" : "row",
+                                ...desktopCompactGroupStyle,
+                                ...overlayFieldGroupStyle,
+                            }}
+                        >
+                            <span
+                                style={{
+                                    fontSize: isOverlay ? "0.72rem" : controlFontSize,
+                                    fontWeight: 600,
+                                    alignSelf: isOverlay ? "flex-start" : "auto",
+                                    ...overlayLabelStyle,
+                                }}
+                            >
+                                Status
+                            </span>
                             <select
                                 value={statusFilter}
                                 onChange={(e) => setStatusFilter(e.target.value)}
@@ -3314,6 +3627,7 @@ function FilterControls({
                                     background: "#fff",
                                     minHeight: isOverlay ? "28px" : isMobile ? "40px" : "32px",
                                     width: isOverlay ? "100%" : isMobile ? "100%" : "auto",
+                                    ...overlaySelectStyle,
                                 }}
                             >
                                 <option value="all">All</option>
@@ -3322,53 +3636,143 @@ function FilterControls({
                             </select>
                         </div>
 
-                        <button
-                            type="button"
-                            onClick={() => setIsLuneStationsVisible((prev) => !prev)}
-                            style={{
-                                border: isLuneStationsVisible ? "1px solid #0f766e" : "1px solid #99f6e4",
-                                borderRadius: isOverlay ? "4px" : UI_TOKENS.radius.pill,
-                                padding: isOverlay ? "5px 6px" : isMobile ? "9px 10px" : "5px 10px",
-                                fontSize: isOverlay ? "0.78rem" : controlFontSize,
-                                background: isLuneStationsVisible
-                                    ? "linear-gradient(135deg, #ccfbf1, #ecfeff)"
-                                    : "linear-gradient(135deg, #f8fafc, #ffffff)",
-                                color: isLuneStationsVisible ? "#115e59" : "#475569",
-                                minHeight: isOverlay ? "28px" : isMobile ? "40px" : "32px",
-                                width: isOverlay ? "100%" : isMobile ? "100%" : "auto",
-                                fontWeight: 700,
-                                cursor: "pointer",
-                            }}
-                            aria-pressed={isLuneStationsVisible}
-                            aria-label={isLuneStationsVisible ? "Hide sensor stations" : "Show sensor stations"}
-                        >
-                            {isLuneStationsVisible ? "Sensor Stations: On" : "Sensor Stations: Off"}
-                        </button>
+                        {useDesktopCompactLayout ? (
+                            <div
+                                style={{
+                                    gridColumn: "1 / -1",
+                                    ...desktopCompactGroupStyle,
+                                }}
+                            >
+                                <div style={desktopPillRowStyle}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsLuneStationsVisible((prev) => !prev)}
+                                        style={{
+                                            ...desktopPillButtonBaseStyle,
+                                            border: isLuneStationsVisible ? "1px solid #0f766e" : "1px solid #99f6e4",
+                                            background: isLuneStationsVisible
+                                                ? "linear-gradient(135deg, #ccfbf1, #ecfeff)"
+                                                : "linear-gradient(135deg, #f8fafc, #ffffff)",
+                                            color: isLuneStationsVisible ? "#115e59" : "#475569",
+                                        }}
+                                        aria-pressed={isLuneStationsVisible}
+                                        aria-label={isLuneStationsVisible ? "Hide sensor stations" : "Show sensor stations"}
+                                    >
+                                        {isLuneStationsVisible ? "Sensor Stations: On" : "Sensor Stations: Off"}
+                                    </button>
 
-                        <button
-                            type="button"
-                            onClick={() => setIsContributorsVisible((prev) => !prev)}
-                            style={{
-                                border: isContributorsVisible ? "1px solid #ca8a04" : "1px solid #fcd34d",
-                                borderRadius: isOverlay ? "4px" : UI_TOKENS.radius.pill,
-                                padding: isOverlay ? "5px 6px" : isMobile ? "9px 10px" : "5px 10px",
-                                fontSize: isOverlay ? "0.78rem" : controlFontSize,
-                                background: isContributorsVisible
-                                    ? "linear-gradient(135deg, #fef3c7, #fffbeb)"
-                                    : "linear-gradient(135deg, #f8fafc, #ffffff)",
-                                color: isContributorsVisible ? "#854d0e" : "#475569",
-                                minHeight: isOverlay ? "28px" : isMobile ? "40px" : "32px",
-                                width: isOverlay ? "100%" : isMobile ? "100%" : "auto",
-                                fontWeight: 700,
-                                cursor: "pointer",
-                            }}
-                            aria-pressed={isContributorsVisible}
-                            aria-label={isContributorsVisible ? "Hide contributors" : "Show contributors"}
-                        >
-                            {isContributorsVisible ? "Contributors: On" : "Contributors: Off"}
-                        </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsRegionalFlowStationsVisible((prev) => !prev)}
+                                        style={{
+                                            ...desktopPillButtonBaseStyle,
+                                            border: isRegionalFlowStationsVisible ? "1px solid #0369a1" : "1px solid #bae6fd",
+                                            background: isRegionalFlowStationsVisible
+                                                ? "linear-gradient(135deg, #e0f2fe, #f0f9ff)"
+                                                : "linear-gradient(135deg, #f8fafc, #ffffff)",
+                                            color: isRegionalFlowStationsVisible ? "#0c4a6e" : "#475569",
+                                        }}
+                                        aria-pressed={isRegionalFlowStationsVisible}
+                                        aria-label={isRegionalFlowStationsVisible ? "Hide regional stations" : "Show regional stations"}
+                                    >
+                                        {isRegionalFlowStationsVisible ? "Regional Stations: On" : "Regional Stations: Off"}
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsContributorsVisible((prev) => !prev)}
+                                        style={{
+                                            ...desktopPillButtonBaseStyle,
+                                            border: isContributorsVisible ? "1px solid #ca8a04" : "1px solid #fcd34d",
+                                            background: isContributorsVisible
+                                                ? "linear-gradient(135deg, #fef3c7, #fffbeb)"
+                                                : "linear-gradient(135deg, #f8fafc, #ffffff)",
+                                            color: isContributorsVisible ? "#854d0e" : "#475569",
+                                        }}
+                                        aria-pressed={isContributorsVisible}
+                                        aria-label={isContributorsVisible ? "Hide contributors" : "Show contributors"}
+                                    >
+                                        {isContributorsVisible ? "Contributors: On" : "Contributors: Off"}
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsLuneStationsVisible((prev) => !prev)}
+                                    style={{
+                                        border: isLuneStationsVisible ? "1px solid #0f766e" : "1px solid #99f6e4",
+                                        borderRadius: isOverlay ? "4px" : UI_TOKENS.radius.pill,
+                                        padding: isOverlay ? "5px 6px" : isMobile ? "9px 10px" : "5px 10px",
+                                        fontSize: isOverlay ? "0.78rem" : controlFontSize,
+                                        background: isLuneStationsVisible
+                                            ? "linear-gradient(135deg, #ccfbf1, #ecfeff)"
+                                            : "linear-gradient(135deg, #f8fafc, #ffffff)",
+                                        color: isLuneStationsVisible ? "#115e59" : "#475569",
+                                        minHeight: isOverlay ? "28px" : isMobile ? "40px" : "32px",
+                                        width: isOverlay ? "100%" : isMobile ? "100%" : "auto",
+                                        fontWeight: 700,
+                                        cursor: "pointer",
+                                        ...overlayToggleButtonStyle,
+                                    }}
+                                    aria-pressed={isLuneStationsVisible}
+                                    aria-label={isLuneStationsVisible ? "Hide sensor stations" : "Show sensor stations"}
+                                >
+                                    {isLuneStationsVisible ? "Sensor Stations: On" : "Sensor Stations: Off"}
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setIsRegionalFlowStationsVisible((prev) => !prev)}
+                                    style={{
+                                        border: isRegionalFlowStationsVisible ? "1px solid #0369a1" : "1px solid #bae6fd",
+                                        borderRadius: isOverlay ? "4px" : UI_TOKENS.radius.pill,
+                                        padding: isOverlay ? "5px 6px" : isMobile ? "9px 10px" : "5px 10px",
+                                        fontSize: isOverlay ? "0.78rem" : controlFontSize,
+                                        background: isRegionalFlowStationsVisible
+                                            ? "linear-gradient(135deg, #e0f2fe, #f0f9ff)"
+                                            : "linear-gradient(135deg, #f8fafc, #ffffff)",
+                                        color: isRegionalFlowStationsVisible ? "#0c4a6e" : "#475569",
+                                        minHeight: isOverlay ? "28px" : isMobile ? "40px" : "32px",
+                                        width: isOverlay ? "100%" : isMobile ? "100%" : "auto",
+                                        fontWeight: 700,
+                                        cursor: "pointer",
+                                        ...overlayToggleButtonStyle,
+                                    }}
+                                    aria-pressed={isRegionalFlowStationsVisible}
+                                    aria-label={isRegionalFlowStationsVisible ? "Hide regional stations" : "Show regional stations"}
+                                >
+                                    {isRegionalFlowStationsVisible ? "Regional Stations: On" : "Regional Stations: Off"}
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setIsContributorsVisible((prev) => !prev)}
+                                    style={{
+                                        border: isContributorsVisible ? "1px solid #ca8a04" : "1px solid #fcd34d",
+                                        borderRadius: isOverlay ? "4px" : UI_TOKENS.radius.pill,
+                                        padding: isOverlay ? "5px 6px" : isMobile ? "9px 10px" : "5px 10px",
+                                        fontSize: isOverlay ? "0.78rem" : controlFontSize,
+                                        background: isContributorsVisible
+                                            ? "linear-gradient(135deg, #fef3c7, #fffbeb)"
+                                            : "linear-gradient(135deg, #f8fafc, #ffffff)",
+                                        color: isContributorsVisible ? "#854d0e" : "#475569",
+                                        minHeight: isOverlay ? "28px" : isMobile ? "40px" : "32px",
+                                        width: isOverlay ? "100%" : isMobile ? "100%" : "auto",
+                                        fontWeight: 700,
+                                        cursor: "pointer",
+                                        ...overlayToggleButtonStyle,
+                                    }}
+                                    aria-pressed={isContributorsVisible}
+                                    aria-label={isContributorsVisible ? "Hide contributors" : "Show contributors"}
+                                >
+                                    {isContributorsVisible ? "Contributors: On" : "Contributors: Off"}
+                                </button>
+                            </>
+                        )}
                     </>
-                )}
+                ))}
             </div>
         </div>
     );
@@ -5404,11 +5808,10 @@ function SelectedItemDrawer({
 }
 
 function StationPopupContent({ station, reading }) {
-    const fallbackParameterName = Array.isArray(station?.measures)
-        ? station.measures.find((measure) => typeof measure?.parameterName === "string")?.parameterName
-        : "";
+    const fallbackParameterName = getEaPrimaryMeasure(station, "level")?.parameterName || "";
 
     const parameterName = reading?.parameterName || fallbackParameterName || "Latest reading";
+    const sensorSubLabel = station?.riverName ? `${station.riverName} · EA Sensor` : "EA Sensor";
     const timestampText = formatEaReadingDateTime(reading?.dateTime);
     const rawValue = Number(reading?.value);
     const hasValue = Number.isFinite(rawValue);
@@ -5432,6 +5835,23 @@ function StationPopupContent({ station, reading }) {
               ? "#c2410c"
               : "#334155";
     const trendSymbol = trendDirection === "up" ? "↑" : trendDirection === "down" ? "↓" : "→";
+    const flowRawValue = Number(reading?.flowValue);
+    const hasFlowValue = Number.isFinite(flowRawValue);
+    const flowValueText = hasFlowValue
+        ? flowRawValue.toLocaleString(undefined, { maximumFractionDigits: 3 })
+        : "";
+    const flowUnit = reading?.flowUnitName || "";
+    const flowDateText = formatEaReadingDateTime(reading?.flowDateTime);
+    const flowTrendDirection = typeof reading?.flowTrendDirection === "string" ? reading.flowTrendDirection : "flat";
+    const flowTrendLabel = typeof reading?.flowTrendLabel === "string" && reading.flowTrendLabel ? reading.flowTrendLabel : "Stable";
+    const flowTrendColor =
+        flowTrendDirection === "up"
+            ? "#047857"
+            : flowTrendDirection === "down"
+              ? "#c2410c"
+              : "#334155";
+    const isMainMeasureFlow = /flow/i.test(parameterName);
+    const shouldShowFlowRow = hasFlowValue && flowRawValue !== 0 && !isMainMeasureFlow;
     const recentReadings = Array.isArray(reading?.recentReadings) ? reading.recentReadings.slice(0, 3) : [];
     const [activeRecentIndex, setActiveRecentIndex] = useState(0);
 
@@ -5460,7 +5880,7 @@ function StationPopupContent({ station, reading }) {
         >
             <div style={{ display: "grid", gap: "3px" }}>
                 <div style={{ fontWeight: 800, fontSize: "0.92rem", lineHeight: 1.2 }}>{station?.label || "EA Station"}</div>
-                <div style={{ fontSize: "0.72rem", color: "#0f766e", fontWeight: 700 }}>River Lune · EA Sensor</div>
+                <div style={{ fontSize: "0.72rem", color: "#0f766e", fontWeight: 700 }}>{sensorSubLabel}</div>
             </div>
 
             <div
@@ -5499,6 +5919,40 @@ function StationPopupContent({ station, reading }) {
                 </div>
                 {reading?.error && !reading?.loading ? (
                     <div style={{ fontSize: "0.72rem", color: "#b91c1c" }}>Could not load current value.</div>
+                ) : null}
+                {shouldShowFlowRow ? (
+                    <div
+                        style={{
+                            marginTop: "2px",
+                            borderTop: "1px solid #ccfbf1",
+                            paddingTop: "4px",
+                            display: "grid",
+                            gap: "3px",
+                        }}
+                    >
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "6px" }}>
+                            <div style={{ fontSize: "0.68rem", color: "#0f766e", fontWeight: 700, letterSpacing: "0.02em" }}>FLOW</div>
+                            <div
+                                style={{
+                                    border: `1px solid ${flowTrendColor === "#334155" ? "#cbd5e1" : flowTrendColor}`,
+                                    background: "#ffffff",
+                                    color: flowTrendColor,
+                                    fontSize: "0.67rem",
+                                    fontWeight: 800,
+                                    borderRadius: "999px",
+                                    padding: "2px 7px",
+                                    whiteSpace: "nowrap",
+                                }}
+                            >
+                                {flowTrendDirection === "up" ? "↑" : flowTrendDirection === "down" ? "↓" : "→"} {flowTrendLabel}
+                            </div>
+                        </div>
+                        <div style={{ fontSize: "0.8rem", color: "#134e4a", fontWeight: 800 }}>
+                            {flowValueText}
+                            {flowUnit ? ` ${flowUnit}` : ""}
+                        </div>
+                        {flowDateText ? <div style={{ fontSize: "0.68rem", color: "#475569" }}>Updated {flowDateText}</div> : null}
+                    </div>
                 ) : null}
                 {!reading?.loading && !reading?.error && recentReadings.length ? (
                     <div
@@ -6222,6 +6676,9 @@ function App() {
     const [luneStations, setLuneStations] = useState([]);
     const [luneStationReadings, setLuneStationReadings] = useState({});
     const [isLuneStationsVisible, setIsLuneStationsVisible] = useState(true);
+    const [regionalFlowStations, setRegionalFlowStations] = useState([]);
+    const [regionalFlowReadings, setRegionalFlowReadings] = useState({});
+    const [isRegionalFlowStationsVisible, setIsRegionalFlowStationsVisible] = useState(true);
     const [isContributorsVisible, setIsContributorsVisible] = useState(true);
     const [contributors, setContributors] = useState([]);
     const [selectedContributorId, setSelectedContributorId] = useState(null);
@@ -6483,15 +6940,15 @@ function App() {
 
             const payload = await response.json();
             const stationItems = Array.isArray(payload?.items) ? payload.items : [];
-            const filteredStations = stationItems.filter((station) => {
-                const lat = Number(station?.lat);
-                const lng = Number(station?.long);
-                return (
-                    station?.riverName === EA_TARGET_RIVER_NAME
-                    && Number.isFinite(lat)
-                    && Number.isFinite(lng)
-                );
-            });
+            const filteredStations = getUniqueEaStationsByKey(
+                stationItems.filter((station) =>
+                    isValidEaStationRecord(station, {
+                        expectedRiverName: EA_TARGET_RIVER_NAME,
+                        requirePrimaryMeasure: true,
+                        preferredParameter: "level",
+                    }),
+                ),
+            );
 
             setLuneStations(filteredStations);
             if (!filteredStations.length) {
@@ -6506,17 +6963,52 @@ function App() {
         }
     };
 
-    const fetchLuneStationReadings = async (stations) => {
+    const fetchRegionalFlowStations = async () => {
+        try {
+            const response = await fetch(EA_REGIONAL_FLOW_STATIONS_URL, { cache: "no-store" });
+            if (!response.ok) {
+                throw new Error("Could not load regional flow stations");
+            }
+
+            const payload = await response.json();
+            const stationItems = Array.isArray(payload?.items) ? payload.items : [];
+            const filteredStations = getUniqueEaStationsByKey(
+                stationItems.filter((station) =>
+                    isValidEaStationRecord(station, {
+                        requireFlowMeasure: true,
+                        requirePrimaryMeasure: true,
+                        preferredParameter: "flow",
+                    }),
+                ),
+            );
+
+            setRegionalFlowStations(filteredStations);
+            if (!filteredStations.length) {
+                setRegionalFlowReadings({});
+            }
+
+            return filteredStations;
+        } catch {
+            setRegionalFlowStations([]);
+            setRegionalFlowReadings({});
+            return [];
+        }
+    };
+
+    const fetchStationReadings = async ({
+        stations,
+        setReadings,
+        preferredParameter = "level",
+        includeFlowSupplement = true,
+    }) => {
         if (!Array.isArray(stations) || !stations.length) {
-            setLuneStationReadings({});
+            setReadings({});
             return;
         }
 
-        const stationKeys = stations.map((station) =>
-            station?.stationReference || station?.notation || station?.["@id"],
-        );
+        const stationKeys = stations.map((station) => getEaStationKey(station));
 
-        setLuneStationReadings((prev) => {
+        setReadings((prev) => {
             const next = { ...prev };
 
             stationKeys.forEach((key) => {
@@ -6533,121 +7025,80 @@ function App() {
 
         const updates = await Promise.all(
             stations.map(async (station) => {
-                const key = station?.stationReference || station?.notation || station?.["@id"];
+                const key = getEaStationKey(station);
                 if (!key) return null;
 
-                const firstMeasure = Array.isArray(station?.measures)
-                    ? station.measures.find((measure) => typeof measure?.["@id"] === "string")
-                    : null;
-                const measureId = extractEaMeasureId(firstMeasure?.["@id"]);
+                const primaryMeasure = getEaPrimaryMeasure(station, preferredParameter);
+                const primaryMeasureId = extractEaMeasureId(primaryMeasure?.["@id"]);
+                const flowMeasure = includeFlowSupplement ? getEaMeasureByParameter(station, "flow") : null;
+                const flowMeasureId = extractEaMeasureId(flowMeasure?.["@id"]);
+                const shouldFetchFlow = Boolean(flowMeasureId && flowMeasureId !== primaryMeasureId);
 
-                if (!measureId) {
+                if (!primaryMeasureId) {
                     return {
                         key,
-                        reading: {
-                            loading: false,
-                            error: "No measure available",
-                            value: null,
-                            unitName: firstMeasure?.unitName || "",
-                            dateTime: "",
-                            parameterName: firstMeasure?.parameterName || "",
-                            previousValue: null,
-                            previousUnitName: firstMeasure?.unitName || "",
-                            previousDateTime: "",
-                            previousAgeLabel: "",
-                            deltaValue: null,
-                            deltaDirection: "flat",
-                            trendLabel: "Trend unavailable",
-                            trendDirection: "flat",
-                            trendDeltaValue: null,
-                            recentReadings: [],
-                        },
+                        reading: buildEaEmptyReading({ primaryMeasure }),
                     };
                 }
 
                 try {
-                    const response = await fetch(buildEaReadingsUrl(measureId), { cache: "no-store" });
-                    if (!response.ok) {
-                        throw new Error("Could not load reading");
+                    const [primarySnapshot, flowSnapshot] = await Promise.all([
+                        fetchEaMeasureSnapshot(primaryMeasure),
+                        shouldFetchFlow ? fetchEaMeasureSnapshot(flowMeasure) : Promise.resolve(null),
+                    ]);
+
+                    const parsedPrimary = primarySnapshot?.parsed;
+                    const latest = parsedPrimary?.latest || null;
+                    const previous = parsedPrimary?.previous || null;
+
+                    let flowValue = null;
+                    let flowDateTime = "";
+                    let flowTrendDirection = "flat";
+                    let flowTrendLabel = "";
+
+                    if (flowSnapshot?.parsed?.latest) {
+                        flowValue = flowSnapshot.parsed.latest.value ?? null;
+                        flowDateTime = flowSnapshot.parsed.latest.dateTime || "";
+                        flowTrendDirection = flowSnapshot.parsed.trend?.direction || "flat";
+                        flowTrendLabel = flowSnapshot.parsed.trend?.label || "";
                     }
-
-                    const payload = await response.json();
-                    const items = Array.isArray(payload?.items) ? payload.items : [];
-                    const sortedReadings = [...items].sort((a, b) => {
-                        const aTime = new Date(a?.dateTime || "").getTime();
-                        const bTime = new Date(b?.dateTime || "").getTime();
-
-                        if (!Number.isFinite(aTime) && !Number.isFinite(bTime)) return 0;
-                        if (!Number.isFinite(aTime)) return 1;
-                        if (!Number.isFinite(bTime)) return -1;
-
-                        return bTime - aTime;
-                    });
-                    const latest = sortedReadings[0] || null;
-                    const previous = sortedReadings[1] || null;
-                    const latestValue = Number(latest?.value);
-                    const previousValue = Number(previous?.value);
-                    const hasDelta = Number.isFinite(latestValue) && Number.isFinite(previousValue);
-                    const deltaValue = hasDelta ? latestValue - previousValue : null;
-                    const deltaDirection = getEaDeltaDirection(deltaValue);
-                    const recentReadings = sortedReadings
-                        .filter((item) => Number.isFinite(Number(item?.value)))
-                        .slice(0, 3)
-                        .map((item) => ({
-                            value: Number(item?.value),
-                            dateTime: item?.dateTime || "",
-                            ageLabel: formatEaRelativeAge(item?.dateTime || "") || "",
-                        }));
-                    const trend = inferEaTrendFromRecentReadings(recentReadings);
 
                     return {
                         key,
                         reading: {
                             loading: false,
-                            error: latest ? "" : "No readings yet",
+                            error: primarySnapshot?.error || "",
                             value: latest?.value ?? null,
-                            unitName: firstMeasure?.unitName || "",
+                            unitName: primaryMeasure?.unitName || "",
                             dateTime: latest?.dateTime || "",
-                            parameterName: firstMeasure?.parameterName || "",
+                            parameterName: primaryMeasure?.parameterName || "",
                             previousValue: previous?.value ?? null,
-                            previousUnitName: firstMeasure?.unitName || "",
+                            previousUnitName: primaryMeasure?.unitName || "",
                             previousDateTime: previous?.dateTime || "",
                             previousAgeLabel: formatEaRelativeAge(previous?.dateTime || "") || "",
-                            deltaValue,
-                            deltaDirection,
-                            trendLabel: trend.label,
-                            trendDirection: trend.direction,
-                            trendDeltaValue: trend.deltaValue,
-                            recentReadings,
+                            deltaValue: parsedPrimary?.deltaValue ?? null,
+                            deltaDirection: parsedPrimary?.deltaDirection || "flat",
+                            trendLabel: parsedPrimary?.trend?.label || "Trend unavailable",
+                            trendDirection: parsedPrimary?.trend?.direction || "flat",
+                            trendDeltaValue: parsedPrimary?.trend?.deltaValue ?? null,
+                            recentReadings: parsedPrimary?.recentReadings || [],
+                            flowValue,
+                            flowUnitName: flowMeasure?.unitName || "",
+                            flowDateTime,
+                            flowTrendLabel,
+                            flowTrendDirection,
                         },
                     };
                 } catch {
                     return {
                         key,
-                        reading: {
-                            loading: false,
-                            error: "Unavailable",
-                            value: null,
-                            unitName: firstMeasure?.unitName || "",
-                            dateTime: "",
-                            parameterName: firstMeasure?.parameterName || "",
-                            previousValue: null,
-                            previousUnitName: firstMeasure?.unitName || "",
-                            previousDateTime: "",
-                            previousAgeLabel: "",
-                            deltaValue: null,
-                            deltaDirection: "flat",
-                            trendLabel: "Trend unavailable",
-                            trendDirection: "flat",
-                            trendDeltaValue: null,
-                            recentReadings: [],
-                        },
+                        reading: buildEaEmptyReading({ primaryMeasure, error: "Unavailable" }),
                     };
                 }
             }),
         );
 
-        setLuneStationReadings((prev) => {
+        setReadings((prev) => {
             const next = { ...prev };
 
             updates.forEach((update) => {
@@ -6656,6 +7107,24 @@ function App() {
             });
 
             return next;
+        });
+    };
+
+    const fetchLuneStationReadings = async (stations) => {
+        await fetchStationReadings({
+            stations,
+            setReadings: setLuneStationReadings,
+            preferredParameter: "level",
+            includeFlowSupplement: true,
+        });
+    };
+
+    const fetchRegionalFlowReadings = async (stations) => {
+        await fetchStationReadings({
+            stations,
+            setReadings: setRegionalFlowReadings,
+            preferredParameter: "flow",
+            includeFlowSupplement: false,
         });
     };
 
@@ -6809,6 +7278,14 @@ function App() {
     }, []);
 
     useEffect(() => {
+        const cancelIdle = deferUntilIdle(() => {
+            void fetchRegionalFlowStations();
+        }, 3200);
+
+        return cancelIdle;
+    }, []);
+
+    useEffect(() => {
         if (!luneStations.length) return undefined;
 
         void fetchLuneStationReadings(luneStations);
@@ -6820,6 +7297,19 @@ function App() {
             window.clearInterval(intervalId);
         };
     }, [luneStations]);
+
+    useEffect(() => {
+        if (!regionalFlowStations.length) return undefined;
+
+        void fetchRegionalFlowReadings(regionalFlowStations);
+        const intervalId = window.setInterval(() => {
+            void fetchRegionalFlowReadings(regionalFlowStations);
+        }, EA_READINGS_REFRESH_MS);
+
+        return () => {
+            window.clearInterval(intervalId);
+        };
+    }, [regionalFlowStations]);
 
     useEffect(() => {
         const cancelIdle = deferUntilIdle(() => {
@@ -7522,9 +8012,14 @@ function App() {
 
             if (!liveLocation || hasCenteredRef.current) return;
 
+            // When radar is active, only pan to the user — don't fight its zoom constraint
+            const targetZoom = isWeatherOverlayEnabled
+                ? map.getZoom()
+                : Math.max(map.getZoom(), 16);
+
             map.flyTo(
                 [liveLocation.latitude, liveLocation.longitude],
-                Math.max(map.getZoom(), 16),
+                targetZoom,
                 { duration: 0.8 },
             );
             hasCenteredRef.current = true;
@@ -8088,7 +8583,15 @@ function App() {
     const controlFontSize = isMobile ? "0.95rem" : "0.85rem";
     const touchButtonSize = isMobile ? "38px" : "30px";
     const activeFilterCount =
-        Number(typeFilter !== "all") + Number(statusFilter !== "all") + Number(!isLuneStationsVisible) + Number(!isContributorsVisible);
+        Number(typeFilter !== "all")
+        + Number(statusFilter !== "all")
+        + Number(!isLuneStationsVisible)
+        + Number(!isRegionalFlowStationsVisible)
+        + Number(!isContributorsVisible);
+    const luneStationKeySet = useMemo(
+        () => new Set(luneStations.map((station) => getEaStationKey(station)).filter(Boolean)),
+        [luneStations],
+    );
     const selectedItem = useMemo(
         () => (selectedItemId ? items.find((item) => item.id === selectedItemId) || null : null),
         [items, selectedItemId],
@@ -8815,7 +9318,7 @@ function App() {
                               const lng = Number(station?.long);
                               if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
 
-                              const stationKey = station?.stationReference || station?.notation || station?.["@id"];
+                              const stationKey = getEaStationKey(station);
                               if (!stationKey) return null;
 
                               return (
@@ -8824,6 +9327,32 @@ function App() {
                                           <StationPopupContent
                                               station={station}
                                               reading={luneStationReadings[stationKey]}
+                                          />
+                                      </Popup>
+                                  </Marker>
+                              );
+                          })
+                        : null}
+
+                    {isRegionalFlowStationsVisible
+                        ? regionalFlowStations.map((station) => {
+                              const lat = Number(station?.lat);
+                              const lng = Number(station?.long);
+                              if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+                              const stationKey = getEaStationKey(station);
+                              if (!stationKey || luneStationKeySet.has(stationKey)) return null;
+
+                              const reading = regionalFlowReadings[stationKey];
+                              const hasValidReading = Number.isFinite(Number(reading?.value));
+                              if (!reading || reading.loading || !hasValidReading || reading.error) return null;
+
+                              return (
+                                  <Marker key={`flow-${stationKey}`} position={[lat, lng]} icon={getFlowStationIcon()}>
+                                      <Popup>
+                                          <StationPopupContent
+                                              station={station}
+                                              reading={regionalFlowReadings[stationKey]}
                                           />
                                       </Popup>
                                   </Marker>
@@ -8920,8 +9449,10 @@ function App() {
                         typeFilter={typeFilter}
                         statusFilter={statusFilter}
                         isLuneStationsVisible={isLuneStationsVisible}
+                        isRegionalFlowStationsVisible={isRegionalFlowStationsVisible}
                         isContributorsVisible={isContributorsVisible}
                         setIsLuneStationsVisible={setIsLuneStationsVisible}
+                        setIsRegionalFlowStationsVisible={setIsRegionalFlowStationsVisible}
                         setIsContributorsVisible={setIsContributorsVisible}
                         setTypeFilter={setTypeFilter}
                         setStatusFilter={setStatusFilter}
@@ -8947,12 +9478,12 @@ function App() {
                     style={{
                         position: "absolute",
                         bottom: isMobile ? "28px" : "22px",
-                        right: "10px",
+                        left: "10px",
                         zIndex: 900,
                         display: "flex",
                         flexDirection: "column",
                         gap: "6px",
-                        alignItems: "flex-end",
+                        alignItems: "flex-start",
                     }}
                 >
                     <button
@@ -8985,7 +9516,7 @@ function App() {
                             gap: "8px",
                             opacity: isMapToolsOpen ? 1 : 0,
                             transform: isMapToolsOpen ? "translateY(0) scale(1)" : "translateY(8px) scale(0.98)",
-                            transformOrigin: "bottom right",
+                            transformOrigin: "bottom left",
                             transition: "opacity 180ms ease, transform 220ms ease",
                             pointerEvents: isMapToolsOpen ? "auto" : "none",
                         }}
@@ -9200,8 +9731,10 @@ function App() {
                             typeFilter={typeFilter}
                             statusFilter={statusFilter}
                             isLuneStationsVisible={isLuneStationsVisible}
+                            isRegionalFlowStationsVisible={isRegionalFlowStationsVisible}
                             isContributorsVisible={isContributorsVisible}
                             setIsLuneStationsVisible={setIsLuneStationsVisible}
+                            setIsRegionalFlowStationsVisible={setIsRegionalFlowStationsVisible}
                             setIsContributorsVisible={setIsContributorsVisible}
                             setTypeFilter={setTypeFilter}
                             setStatusFilter={setStatusFilter}
