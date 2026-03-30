@@ -8817,7 +8817,8 @@ function App() {
                 margin: "0 auto",
                 borderRadius: isMobile ? UI_TOKENS.radius.lg : "24px",
                 border: "1px solid rgba(148,163,184,0.35)",
-                background: "linear-gradient(180deg, rgba(255,255,255,0.88) 0%, rgba(248,250,252,0.9) 100%)",
+                background:
+                    "linear-gradient(180deg, rgba(255,255,255,0.88) 0%, rgba(248,250,252,0.9) 100%)",
                 boxShadow: isMobile
                     ? "0 12px 30px rgba(15,23,42,0.14)"
                     : "0 20px 50px rgba(15,23,42,0.14)",
@@ -8871,9 +8872,15 @@ function App() {
                 isWeatherOverlayEnabled={isWeatherOverlayEnabled}
                 isContributorsVisible={isContributorsVisible}
                 weatherOverlayUpdatedLabel={weatherOverlayUpdatedLabel}
-                onToggleTidePlanner={() => setIsTidePlannerCollapsed((prev) => !prev)}
-                onToggleWeatherOverlay={() => setIsWeatherOverlayEnabled((prev) => !prev)}
-                onToggleContributors={() => setIsContributorsVisible((prev) => !prev)}
+                onToggleTidePlanner={() =>
+                    setIsTidePlannerCollapsed((prev) => !prev)
+                }
+                onToggleWeatherOverlay={() =>
+                    setIsWeatherOverlayEnabled((prev) => !prev)
+                }
+                onToggleContributors={() =>
+                    setIsContributorsVisible((prev) => !prev)
+                }
             />
 
             {isDeferredUiReady ? (
@@ -8976,14 +8983,19 @@ function App() {
                             maxNativeZoom={RAINVIEWER_MAX_SUPPORTED_ZOOM}
                         />
                     ) : null}
-                    <WeatherOverlayZoomGuard isWeatherOverlayEnabled={isWeatherOverlayEnabled} />
+                    <WeatherOverlayZoomGuard
+                        isWeatherOverlayEnabled={isWeatherOverlayEnabled}
+                    />
                     <MapInstanceBinder onMapReady={setMapInstance} />
                     <MapEvents />
                     <LiveLocationAutoCenter />
 
                     {isLiveLocationEnabled && liveLocation && (
                         <CircleMarker
-                            center={[liveLocation.latitude, liveLocation.longitude]}
+                            center={[
+                                liveLocation.latitude,
+                                liveLocation.longitude,
+                            ]}
                             radius={8}
                             pathOptions={{
                                 color: "#0284c7",
@@ -9031,11 +9043,15 @@ function App() {
                     />
 
                     <PublicReportOverlay
-                        reportLocation={canUsePublicReports ? reportLocation : null}
+                        reportLocation={
+                            canUsePublicReports ? reportLocation : null
+                        }
                         reportNote={reportNote}
                         reportStatus={reportStatus}
                         isMobile={isMobile}
-                        onNoteChange={(nextValue) => setReportNote(preserveReportNoteInput(nextValue))}
+                        onNoteChange={(nextValue) =>
+                            setReportNote(preserveReportNoteInput(nextValue))
+                        }
                         onOpenMessenger={handleOpenMessengerForReport}
                         onOpenEmail={handleOpenEmailForReport}
                         onCancel={() => {
@@ -9056,7 +9072,10 @@ function App() {
                             <Marker
                                 key={item.id}
                                 position={[gps.latitude, gps.longitude]}
-                                icon={getIcon(item.type, getItemCounts(item).isRecovered)}
+                                icon={getIcon(
+                                    item.type,
+                                    getItemCounts(item).isRecovered,
+                                )}
                                 eventHandlers={{
                                     click: () => {
                                         setSelectedItemId(item.id);
@@ -9071,18 +9090,28 @@ function App() {
                         ? contributors.map((contributor) => {
                               const lat = Number(contributor?.lat);
                               const lng = Number(contributor?.lng);
-                              const contributorMapsUrl = resolveContributorMapsUrl(contributor);
-                              if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+                              const contributorMapsUrl =
+                                  resolveContributorMapsUrl(contributor);
+                              if (
+                                  !Number.isFinite(lat) ||
+                                  !Number.isFinite(lng)
+                              )
+                                  return null;
 
                               return (
                                   <Marker
                                       key={`contributor-${contributor.id}`}
                                       position={[lat, lng]}
-                                      icon={getContributorIcon(contributor.logo_url, contributor.name)}
+                                      icon={getContributorIcon(
+                                          contributor.logo_url,
+                                          contributor.name,
+                                      )}
                                       eventHandlers={{
                                           click: (event) => {
                                               if (isMobile) {
-                                                  setSelectedContributorId(contributor.id);
+                                                  setSelectedContributorId(
+                                                      contributor.id,
+                                                  );
                                                   return;
                                               }
 
@@ -9099,228 +9128,297 @@ function App() {
                                               maxWidth={520}
                                               minWidth={260}
                                           >
-                                          <div
-                                              className="contributor-popup-content"
-                                              style={{
-                                                  display: "flex",
-                                                  flexDirection: "row",
-                                                  flexWrap: "wrap",
-                                                  alignItems: "stretch",
-                                                  gap: "8px",
-                                                  minWidth: 0,
-                                                  width: "min(468px, calc(100vw - 44px))",
-                                                  maxWidth: "100%",
-                                                  boxSizing: "border-box",
-                                              }}
-                                          >
                                               <div
-                                                  className="contributor-popup-panel contributor-popup-header"
+                                                  className="contributor-popup-content"
                                                   style={{
-                                                      borderRadius: "12px",
-                                                      border: "1px solid #dbe5f4",
-                                                      background: "linear-gradient(140deg, #f8fafc 0%, #eef4ff 100%)",
-                                                      display: "grid",
-                                                      justifyItems: "center",
-                                                      gap: "10px",
-                                                      padding: "12px 12px 10px",
-                                                      flex: "0 1 160px",
-                                                      minWidth: "136px",
-                                                      overflow: "hidden",
+                                                      display: "flex",
+                                                      flexDirection: "row",
+                                                      flexWrap: "wrap",
+                                                      alignItems: "stretch",
+                                                      gap: "8px",
+                                                      minWidth: 0,
+                                                      width: "min(468px, calc(100vw - 44px))",
+                                                      maxWidth: "100%",
+                                                      boxSizing: "border-box",
                                                   }}
                                               >
                                                   <div
-                                                      className="contributor-popup-logo-frame"
+                                                      className="contributor-popup-panel contributor-popup-header"
                                                       style={{
-                                                          width: "84px",
-                                                          height: "84px",
-                                                          borderRadius: "14px",
-                                                          border: "1px solid #cbd5e1",
-                                                          background: "#f8fafc",
-                                                          boxShadow: "inset 0 1px 0 rgba(255, 255, 255, 0.7)",
+                                                          borderRadius: "12px",
+                                                          border: "1px solid #dbe5f4",
+                                                          background:
+                                                              "linear-gradient(140deg, #f8fafc 0%, #eef4ff 100%)",
                                                           display: "grid",
-                                                          placeItems: "center",
+                                                          justifyItems:
+                                                              "center",
+                                                          gap: "10px",
+                                                          padding:
+                                                              "12px 12px 10px",
+                                                          flex: "0 1 160px",
+                                                          minWidth: "136px",
                                                           overflow: "hidden",
                                                       }}
                                                   >
-                                                      {contributor.logo_url ? (
-                                                          <img
-                                                              src={contributor.logo_url}
-                                                              alt={`${contributor.name || "Business"} logo`}
-                                                              className="contributor-popup-logo"
-                                                              style={{
-                                                                  width: "100%",
-                                                                  height: "100%",
-                                                                  maxWidth: "74px",
-                                                                  maxHeight: "74px",
-                                                                  objectFit: "contain",
-                                                                  borderRadius: "8px",
-                                                                  flexShrink: 0,
-                                                              }}
-                                                          />
-                                                      ) : (
-                                                          <div
-                                                              className="contributor-popup-logo-placeholder"
-                                                              aria-hidden="true"
-                                                              style={{
-                                                                  width: "100%",
-                                                                  height: "100%",
-                                                                  maxWidth: "74px",
-                                                                  maxHeight: "74px",
-                                                                  borderRadius: "10px",
-                                                                  border: "1px dashed #94a3b8",
-                                                                  background: "linear-gradient(140deg, #e2e8f0, #cbd5e1)",
-                                                                  flexShrink: 0,
-                                                              }}
-                                                          />
-                                                      )}
-                                                  </div>
-                                                  <div
-                                                      className="contributor-popup-title-row"
-                                                      style={{
-                                                          display: "flex",
-                                                          flexDirection: "column",
-                                                          alignItems: "center",
-                                                          gap: "4px",
-                                                          marginBottom: 0,
-                                                          minWidth: 0,
-                                                          width: "100%",
-                                                      }}
-                                                  >
-                                                      <strong
+                                                      <div
+                                                          className="contributor-popup-logo-frame"
                                                           style={{
-                                                              color: "#0f172a",
-                                                              fontSize: "0.94rem",
-                                                              fontWeight: 700,
-                                                              lineHeight: 1.2,
-                                                              overflowWrap: "anywhere",
-                                                              wordBreak: "break-word",
-                                                              textAlign: "center",
+                                                              width: "84px",
+                                                              height: "84px",
+                                                              borderRadius:
+                                                                  "14px",
+                                                              border: "1px solid #cbd5e1",
+                                                              background:
+                                                                  "#f8fafc",
+                                                              boxShadow:
+                                                                  "inset 0 1px 0 rgba(255, 255, 255, 0.7)",
+                                                              display: "grid",
+                                                              placeItems:
+                                                                  "center",
+                                                              overflow:
+                                                                  "hidden",
                                                           }}
                                                       >
-                                                          {contributor.name || "Contributor"}
-                                                      </strong>
-                                                      <span className="contributor-popup-badge">Contributed</span>
-                                                  </div>
-                                                  <div
-                                                      style={{
-                                                          display: "flex",
-                                                          flexDirection: "column",
-                                                          gap: "6px",
-                                                          width: "100%",
-                                                          minWidth: 0,
-                                                      }}
-                                                  >
-                                                      {contributor.website_url ? (
-                                                          <a
-                                                              href={contributor.website_url}
-                                                              target="_blank"
-                                                              rel="noreferrer"
+                                                          {contributor.logo_url ? (
+                                                              <img
+                                                                  src={
+                                                                      contributor.logo_url
+                                                                  }
+                                                                  alt={`${contributor.name || "Business"} logo`}
+                                                                  className="contributor-popup-logo"
+                                                                  style={{
+                                                                      width: "100%",
+                                                                      height: "100%",
+                                                                      maxWidth:
+                                                                          "74px",
+                                                                      maxHeight:
+                                                                          "74px",
+                                                                      objectFit:
+                                                                          "contain",
+                                                                      borderRadius:
+                                                                          "8px",
+                                                                      flexShrink: 0,
+                                                                  }}
+                                                              />
+                                                          ) : (
+                                                              <div
+                                                                  className="contributor-popup-logo-placeholder"
+                                                                  aria-hidden="true"
+                                                                  style={{
+                                                                      width: "100%",
+                                                                      height: "100%",
+                                                                      maxWidth:
+                                                                          "74px",
+                                                                      maxHeight:
+                                                                          "74px",
+                                                                      borderRadius:
+                                                                          "10px",
+                                                                      border: "1px dashed #94a3b8",
+                                                                      background:
+                                                                          "linear-gradient(140deg, #e2e8f0, #cbd5e1)",
+                                                                      flexShrink: 0,
+                                                                  }}
+                                                              />
+                                                          )}
+                                                      </div>
+                                                      <div
+                                                          className="contributor-popup-title-row"
+                                                          style={{
+                                                              display: "flex",
+                                                              flexDirection:
+                                                                  "column",
+                                                              alignItems:
+                                                                  "center",
+                                                              gap: "4px",
+                                                              marginBottom: 0,
+                                                              minWidth: 0,
+                                                              width: "100%",
+                                                          }}
+                                                      >
+                                                          <strong
                                                               style={{
-                                                                  display: "inline-flex",
-                                                                  justifyContent: "center",
-                                                                  alignItems: "center",
-                                                                  width: "100%",
-                                                                  minHeight: "30px",
-                                                                  padding: "0 9px",
-                                                                  borderRadius: "999px",
-                                                                  border: "1px solid #93c5fd",
-                                                                  background: "#eff6ff",
-                                                                  color: "#1d4ed8",
-                                                                  fontSize: "0.74rem",
+                                                                  color: "#0f172a",
+                                                                  fontSize:
+                                                                      "0.94rem",
                                                                   fontWeight: 700,
-                                                                  textDecoration: "none",
-                                                                  boxSizing: "border-box",
+                                                                  lineHeight: 1.2,
+                                                                  overflowWrap:
+                                                                      "anywhere",
+                                                                  wordBreak:
+                                                                      "break-word",
+                                                                  textAlign:
+                                                                      "center",
                                                               }}
                                                           >
-                                                              Visit Website
-                                                          </a>
-                                                      ) : null}
-                                                      {contributorMapsUrl ? (
-                                                          <a
-                                                              href={contributorMapsUrl}
-                                                              target="_blank"
-                                                              rel="noreferrer"
-                                                              style={{
-                                                                  display: "inline-flex",
-                                                                  justifyContent: "center",
-                                                                  alignItems: "center",
-                                                                  width: "100%",
-                                                                  minHeight: "30px",
-                                                                  padding: "0 9px",
-                                                                  borderRadius: "999px",
-                                                                  border: "1px solid #2563eb",
-                                                                  background: "linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%)",
-                                                                  color: "#ffffff",
-                                                                  fontSize: "0.74rem",
-                                                                  fontWeight: 700,
-                                                                  textDecoration: "none",
-                                                                  boxSizing: "border-box",
-                                                              }}
-                                                          >
-                                                              Open In Google Maps
-                                                          </a>
-                                                      ) : null}
-                                                  </div>
-                                              </div>
-                                              <div
-                                                  className="contributor-popup-panel contributor-popup-details"
-                                                  style={{
-                                                      borderRadius: "12px",
-                                                      border: "1px solid #dbe5f4",
-                                                      background: "#ffffff",
-                                                      display: "grid",
-                                                      gap: "8px",
-                                                      flex: "1 1 240px",
-                                                      minWidth: 0,
-                                                      padding: "10px 11px",
-                                                      textAlign: "left",
-                                                      overflow: "hidden",
-                                                  }}
-                                              >
-                                                  {contributor.description ? (
+                                                              {contributor.name ||
+                                                                  "Contributor"}
+                                                          </strong>
+                                                          <span className="contributor-popup-badge">
+                                                              Contributed
+                                                          </span>
+                                                      </div>
                                                       <div
                                                           style={{
-                                                              borderRadius: "8px",
-                                                              border: "1px solid #e2e8f0",
-                                                              background: "#f8fafc",
-                                                              padding: "6px 7px",
-                                                              maxHeight: "108px",
-                                                              overflowX: "hidden",
-                                                              overflowY: "auto",
+                                                              display: "flex",
+                                                              flexDirection:
+                                                                  "column",
+                                                              gap: "6px",
+                                                              width: "100%",
+                                                              minWidth: 0,
                                                           }}
                                                       >
-                                                          <p
+                                                          {contributor.website_url ? (
+                                                              <a
+                                                                  href={
+                                                                      contributor.website_url
+                                                                  }
+                                                                  target="_blank"
+                                                                  rel="noreferrer"
+                                                                  style={{
+                                                                      display:
+                                                                          "inline-flex",
+                                                                      justifyContent:
+                                                                          "center",
+                                                                      alignItems:
+                                                                          "center",
+                                                                      width: "100%",
+                                                                      minHeight:
+                                                                          "30px",
+                                                                      padding:
+                                                                          "0 9px",
+                                                                      borderRadius:
+                                                                          "999px",
+                                                                      border: "1px solid #93c5fd",
+                                                                      background:
+                                                                          "#eff6ff",
+                                                                      color: "#1d4ed8",
+                                                                      fontSize:
+                                                                          "0.74rem",
+                                                                      fontWeight: 700,
+                                                                      textDecoration:
+                                                                          "none",
+                                                                      boxSizing:
+                                                                          "border-box",
+                                                                  }}
+                                                              >
+                                                                  Visit Website
+                                                              </a>
+                                                          ) : null}
+                                                          {contributorMapsUrl ? (
+                                                              <a
+                                                                  href={
+                                                                      contributorMapsUrl
+                                                                  }
+                                                                  target="_blank"
+                                                                  rel="noreferrer"
+                                                                  style={{
+                                                                      display:
+                                                                          "inline-flex",
+                                                                      justifyContent:
+                                                                          "center",
+                                                                      alignItems:
+                                                                          "center",
+                                                                      width: "100%",
+                                                                      minHeight:
+                                                                          "30px",
+                                                                      padding:
+                                                                          "0 9px",
+                                                                      borderRadius:
+                                                                          "999px",
+                                                                      border: "1px solid #2563eb",
+                                                                      background:
+                                                                          "linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%)",
+                                                                      color: "#ffffff",
+                                                                      fontSize:
+                                                                          "0.74rem",
+                                                                      fontWeight: 700,
+                                                                      textDecoration:
+                                                                          "none",
+                                                                      boxSizing:
+                                                                          "border-box",
+                                                                  }}
+                                                              >
+                                                                  Open In Google
+                                                                  Maps
+                                                              </a>
+                                                          ) : null}
+                                                      </div>
+                                                  </div>
+                                                  <div
+                                                      className="contributor-popup-panel contributor-popup-details"
+                                                      style={{
+                                                          borderRadius: "12px",
+                                                          border: "1px solid #dbe5f4",
+                                                          background: "#ffffff",
+                                                          display: "grid",
+                                                          gap: "8px",
+                                                          flex: "1 1 240px",
+                                                          minWidth: 0,
+                                                          padding: "10px 11px",
+                                                          textAlign: "left",
+                                                          overflow: "hidden",
+                                                      }}
+                                                  >
+                                                      {contributor.description ? (
+                                                          <div
                                                               style={{
-                                                                  margin: 0,
-                                                                  color: "#334155",
-                                                                  fontSize: "0.8rem",
-                                                                  lineHeight: 1.45,
-                                                                  overflowWrap: "anywhere",
-                                                                  wordBreak: "break-word",
+                                                                  borderRadius:
+                                                                      "8px",
+                                                                  border: "1px solid #e2e8f0",
+                                                                  background:
+                                                                      "#f8fafc",
+                                                                  padding:
+                                                                      "6px 7px",
+                                                                  maxHeight:
+                                                                      "108px",
+                                                                  overflowX:
+                                                                      "hidden",
+                                                                  overflowY:
+                                                                      "auto",
                                                               }}
                                                           >
-                                                              {contributor.description}
+                                                              <p
+                                                                  style={{
+                                                                      margin: 0,
+                                                                      color: "#334155",
+                                                                      fontSize:
+                                                                          "0.8rem",
+                                                                      lineHeight: 1.45,
+                                                                      overflowWrap:
+                                                                          "anywhere",
+                                                                      wordBreak:
+                                                                          "break-word",
+                                                                  }}
+                                                              >
+                                                                  {
+                                                                      contributor.description
+                                                                  }
+                                                              </p>
+                                                          </div>
+                                                      ) : null}
+                                                      {contributor.contribution_note ? (
+                                                          <p
+                                                              className="contributor-popup-note"
+                                                              style={{
+                                                                  margin: 0,
+                                                                  color: "#1e3a8a",
+                                                                  fontSize:
+                                                                      "0.8rem",
+                                                                  fontWeight: 600,
+                                                                  lineHeight: 1.45,
+                                                                  overflowWrap:
+                                                                      "anywhere",
+                                                                  wordBreak:
+                                                                      "break-word",
+                                                              }}
+                                                          >
+                                                              {
+                                                                  contributor.contribution_note
+                                                              }
                                                           </p>
-                                                      </div>
-                                                  ) : null}
-                                                  {contributor.contribution_note ? (
-                                                      <p
-                                                          className="contributor-popup-note"
-                                                          style={{
-                                                              margin: 0,
-                                                              color: "#1e3a8a",
-                                                              fontSize: "0.8rem",
-                                                              fontWeight: 600,
-                                                              lineHeight: 1.45,
-                                                              overflowWrap: "anywhere",
-                                                              wordBreak: "break-word",
-                                                          }}
-                                                      >
-                                                          {contributor.contribution_note}
-                                                      </p>
-                                                  ) : null}
+                                                      ) : null}
+                                                  </div>
                                               </div>
-                                          </div>
                                           </Popup>
                                       ) : null}
                                   </Marker>
@@ -9332,17 +9430,29 @@ function App() {
                         ? luneStations.map((station) => {
                               const lat = Number(station?.lat);
                               const lng = Number(station?.long);
-                              if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+                              if (
+                                  !Number.isFinite(lat) ||
+                                  !Number.isFinite(lng)
+                              )
+                                  return null;
 
                               const stationKey = getEaStationKey(station);
                               if (!stationKey) return null;
 
                               return (
-                                  <Marker key={stationKey} position={[lat, lng]} icon={getStationIcon()}>
+                                  <Marker
+                                      key={stationKey}
+                                      position={[lat, lng]}
+                                      icon={getStationIcon()}
+                                  >
                                       <Popup>
                                           <StationPopupContent
                                               station={station}
-                                              reading={luneStationReadings[stationKey]}
+                                              reading={
+                                                  luneStationReadings[
+                                                      stationKey
+                                                  ]
+                                              }
                                           />
                                       </Popup>
                                   </Marker>
@@ -9354,21 +9464,45 @@ function App() {
                         ? regionalFlowStations.map((station) => {
                               const lat = Number(station?.lat);
                               const lng = Number(station?.long);
-                              if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+                              if (
+                                  !Number.isFinite(lat) ||
+                                  !Number.isFinite(lng)
+                              )
+                                  return null;
 
                               const stationKey = getEaStationKey(station);
-                              if (!stationKey || luneStationKeySet.has(stationKey)) return null;
+                              if (
+                                  !stationKey ||
+                                  luneStationKeySet.has(stationKey)
+                              )
+                                  return null;
 
                               const reading = regionalFlowReadings[stationKey];
-                              const hasValidReading = Number.isFinite(Number(reading?.value));
-                              if (!reading || reading.loading || !hasValidReading || reading.error) return null;
+                              const hasValidReading = Number.isFinite(
+                                  Number(reading?.value),
+                              );
+                              if (
+                                  !reading ||
+                                  reading.loading ||
+                                  !hasValidReading ||
+                                  reading.error
+                              )
+                                  return null;
 
                               return (
-                                  <Marker key={`flow-${stationKey}`} position={[lat, lng]} icon={getFlowStationIcon()}>
+                                  <Marker
+                                      key={`flow-${stationKey}`}
+                                      position={[lat, lng]}
+                                      icon={getFlowStationIcon()}
+                                  >
                                       <Popup>
                                           <StationPopupContent
                                               station={station}
-                                              reading={regionalFlowReadings[stationKey]}
+                                              reading={
+                                                  regionalFlowReadings[
+                                                      stationKey
+                                                  ]
+                                              }
                                           />
                                       </Popup>
                                   </Marker>
@@ -9381,47 +9515,96 @@ function App() {
                     type="button"
                     onClick={() => {
                         if (!mapInstance) return;
-
-                        mapInstance.flyTo(RIVER_LUNE_CENTER, RIVER_LUNE_ZOOM, { duration: 0.65 });
+                        mapInstance.flyTo(RIVER_LUNE_CENTER, RIVER_LUNE_ZOOM, {
+                            duration: 0.65,
+                        });
                     }}
                     disabled={!mapInstance}
                     aria-label="Center map on the default location"
-                    title="Center map on the default location"
+                    title="Center map"
                     style={{
                         ...floatingMapButtonStyle,
                         top: "86px",
                         left: "10px",
-                        width: isMobile ? "38px" : "36px",
-                        height: isMobile ? "38px" : "36px",
+                        width: "38px",
+                        height: "38px",
                         padding: "0",
                         justifyContent: "center",
-                        gap: "0",
-                        opacity: mapInstance ? 1 : 0.65,
+                        alignItems: "center",
+                        borderRadius: "10px",
+                        background: "#ffffff",
+                        boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
+                        border: "1px solid #e2e8f0",
+                        cursor: mapInstance ? "pointer" : "not-allowed",
+                        opacity: mapInstance ? 1 : 0.6,
                     }}
                 >
                     <span
-                        aria-hidden="true"
                         style={{
-                            width: "14px",
-                            height: "14px",
+                            width: "16px",
+                            height: "16px",
                             borderRadius: "999px",
-                            border: "1.8px solid currentColor",
-                            display: "inline-flex",
+                            border: "2px solid #0f172a",
+                            display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            boxSizing: "border-box",
                         }}
                     >
                         <span
                             style={{
-                                width: "4px",
-                                height: "4px",
+                                width: "5px",
+                                height: "5px",
                                 borderRadius: "999px",
-                                background: "currentColor",
-                                display: "block",
+                                background: "#0f172a",
                             }}
                         />
                     </span>
+                </button>
+
+                <button
+                    type="button"
+                    onClick={() => setIsLiveLocationEnabled((prev) => !prev)}
+                    aria-label="Toggle live location"
+                    title="Live location"
+                    style={{
+                        ...floatingMapButtonStyle,
+                        top: "132px",
+                        left: "10px",
+                        width: "38px",
+                        height: "38px",
+                        padding: "0",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        borderRadius: "10px",
+                        border: "1px solid #e2e8f0",
+                        background: isLiveLocationEnabled
+                            ? "#0ea5e9"
+                            : "#ffffff",
+                        color: isLiveLocationEnabled ? "#ffffff" : "#475569",
+                        boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
+                        transition: "all 0.2s ease",
+                    }}
+                >
+                    {/* GPS Arrow Icon */}
+                    <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill={isLiveLocationEnabled ? "currentColor" : "none"}
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        style={{
+                            transform: isLiveLocationEnabled
+                                ? "rotate(0deg)"
+                                : "rotate(-45deg)",
+                            transition: "transform 0.2s ease",
+                        }}
+                    >
+                        <polygon points="12 2 19 21 12 17 5 21 12 2" />
+                    </svg>
                 </button>
 
                 {isMobile ? (
@@ -9465,10 +9648,14 @@ function App() {
                         typeFilter={typeFilter}
                         statusFilter={statusFilter}
                         isLuneStationsVisible={isLuneStationsVisible}
-                        isRegionalFlowStationsVisible={isRegionalFlowStationsVisible}
+                        isRegionalFlowStationsVisible={
+                            isRegionalFlowStationsVisible
+                        }
                         isContributorsVisible={isContributorsVisible}
                         setIsLuneStationsVisible={setIsLuneStationsVisible}
-                        setIsRegionalFlowStationsVisible={setIsRegionalFlowStationsVisible}
+                        setIsRegionalFlowStationsVisible={
+                            setIsRegionalFlowStationsVisible
+                        }
                         setIsContributorsVisible={setIsContributorsVisible}
                         setTypeFilter={setTypeFilter}
                         setStatusFilter={setStatusFilter}
@@ -9520,8 +9707,10 @@ function App() {
                             boxShadow: "0 8px 22px rgba(15,23,42,0.16)",
                         }}
                     >
-                        <span>Map Tools</span>
-                        <span style={{ fontSize: "0.9em" }}>{isMapToolsOpen ? "▾" : "▴"}</span>
+                        <span>Map Select</span>
+                        <span style={{ fontSize: "0.9em" }}>
+                            {isMapToolsOpen ? "▾" : "▴"}
+                        </span>
                     </button>
 
                     <SurfaceCard
@@ -9531,73 +9720,71 @@ function App() {
                             display: "grid",
                             gap: "8px",
                             opacity: isMapToolsOpen ? 1 : 0,
-                            transform: isMapToolsOpen ? "translateY(0) scale(1)" : "translateY(8px) scale(0.98)",
+                            transform: isMapToolsOpen
+                                ? "translateY(0) scale(1)"
+                                : "translateY(8px) scale(0.98)",
                             transformOrigin: "bottom left",
-                            transition: "opacity 180ms ease, transform 220ms ease",
+                            transition:
+                                "opacity 180ms ease, transform 220ms ease",
                             pointerEvents: isMapToolsOpen ? "auto" : "none",
                         }}
                     >
-                            <button
-                                type="button"
-                                onClick={() => setIsLiveLocationEnabled((prev) => !prev)}
+                        {waybackReleases.length > 0 ? (
+                            <label
                                 style={{
-                                    border: "1px solid #cbd5e1",
-                                    background: isLiveLocationEnabled ? "#e0f2fe" : "#fff",
-                                    color: "#0f172a",
-                                    borderRadius: "9px",
-                                    minHeight: "36px",
-                                    padding: "0 10px",
+                                    display: "grid",
+                                    gap: "5px",
+                                    fontSize: "0.75rem",
+                                    color: "#475569",
                                     fontWeight: 700,
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "space-between",
                                 }}
                             >
-                                <span>Live Location</span>
-                                <span style={{ color: isLiveLocationEnabled ? "#0284c7" : "#64748b" }}>
-                                    {isLiveLocationEnabled ? "On" : "Off"}
-                                </span>
-                            </button>
-
-                            {waybackReleases.length > 0 ? (
-                                <label style={{ display: "grid", gap: "5px", fontSize: "0.75rem", color: "#475569", fontWeight: 700 }}>
-                                    <span>Imagery</span>
-                                    <select
-                                        value={selectedWaybackId ?? ""}
-                                        onChange={(e) => setSelectedWaybackId(e.target.value ? Number(e.target.value) : null)}
-                                        style={{
-                                            border: "1px solid #cbd5e1",
-                                            borderRadius: "8px",
-                                            padding: "7px 8px",
-                                            background: "#fff",
-                                            fontSize: "0.82rem",
-                                        }}
-                                    >
-                                        <option value="">Mapbox (Live)</option>
-                                        {waybackReleases.map((r) => (
-                                            <option key={r.releaseNum} value={r.releaseNum}>
-                                                {r.releaseName}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </label>
-                            ) : null}
-
-                            {liveLocationError ? (
-                                <div
+                                <span>Imagery</span>
+                                <select
+                                    value={selectedWaybackId ?? ""}
+                                    onChange={(e) =>
+                                        setSelectedWaybackId(
+                                            e.target.value
+                                                ? Number(e.target.value)
+                                                : null,
+                                        )
+                                    }
                                     style={{
-                                        background: "rgba(254,226,226,0.96)",
-                                        border: "1px solid #fecaca",
+                                        border: "1px solid #cbd5e1",
                                         borderRadius: "8px",
-                                        padding: "6px 8px",
-                                        fontSize: "0.72rem",
-                                        color: "#991b1b",
-                                        lineHeight: 1.25,
+                                        padding: "7px 8px",
+                                        background: "#fff",
+                                        fontSize: "0.82rem",
                                     }}
                                 >
-                                    {liveLocationError}
-                                </div>
-                            ) : null}
+                                    <option value="">Mapbox (Live)</option>
+                                    {waybackReleases.map((r) => (
+                                        <option
+                                            key={r.releaseNum}
+                                            value={r.releaseNum}
+                                        >
+                                            {r.releaseName}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+                        ) : null}
+
+                        {liveLocationError ? (
+                            <div
+                                style={{
+                                    background: "rgba(254,226,226,0.96)",
+                                    border: "1px solid #fecaca",
+                                    borderRadius: "8px",
+                                    padding: "6px 8px",
+                                    fontSize: "0.72rem",
+                                    color: "#991b1b",
+                                    lineHeight: 1.25,
+                                }}
+                            >
+                                {liveLocationError}
+                            </div>
+                        ) : null}
                     </SurfaceCard>
                 </div>
             </div>
@@ -9623,29 +9810,61 @@ function App() {
                             left: isMobile ? "10px" : "50%",
                             right: isMobile ? "10px" : "auto",
                             top: isMobile ? "auto" : "50%",
-                            bottom: isMobile ? "calc(env(safe-area-inset-bottom, 0px) + 10px)" : "auto",
-                            transform: isMobile ? "none" : "translate(-50%, -50%)",
-                            width: isMobile ? "auto" : "min(440px, calc(100vw - 32px))",
+                            bottom: isMobile
+                                ? "calc(env(safe-area-inset-bottom, 0px) + 10px)"
+                                : "auto",
+                            transform: isMobile
+                                ? "none"
+                                : "translate(-50%, -50%)",
+                            width: isMobile
+                                ? "auto"
+                                : "min(440px, calc(100vw - 32px))",
                             padding: isMobile ? "12px" : "14px",
                             borderColor: "#93c5fd",
-                            background: "linear-gradient(180deg, #ffffff 0%, #eff6ff 100%)",
+                            background:
+                                "linear-gradient(180deg, #ffffff 0%, #eff6ff 100%)",
                             boxShadow: "0 20px 44px rgba(15,23,42,0.24)",
                         }}
                     >
-                        <div style={{ fontSize: "1rem", fontWeight: 800, color: "#0f172a", marginBottom: "8px" }}>
+                        <div
+                            style={{
+                                fontSize: "1rem",
+                                fontWeight: 800,
+                                color: "#0f172a",
+                                marginBottom: "8px",
+                            }}
+                        >
                             Share GPS to send a report
                         </div>
-                        <p style={{ margin: 0, fontSize: "0.84rem", color: "#334155", lineHeight: 1.45 }}>
-                            Reporting opens Facebook Messenger and includes map coordinates. This app does not store the report details.
+                        <p
+                            style={{
+                                margin: 0,
+                                fontSize: "0.84rem",
+                                color: "#334155",
+                                lineHeight: 1.45,
+                            }}
+                        >
+                            Reporting opens Facebook Messenger and includes map
+                            coordinates. This app does not store the report
+                            details.
                         </p>
-                        <div style={{ marginTop: "10px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                        <div
+                            style={{
+                                marginTop: "10px",
+                                display: "flex",
+                                gap: "8px",
+                                flexWrap: "wrap",
+                            }}
+                        >
                             <button
                                 type="button"
                                 onClick={() => {
                                     setHasAcceptedReportConsent(true);
                                     setIsReportConsentOpen(false);
                                     if (pendingReportLocation) {
-                                        setReportLocation(pendingReportLocation);
+                                        setReportLocation(
+                                            pendingReportLocation,
+                                        );
                                     }
                                     setPendingReportLocation(null);
                                     setReportStatus("");
@@ -9710,9 +9929,11 @@ function App() {
                             borderTopRightRadius: "16px",
                             borderBottomLeftRadius: "0",
                             borderBottomRightRadius: "0",
-                            padding: "12px 12px calc(env(safe-area-inset-bottom, 0px) + 14px)",
+                            padding:
+                                "12px 12px calc(env(safe-area-inset-bottom, 0px) + 14px)",
                             transform: "translateY(0)",
-                            transition: "transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1)",
+                            transition:
+                                "transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1)",
                         }}
                     >
                         <div
@@ -9723,7 +9944,14 @@ function App() {
                                 marginBottom: "8px",
                             }}
                         >
-                            <strong style={{ color: "#0f172a", fontSize: "0.92rem" }}>Filters</strong>
+                            <strong
+                                style={{
+                                    color: "#0f172a",
+                                    fontSize: "0.92rem",
+                                }}
+                            >
+                                Filters
+                            </strong>
                             <button
                                 type="button"
                                 onClick={() => setIsFilterSheetOpen(false)}
@@ -9747,10 +9975,14 @@ function App() {
                             typeFilter={typeFilter}
                             statusFilter={statusFilter}
                             isLuneStationsVisible={isLuneStationsVisible}
-                            isRegionalFlowStationsVisible={isRegionalFlowStationsVisible}
+                            isRegionalFlowStationsVisible={
+                                isRegionalFlowStationsVisible
+                            }
                             isContributorsVisible={isContributorsVisible}
                             setIsLuneStationsVisible={setIsLuneStationsVisible}
-                            setIsRegionalFlowStationsVisible={setIsRegionalFlowStationsVisible}
+                            setIsRegionalFlowStationsVisible={
+                                setIsRegionalFlowStationsVisible
+                            }
                             setIsContributorsVisible={setIsContributorsVisible}
                             setTypeFilter={setTypeFilter}
                             setStatusFilter={setStatusFilter}
