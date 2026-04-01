@@ -33,6 +33,8 @@ export default function ImageCarousel({ images = [] }) {
     }
 
     const currentImage = images[currentIndex];
+    const hasMultipleImages = images.length > 1;
+    const indicatorLaneHeight = hasMultipleImages ? 30 : 0;
     const prevIndex = (currentIndex - 1 + images.length) % images.length;
     const nextIndex = (currentIndex + 1) % images.length;
 
@@ -83,7 +85,8 @@ export default function ImageCarousel({ images = [] }) {
                     style={{
                         position: "relative",
                         width: "100%",
-                        paddingBottom: "66.67%",
+                        aspectRatio: "3 / 2",
+                        minHeight: "220px",
                         background: "#f1f5f9",
                         borderRadius: "12px",
                         overflow: "hidden",
@@ -129,62 +132,121 @@ export default function ImageCarousel({ images = [] }) {
                         </div>
                     ) : (
                         <>
-                            <img
-                                src={currentImage.image_url}
-                                alt={currentImage.alt_text || `Image ${currentIndex + 1}`}
-                                onError={() => setImgError(true)}
-                                style={{
-                                    position: "absolute",
-                                    inset: 0,
-                                    width: "100%",
-                                    height: "100%",
-                                    objectFit: "contain",
-                                    objectPosition: "center",
-                                    imageOrientation: "from-image",
-                                }}
-                            />
-                            {images.length > 1 && (
-                                <>
-                                    <div
-                                        onClick={(e) => { e.stopPropagation(); handlePrev(); }}
-                                        style={{ position: "absolute", left: 0, top: 0, width: "25%", height: "100%", zIndex: 2, cursor: "pointer" }}
-                                    />
-                                    <div
-                                        onClick={(e) => { e.stopPropagation(); handleNext(); }}
-                                        style={{ position: "absolute", right: 0, top: 0, width: "25%", height: "100%", zIndex: 2, cursor: "pointer" }}
-                                    />
-                                </>
-                            )}
                             <div
                                 style={{
                                     position: "absolute",
                                     top: 0,
                                     left: 0,
                                     right: 0,
-                                    height: "44px",
-                                    background: "linear-gradient(180deg, rgba(2,6,23,0.55) 0%, rgba(2,6,23,0) 100%)",
-                                    pointerEvents: "none",
-                                    zIndex: 3,
+                                    bottom: `${indicatorLaneHeight}px`,
                                 }}
-                            />
-                            {images.length > 1 && (
+                            >
+                                <img
+                                    src={currentImage.image_url}
+                                    alt={currentImage.alt_text || `Image ${currentIndex + 1}`}
+                                    onError={() => setImgError(true)}
+                                    style={{
+                                        position: "absolute",
+                                        inset: 0,
+                                        width: "100%",
+                                        height: "100%",
+                                        objectFit: "contain",
+                                        objectPosition: "center",
+                                        imageOrientation: "from-image",
+                                    }}
+                                />
+                                {hasMultipleImages && (
+                                    <>
+                                        <div
+                                            onClick={(e) => { e.stopPropagation(); handlePrev(); }}
+                                            style={{ position: "absolute", left: 0, top: 0, width: "25%", height: "100%", zIndex: 2, cursor: "pointer" }}
+                                        />
+                                        <div
+                                            onClick={(e) => { e.stopPropagation(); handleNext(); }}
+                                            style={{ position: "absolute", right: 0, top: 0, width: "25%", height: "100%", zIndex: 2, cursor: "pointer" }}
+                                        />
+                                    </>
+                                )}
                                 <div
                                     style={{
                                         position: "absolute",
-                                        top: "8px",
-                                        right: "8px",
-                                        background: "rgba(15,23,42,0.7)",
-                                        color: "#fff",
-                                        padding: "4px 9px",
-                                        borderRadius: "999px",
-                                        fontSize: "0.72rem",
-                                        fontWeight: 600,
+                                        top: 0,
+                                        left: 0,
+                                        right: 0,
+                                        height: "44px",
+                                        background: "linear-gradient(180deg, rgba(2,6,23,0.55) 0%, rgba(2,6,23,0) 100%)",
                                         pointerEvents: "none",
-                                        zIndex: 4,
+                                        zIndex: 3,
                                     }}
-                                >
-                                    {currentIndex + 1} / {images.length}
-                                </div>
+                                />
+                                {hasMultipleImages && (
+                                    <div
+                                        style={{
+                                            position: "absolute",
+                                            top: "8px",
+                                            right: "8px",
+                                            background: "rgba(15,23,42,0.7)",
+                                            color: "#fff",
+                                            padding: "4px 9px",
+                                            borderRadius: "999px",
+                                            fontSize: "0.72rem",
+                                            fontWeight: 600,
+                                            pointerEvents: "none",
+                                            zIndex: 4,
+                                        }}
+                                    >
+                                        {currentIndex + 1} / {images.length}
+                                    </div>
+                                )}
+                            </div>
+                            {hasMultipleImages && (
+                                <>
+                                    <div
+                                        style={{
+                                            position: "absolute",
+                                            left: 0,
+                                            right: 0,
+                                            bottom: `${indicatorLaneHeight}px`,
+                                            height: "34px",
+                                            background: "linear-gradient(180deg, rgba(2,6,23,0) 0%, rgba(2,6,23,0.36) 100%)",
+                                            pointerEvents: "none",
+                                            zIndex: 3,
+                                        }}
+                                    />
+                                    <div
+                                        style={{
+                                            position: "absolute",
+                                            left: "10px",
+                                            right: "10px",
+                                            bottom: "8px",
+                                            display: "flex",
+                                            gap: "6px",
+                                            justifyContent: "center",
+                                            zIndex: 5,
+                                        }}
+                                    >
+                                        {images.map((_, index) => (
+                                            <button
+                                                key={index}
+                                                type="button"
+                                                onClick={(event) => {
+                                                    event.stopPropagation();
+                                                    setCurrentIndex(index);
+                                                }}
+                                                style={{
+                                                    width: index === currentIndex ? "24px" : "8px",
+                                                    height: "8px",
+                                                    borderRadius: "4px",
+                                                    border: "1px solid rgba(255,255,255,0.7)",
+                                                    background: index === currentIndex ? "#0f766e" : "rgba(226,232,240,0.8)",
+                                                    cursor: "pointer",
+                                                    transition: "all 0.2s ease",
+                                                }}
+                                                aria-label={`Go to image ${index + 1}`}
+                                            />
+                                        ))}
+                                    </div>
+                                </>
                             )}
                         </>
                     )}
@@ -215,32 +277,18 @@ export default function ImageCarousel({ images = [] }) {
                         </div>
                     )}
 
-                    {images.length > 1 && (
+                    {hasMultipleImages && (
                         <div
                             style={{
-                                display: "flex",
-                                gap: "6px",
-                                justifyContent: "center",
-                                paddingTop: "8px",
+                                paddingTop: "4px",
                                 borderTop: "1px solid #e2e8f0",
+                                fontSize: "0.72rem",
+                                color: "#64748b",
+                                textAlign: "center",
+                                fontWeight: 600,
                             }}
                         >
-                            {images.map((_, index) => (
-                                <button
-                                    key={index}
-                                    type="button"
-                                    onClick={() => setCurrentIndex(index)}
-                                    style={{
-                                        width: index === currentIndex ? "24px" : "8px",
-                                        height: "8px",
-                                        borderRadius: "4px",
-                                        border: "1px solid #cbd5e1",
-                                        background: index === currentIndex ? "#0f766e" : "#e2e8f0",
-                                        cursor: "pointer",
-                                        transition: "all 0.2s ease",
-                                    }}
-                                />
-                            ))}
+                            Swipe, click edges, or use arrow keys to navigate.
                         </div>
                     )}
                 </div>

@@ -8,6 +8,7 @@ export default function PoiCard({
     isMobile,
     canManage,
     shareUrl,
+    isTidePlannerCollapsed = true,
 }) {
     const cardRef = useRef(null);
     const shareStatusTimeoutRef = useRef(null);
@@ -88,6 +89,10 @@ export default function PoiCard({
     };
 
     const isMobileView = isMobile;
+    const isPlannerOpenOnMobile = isMobileView && !isTidePlannerCollapsed;
+    const contentPadding = isPlannerOpenOnMobile ? "10px 12px" : "14px 16px";
+    const contentGap = isPlannerOpenOnMobile ? "10px" : "12px";
+    const hasImages = poi.poi_images && poi.poi_images.length > 0;
     const statusColor = poi.status === "published" ? "#059669" : "#d97706";
     const statusBg = poi.status === "published" ? "#d1fae5" : "#fef3c7";
 
@@ -141,15 +146,17 @@ export default function PoiCard({
                 {/* Header */}
                 <div
                     style={{
-                        padding: "14px 16px",
+                        padding: isPlannerOpenOnMobile ? "10px 12px" : "14px 16px",
                         borderBottom: "1px solid #e2e8f0",
                         display: "flex",
                         justifyContent: "space-between",
-                        alignItems: "center",
+                        alignItems: isMobileView ? "flex-start" : "center",
+                        flexWrap: isMobileView ? "wrap" : "nowrap",
+                        gap: isMobileView ? "8px" : "0",
                         background: "linear-gradient(145deg, #f8fafc 0%, #ffffff 100%)",
                     }}
                 >
-                    <div style={{ flex: 1 }}>
+                    <div style={{ flex: "1 1 220px", minWidth: 0 }}>
                         <h2
                             style={{
                                 margin: "0 0 4px 0",
@@ -215,7 +222,10 @@ export default function PoiCard({
                         style={{
                             display: "flex",
                             gap: "6px",
-                            marginLeft: "8px",
+                            marginLeft: isMobileView ? "0" : "8px",
+                            flexWrap: "wrap",
+                            justifyContent: isMobileView ? "flex-start" : "flex-end",
+                            width: isMobileView ? "100%" : "auto",
                         }}
                     >
                         {canManage && (
@@ -231,6 +241,8 @@ export default function PoiCard({
                                     cursor: "pointer",
                                     fontSize: "0.75rem",
                                     fontWeight: 600,
+                                    flex: "0 0 auto",
+                                    whiteSpace: "nowrap",
                                 }}
                             >
                                 Edit
@@ -249,6 +261,8 @@ export default function PoiCard({
                                     cursor: "pointer",
                                     fontSize: "0.75rem",
                                     fontWeight: 700,
+                                    flex: "0 0 auto",
+                                    whiteSpace: "nowrap",
                                 }}
                                 aria-label="Share point of interest"
                             >
@@ -266,6 +280,8 @@ export default function PoiCard({
                                 borderRadius: "6px",
                                 cursor: "pointer",
                                 fontSize: "1rem",
+                                flex: "0 0 auto",
+                                whiteSpace: "nowrap",
                             }}
                         >
                             ✕
@@ -288,18 +304,32 @@ export default function PoiCard({
                     </div>
                 ) : null}
 
+                {!isMobileView && hasImages ? (
+                    <div
+                        style={{
+                            flex: "0 0 auto",
+                            padding: "10px 16px 8px",
+                            borderBottom: "1px solid #e2e8f0",
+                            background: "#ffffff",
+                        }}
+                    >
+                        <ImageCarousel images={poi.poi_images} />
+                    </div>
+                ) : null}
+
                 {/* Scrollable Content */}
                 <div
                     style={{
                         flex: 1,
+                        minHeight: 0,
                         overflowY: "auto",
-                        padding: "14px 16px",
+                        padding: isMobileView ? contentPadding : "10px 16px 14px",
                         display: "grid",
-                        gap: "12px",
+                        gap: contentGap,
                     }}
                 >
                     {/* Image Carousel */}
-                    {poi.poi_images && poi.poi_images.length > 0 && (
+                    {isMobileView && hasImages && (
                         <ImageCarousel images={poi.poi_images} />
                     )}
 

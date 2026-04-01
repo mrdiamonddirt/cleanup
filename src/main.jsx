@@ -10540,6 +10540,7 @@ function App() {
                     isMobile={isMobile}
                     canManage={canManageItems}
                     shareUrl={selectedHistoricalPoiPublicUrl}
+                    isTidePlannerCollapsed={isTidePlannerCollapsed}
                 />
             ) : null}
 
