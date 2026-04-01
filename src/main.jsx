@@ -617,6 +617,46 @@ const readSelectedItemIdFromQuery = () => {
     }
 };
 
+const normalizePoiSlug = (value) => String(value || "").trim().toLowerCase();
+
+const readSelectedPoiSlugFromQuery = () => {
+    if (typeof window === "undefined") return null;
+
+    const searchParams = new URLSearchParams(window.location.search);
+    const selectedItem = searchParams.get("item");
+    if (selectedItem && selectedItem.trim()) {
+        return null;
+    }
+
+    const selectedPoi = searchParams.get("poi");
+    if (selectedPoi) {
+        const normalized = normalizePoiSlug(selectedPoi);
+        if (normalized) return normalized;
+    }
+
+    const pathSegments = window.location.pathname
+        .split("/")
+        .map((segment) => segment.trim())
+        .filter(Boolean);
+
+    let poiSlugFromPath = "";
+    for (let i = 0; i < pathSegments.length - 1; i += 1) {
+        if (pathSegments[i].toLowerCase() === "poi") {
+            poiSlugFromPath = pathSegments[i + 1] || poiSlugFromPath;
+        }
+    }
+
+    if (!poiSlugFromPath) return null;
+
+    try {
+        const decoded = normalizePoiSlug(decodeURIComponent(poiSlugFromPath));
+        return decoded || null;
+    } catch {
+        const normalized = normalizePoiSlug(poiSlugFromPath);
+        return normalized || null;
+    }
+};
+
 const buildGpsLookupKey = (latitude, longitude) => {
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return "";
 
@@ -6751,6 +6791,7 @@ function App() {
     const [isUpdatingItemId, setIsUpdatingItemId] = useState(null);
     const [selectedItemId, setSelectedItemId] = useState(null);
     const [querySelectedItemId, setQuerySelectedItemId] = useState(() => readSelectedItemIdFromQuery());
+    const [querySelectedPoiSlug, setQuerySelectedPoiSlug] = useState(() => readSelectedPoiSlugFromQuery());
     const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
     const [isTidePlannerCollapsed, setIsTidePlannerCollapsed] = useState(true);
     const [lancasterTideRows, setLancasterTideRows] = useState([]);
@@ -7576,6 +7617,26 @@ function App() {
         setSelectedItemId(matchedItem.id);
         setQuerySelectedItemId(null);
     }, [items, querySelectedItemId]);
+
+    useEffect(() => {
+        if (!querySelectedPoiSlug) return;
+        if (querySelectedItemId) return;
+        if (!historicalPois.length) return;
+
+        const matchedPoi = historicalPois.find(
+            (poi) => normalizePoiSlug(poi?.slug) === querySelectedPoiSlug,
+        );
+
+        if (!matchedPoi?.id) {
+            setQuerySelectedPoiSlug(null);
+            return;
+        }
+
+        setSelectedHistoricalPoiId(matchedPoi.id);
+        setIsPoiPanelOpen(false);
+        setEditingHistoricalPoiId(null);
+        setQuerySelectedPoiSlug(null);
+    }, [historicalPois, querySelectedItemId, querySelectedPoiSlug]);
 
     useEffect(() => {
         if (canManageItems) return;
@@ -10478,6 +10539,7 @@ function App() {
                     onEdit={openPoiEditPanel}
                     isMobile={isMobile}
                     canManage={canManageItems}
+                    shareUrl={selectedHistoricalPoiPublicUrl}
                 />
             ) : null}
 

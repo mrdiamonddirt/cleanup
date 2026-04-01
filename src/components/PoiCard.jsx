@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import ImageCarousel from "./ImageCarousel";
 
 export default function PoiCard({
@@ -7,8 +7,11 @@ export default function PoiCard({
     onEdit,
     isMobile,
     canManage,
+    shareUrl,
 }) {
     const cardRef = useRef(null);
+    const shareStatusTimeoutRef = useRef(null);
+    const [shareStatus, setShareStatus] = useState("");
 
     if (!poi) return null;
 
@@ -20,6 +23,69 @@ export default function PoiCard({
         window.addEventListener("keydown", handleEscape);
         return () => window.removeEventListener("keydown", handleEscape);
     }, [onClose]);
+
+    useEffect(() => {
+        return () => {
+            if (shareStatusTimeoutRef.current) {
+                window.clearTimeout(shareStatusTimeoutRef.current);
+                shareStatusTimeoutRef.current = null;
+            }
+        };
+    }, []);
+
+    const setShareStatusWithTimeout = (message) => {
+        setShareStatus(message);
+
+        if (shareStatusTimeoutRef.current) {
+            window.clearTimeout(shareStatusTimeoutRef.current);
+        }
+
+        shareStatusTimeoutRef.current = window.setTimeout(() => {
+            setShareStatus("");
+            shareStatusTimeoutRef.current = null;
+        }, 2400);
+    };
+
+    const handleShare = async () => {
+        if (!shareUrl) return;
+
+        if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+            try {
+                await navigator.share({
+                    title: poi.title || "River Bank Cleanup Tracker",
+                    text: "Check this point of interest in the cleanup tracker.",
+                    url: shareUrl,
+                });
+
+                setShareStatusWithTimeout("Share sheet opened.");
+                return;
+            } catch (error) {
+                if (error?.name === "AbortError") {
+                    return;
+                }
+            }
+        }
+
+        try {
+            if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(shareUrl);
+            } else {
+                const textArea = document.createElement("textarea");
+                textArea.value = shareUrl;
+                textArea.setAttribute("readonly", "");
+                textArea.style.position = "absolute";
+                textArea.style.left = "-9999px";
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand("copy");
+                document.body.removeChild(textArea);
+            }
+
+            setShareStatusWithTimeout("Share link copied.");
+        } catch {
+            setShareStatusWithTimeout("Could not copy automatically.");
+        }
+    };
 
     const isMobileView = isMobile;
     const statusColor = poi.status === "published" ? "#059669" : "#d97706";
@@ -170,6 +236,25 @@ export default function PoiCard({
                                 Edit
                             </button>
                         )}
+                        {shareUrl ? (
+                            <button
+                                type="button"
+                                onClick={handleShare}
+                                style={{
+                                    padding: "6px 10px",
+                                    border: "1px solid #fed7aa",
+                                    background: "#ffedd5",
+                                    color: "#9a3412",
+                                    borderRadius: "6px",
+                                    cursor: "pointer",
+                                    fontSize: "0.75rem",
+                                    fontWeight: 700,
+                                }}
+                                aria-label="Share point of interest"
+                            >
+                                Share
+                            </button>
+                        ) : null}
                         <button
                             type="button"
                             onClick={onClose}
@@ -187,6 +272,21 @@ export default function PoiCard({
                         </button>
                     </div>
                 </div>
+
+                {shareStatus ? (
+                    <div
+                        style={{
+                            padding: "8px 16px",
+                            background: "#fff7ed",
+                            borderBottom: "1px solid #fed7aa",
+                            color: "#9a3412",
+                            fontSize: "0.78rem",
+                            fontWeight: 600,
+                        }}
+                    >
+                        {shareStatus}
+                    </div>
+                ) : null}
 
                 {/* Scrollable Content */}
                 <div
