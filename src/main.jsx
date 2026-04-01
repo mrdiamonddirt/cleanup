@@ -3293,6 +3293,23 @@ function ControlToggles({
     const selectedHistoricOverlay = historicOverlayLayers.find(
         (layer) => layer.id === selectedHistoricOverlayId,
     ) || historicOverlayLayers[0] || null;
+    const controlsGap = isMobile ? "4px" : "6px";
+    const controlButtonBaseStyle = {
+        borderRadius: UI_TOKENS.radius.pill,
+        padding: isMobile ? "5px 8px" : "5px 10px",
+        minHeight: isMobile ? "28px" : "30px",
+        width: "auto",
+        fontSize: isMobile ? "0.76rem" : "0.8rem",
+        fontWeight: 700,
+        letterSpacing: "0.01em",
+        lineHeight: 1.1,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: isMobile ? "6px" : "8px",
+        boxShadow: "0 4px 16px rgba(15,23,42,0.08)",
+        whiteSpace: "nowrap",
+    };
 
     return (
         <div
@@ -3310,7 +3327,7 @@ function ControlToggles({
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
-                    gap: "6px",
+                    gap: controlsGap,
                     flexWrap: "wrap",
                 }}
             >
@@ -3329,29 +3346,19 @@ function ControlToggles({
                     style={{
                         display: "flex",
                         alignItems: "center",
-                        gap: "6px",
+                        gap: controlsGap,
                         flexWrap: "wrap",
+                        rowGap: controlsGap,
                         justifyContent: isMobile ? "flex-start" : "flex-end",
                     }}
                 >
                 <button
                     onClick={onToggleTidePlanner}
                     style={{
+                        ...controlButtonBaseStyle,
                         border: "1px solid #cbd5e1",
                         background: "linear-gradient(135deg, #eff6ff, #f8fafc)",
                         color: "#0f172a",
-                        borderRadius: UI_TOKENS.radius.pill,
-                        padding: isMobile ? "7px 10px" : "5px 10px",
-                        minHeight: "30px",
-                        width: "auto",
-                        fontSize: "0.8rem",
-                        fontWeight: 700,
-                        letterSpacing: "0.01em",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: "8px",
-                        boxShadow: "0 4px 16px rgba(15,23,42,0.08)",
                         cursor: "pointer",
                     }}
                     aria-expanded={!isTidePlannerCollapsed}
@@ -3362,9 +3369,7 @@ function ControlToggles({
                     }
                 >
                     <span>
-                        {isTidePlannerCollapsed
-                            ? "Show Tide Planner"
-                            : "Hide Tide Planner"}
+                        Tide Planner
                     </span>
                     <span style={{ fontSize: "0.9em" }}>
                         {isTidePlannerCollapsed ? "▾" : "▴"}
@@ -3374,6 +3379,7 @@ function ControlToggles({
                 <button
                     onClick={onToggleContributors}
                     style={{
+                        ...controlButtonBaseStyle,
                         border: isContributorsVisible
                             ? "1px solid #ca8a04"
                             : "1px solid #fcd34d",
@@ -3381,18 +3387,6 @@ function ControlToggles({
                             ? "linear-gradient(135deg, #fef3c7, #fffbeb)"
                             : "linear-gradient(135deg, #eff6ff, #f8fafc)",
                         color: isContributorsVisible ? "#854d0e" : "#0f172a",
-                        borderRadius: UI_TOKENS.radius.pill,
-                        padding: isMobile ? "7px 10px" : "5px 10px",
-                        minHeight: "30px",
-                        width: "auto",
-                        fontSize: "0.8rem",
-                        fontWeight: 700,
-                        letterSpacing: "0.01em",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: "8px",
-                        boxShadow: "0 4px 16px rgba(15,23,42,0.08)",
                         cursor: "pointer",
                     }}
                     aria-pressed={isContributorsVisible}
@@ -3413,6 +3407,7 @@ function ControlToggles({
                     onClick={onToggleHistoricOverlay}
                     disabled={!hasHistoricOverlayAccess}
                     style={{
+                        ...controlButtonBaseStyle,
                         border: isHistoricOverlayEnabled
                             ? "1px solid #4d7c0f"
                             : "1px solid #cbd5e1",
@@ -3420,18 +3415,6 @@ function ControlToggles({
                             ? "linear-gradient(135deg, #ecfccb, #f7fee7)"
                             : "linear-gradient(135deg, #eff6ff, #f8fafc)",
                         color: isHistoricOverlayEnabled ? "#3f6212" : "#0f172a",
-                        borderRadius: UI_TOKENS.radius.pill,
-                        padding: isMobile ? "7px 10px" : "5px 10px",
-                        minHeight: "30px",
-                        width: "auto",
-                        fontSize: "0.8rem",
-                        fontWeight: 700,
-                        letterSpacing: "0.01em",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: "8px",
-                        boxShadow: "0 4px 16px rgba(15,23,42,0.08)",
                         cursor: hasHistoricOverlayAccess ? "pointer" : "not-allowed",
                         opacity: hasHistoricOverlayAccess ? 1 : 0.55,
                     }}
@@ -3459,6 +3442,7 @@ function ControlToggles({
                 <button
                     onClick={onToggleHistoricalPois}
                     style={{
+                        ...controlButtonBaseStyle,
                         border: isHistoricalPoisVisible
                             ? "1px solid #9a3412"
                             : "1px solid #fdba74",
@@ -3466,18 +3450,6 @@ function ControlToggles({
                             ? "linear-gradient(135deg, #ffedd5, #fff7ed)"
                             : "linear-gradient(135deg, #eff6ff, #f8fafc)",
                         color: isHistoricalPoisVisible ? "#9a3412" : "#0f172a",
-                        borderRadius: UI_TOKENS.radius.pill,
-                        padding: isMobile ? "7px 10px" : "5px 10px",
-                        minHeight: "30px",
-                        width: "auto",
-                        fontSize: "0.8rem",
-                        fontWeight: 700,
-                        letterSpacing: "0.01em",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: "8px",
-                        boxShadow: "0 4px 16px rgba(15,23,42,0.08)",
                         cursor: "pointer",
                     }}
                     aria-pressed={isHistoricalPoisVisible}
@@ -3497,6 +3469,7 @@ function ControlToggles({
                 <button
                     onClick={onToggleWeatherOverlay}
                     style={{
+                        ...controlButtonBaseStyle,
                         border: isWeatherOverlayEnabled
                             ? "1px solid #0f766e"
                             : "1px solid #cbd5e1",
@@ -3504,17 +3477,8 @@ function ControlToggles({
                             ? "linear-gradient(135deg, #ccfbf1, #ecfeff)"
                             : "linear-gradient(135deg, #eff6ff, #f8fafc)",
                         color: isWeatherOverlayEnabled ? "#115e59" : "#0f172a",
-                        borderRadius: UI_TOKENS.radius.pill,
-                        padding: isMobile ? "7px 12px" : "6px 12px",
-                        minHeight: "30px",
-                        width: "auto",
-                        fontSize: "0.8rem",
-                        fontWeight: 700,
-                        letterSpacing: "0.01em",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "10px",
-                        boxShadow: "0 4px 16px rgba(15,23,42,0.08)",
+                        padding: isMobile ? "5px 9px" : "6px 12px",
+                        gap: isMobile ? "7px" : "10px",
                         cursor: "pointer",
                     }}
                     aria-pressed={isWeatherOverlayEnabled}
