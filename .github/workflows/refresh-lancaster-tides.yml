@@ -26,6 +26,7 @@ jobs:
       - name: Validate production env configuration
         run: |
           site_url="$(jq -r '.SEO_SITE_URL // empty' <<< "${REPO_VARS_JSON}")"
+          maptiler_key="$(jq -r '.VITE_MAPTILER_KEY // empty' <<< "${REPO_VARS_JSON}")"
 
           if [ -z "${VITE_SUPABASE_URL}" ] || [ -z "${VITE_SUPABASE_ANON_KEY}" ]; then
             echo "Missing required Supabase secrets. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in repository secrets."
@@ -36,6 +37,10 @@ jobs:
             echo "Warning: VITE_MAPBOX_TOKEN is not configured. The deployed map will fall back to non-Mapbox behavior."
           fi
 
+          if [ -z "${maptiler_key}" ]; then
+            echo "Warning: VITE_MAPTILER_KEY is not configured. Historic Lancaster overlays will be unavailable."
+          fi
+
           if [ -z "${site_url}" ]; then
             echo "SEO_SITE_URL is not configured in repository variables. Falling back to https://rivercleanup.co.uk."
           fi
@@ -43,6 +48,7 @@ jobs:
       - name: Write .env.production for Vite build
         run: |
           site_url="$(jq -r '.SEO_SITE_URL // empty' <<< "${REPO_VARS_JSON}")"
+          maptiler_key="$(jq -r '.VITE_MAPTILER_KEY // empty' <<< "${REPO_VARS_JSON}")"
           facebook_page_recipient_id="$(jq -r '.VITE_FACEBOOK_PAGE_RECIPIENT_ID // empty' <<< "${REPO_VARS_JSON}")"
           community_email_account="$(jq -r '.VITE_COMMUNITY_EMAIL_ACCOUNT // empty' <<< "${REPO_VARS_JSON}")"
           owner_github_logins="$(jq -r '.VITE_OWNER_GITHUB_LOGINS // empty' <<< "${REPO_VARS_JSON}")"
@@ -56,6 +62,7 @@ jobs:
           VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
           VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
           VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN}
+          VITE_MAPTILER_KEY=${maptiler_key}
           VITE_FACEBOOK_PAGE_RECIPIENT_ID=${facebook_page_recipient_id}
           VITE_COMMUNITY_EMAIL_ACCOUNT=${community_email_account}
           VITE_OWNER_GITHUB_LOGINS=${owner_github_logins}

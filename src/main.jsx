@@ -31,9 +31,100 @@ L.Marker.prototype.options.icon = DefaultIcon;
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || "";
 const HAS_MAPBOX_TOKEN = Boolean(MAPBOX_TOKEN && MAPBOX_TOKEN.trim());
+const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY || "";
+const HAS_MAPTILER_KEY = Boolean(MAPTILER_KEY && MAPTILER_KEY.trim());
 // River Lune, Lancaster — adjust if needed
 const RIVER_LUNE_CENTER = [54.052776, -2.801216];
 const RIVER_LUNE_ZOOM = 15;
+
+const HISTORIC_OVERLAY_LAYERS = [
+    {
+        id: "lancaster-1900s",
+        tileId: "uk-osgb1888",
+        label: "Lancaster 1900s Overview",
+        description: "Best all-round starting point for the River Lune corridor.",
+    },
+    {
+        id: "lancaster-one-inch-hills",
+        tileId: "uk-osgb63k1885",
+        label: "One-Inch Hills, 1885-1903",
+        description: "Broader late-Victorian relief and route context across Lancaster.",
+    },
+    {
+        id: "lancaster-six-inch",
+        tileId: "uk-osgb10k1888",
+        label: "Six-Inch Detail, 1888-1913",
+        description: "Most detailed local land, field, and street context.",
+    },
+    {
+        id: "lancaster-interwar",
+        tileId: "uk-osgb1919",
+        label: "Interwar Overview, 1920s-1940s",
+        description: "Useful for comparing between the Edwardian and post-war landscape.",
+    },
+    {
+        id: "lancaster-provisional",
+        tileId: "uk-osgb25k1937",
+        label: "Provisional Edition, 1937-1961",
+        description: "Good mid-20th-century comparison for Lancaster approaches.",
+    },
+    {
+        id: "lancaster-seventh-series",
+        tileId: "uk-osgb63k1955",
+        label: "Seventh Series, 1955-1961",
+        description: "Post-war one-inch touring map view for roads, rail, and settlement change.",
+    },
+];
+const DEFAULT_HISTORIC_OVERLAY_ID = HISTORIC_OVERLAY_LAYERS[0].id;
+const DEFAULT_HISTORIC_OVERLAY_OPACITY = 0.72;
+const HISTORIC_OVERLAY_ATTRIBUTION =
+    'Historic map &copy; <a href="https://maps.nls.uk/">National Library of Scotland</a> via <a href="https://www.maptiler.com/">MapTiler</a>';
+
+const buildHistoricOverlayTileUrl = (tileId) => {
+    if (!tileId || !HAS_MAPTILER_KEY) return "";
+    return `https://api.maptiler.com/tiles/${tileId}/{z}/{x}/{y}.jpg?key=${MAPTILER_KEY}`;
+};
+
+const getWaybackReleaseDate = (release) => {
+    const rawLabel = [release?.releaseName, release?.itemTitle, release?.snapshotLabel]
+        .filter(Boolean)
+        .join(" ");
+    const match = rawLabel.match(/\d{4}-\d{2}-\d{2}/);
+    if (!match) return null;
+
+    const parsed = new Date(`${match[0]}T00:00:00Z`);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const formatWaybackOptionLabel = (release) => {
+    const parsedDate = getWaybackReleaseDate(release);
+    if (!parsedDate) return release?.releaseName || release?.itemTitle || "Undated snapshot";
+
+    return parsedDate.toLocaleDateString("en-GB", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+    });
+};
+
+const buildWaybackReleaseGroups = (releases) => {
+    const groups = new Map();
+
+    releases.forEach((release) => {
+        const parsedDate = getWaybackReleaseDate(release);
+        const groupLabel = parsedDate ? String(parsedDate.getUTCFullYear()) : "Undated";
+        if (!groups.has(groupLabel)) {
+            groups.set(groupLabel, []);
+        }
+
+        groups.get(groupLabel).push(release);
+    });
+
+    return Array.from(groups.entries()).map(([label, options]) => ({
+        label,
+        options,
+    }));
+};
 
 const TYPE_LABELS = {
     bike: "Bike",
@@ -3182,47 +3273,67 @@ function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impact
 function ControlToggles({
     isMobile,
     isTidePlannerCollapsed,
+    hasHistoricOverlayAccess,
+    isHistoricOverlayEnabled,
     isWeatherOverlayEnabled,
     isContributorsVisible,
     isHistoricalPoisVisible,
+    historicOverlayLayers,
+    selectedHistoricOverlayId,
+    historicOverlayOpacityPercent,
     weatherOverlayUpdatedLabel,
     onToggleTidePlanner,
+    onToggleHistoricOverlay,
+    onHistoricOverlaySelect,
+    onHistoricOverlayOpacityChange,
     onToggleWeatherOverlay,
     onToggleContributors,
     onToggleHistoricalPois,
 }) {
+    const selectedHistoricOverlay = historicOverlayLayers.find(
+        (layer) => layer.id === selectedHistoricOverlayId,
+    ) || historicOverlayLayers[0] || null;
+
     return (
         <div
             style={{
                 display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
+                flexDirection: "column",
+                alignItems: "stretch",
                 gap: "10px",
-                flexWrap: "wrap",
                 marginTop: "4px",
                 marginBottom: isTidePlannerCollapsed ? "2px" : "8px",
             }}
         >
             <div
                 style={{
-                    fontSize: "0.78rem",
-                    fontWeight: 700,
-                    color: "#64748b",
-                    letterSpacing: "0.06em",
-                    textTransform: "uppercase",
-                }}
-            >
-                Controls
-            </div>
-            <div
-                style={{
                     display: "flex",
                     alignItems: "center",
+                    justifyContent: "space-between",
                     gap: "6px",
                     flexWrap: "wrap",
-                    justifyContent: isMobile ? "flex-start" : "flex-end",
                 }}
             >
+                <div
+                    style={{
+                        fontSize: "0.78rem",
+                        fontWeight: 700,
+                        color: "#64748b",
+                        letterSpacing: "0.06em",
+                        textTransform: "uppercase",
+                    }}
+                >
+                    Controls
+                </div>
+                <div
+                    style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        flexWrap: "wrap",
+                        justifyContent: isMobile ? "flex-start" : "flex-end",
+                    }}
+                >
                 <button
                     onClick={onToggleTidePlanner}
                     style={{
@@ -3295,6 +3406,53 @@ function ControlToggles({
                         {isContributorsVisible
                             ? "Contributors On"
                             : "Contributors Off"}
+                    </span>
+                </button>
+
+                <button
+                    onClick={onToggleHistoricOverlay}
+                    disabled={!hasHistoricOverlayAccess}
+                    style={{
+                        border: isHistoricOverlayEnabled
+                            ? "1px solid #4d7c0f"
+                            : "1px solid #cbd5e1",
+                        background: isHistoricOverlayEnabled
+                            ? "linear-gradient(135deg, #ecfccb, #f7fee7)"
+                            : "linear-gradient(135deg, #eff6ff, #f8fafc)",
+                        color: isHistoricOverlayEnabled ? "#3f6212" : "#0f172a",
+                        borderRadius: UI_TOKENS.radius.pill,
+                        padding: isMobile ? "7px 10px" : "5px 10px",
+                        minHeight: "30px",
+                        width: "auto",
+                        fontSize: "0.8rem",
+                        fontWeight: 700,
+                        letterSpacing: "0.01em",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "8px",
+                        boxShadow: "0 4px 16px rgba(15,23,42,0.08)",
+                        cursor: hasHistoricOverlayAccess ? "pointer" : "not-allowed",
+                        opacity: hasHistoricOverlayAccess ? 1 : 0.55,
+                    }}
+                    aria-pressed={isHistoricOverlayEnabled}
+                    aria-label={
+                        hasHistoricOverlayAccess
+                            ? (isHistoricOverlayEnabled
+                                ? "Hide historic Lancaster maps"
+                                : "Show historic Lancaster maps")
+                            : "Historic maps require a MapTiler key"
+                    }
+                    title={
+                        hasHistoricOverlayAccess
+                            ? "Toggle historic Lancaster maps"
+                            : "Set VITE_MAPTILER_KEY to enable historic maps"
+                    }
+                >
+                    <span>
+                        {hasHistoricOverlayAccess
+                            ? (isHistoricOverlayEnabled ? "Historic Maps On" : "Historic Maps Off")
+                            : "Historic Maps Unavailable"}
                     </span>
                 </button>
 
@@ -3392,7 +3550,163 @@ function ControlToggles({
                             : "Radar Off"}
                     </span>
                 </button>
+                </div>
             </div>
+
+            {hasHistoricOverlayAccess ? (
+                isHistoricOverlayEnabled ? (
+                <div
+                    style={{
+                        border: isHistoricOverlayEnabled
+                            ? "1px solid #bef264"
+                            : "1px solid #d9f99d",
+                        background: isHistoricOverlayEnabled
+                            ? "linear-gradient(145deg, #f7fee7 0%, #ffffff 100%)"
+                            : "linear-gradient(145deg, #f8fafc 0%, #ffffff 100%)",
+                        borderRadius: UI_TOKENS.radius.md,
+                        padding: isMobile ? "10px 12px" : "10px 14px",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "10px",
+                    }}
+                >
+                    <div
+                        style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            gap: "10px",
+                            flexWrap: "wrap",
+                        }}
+                    >
+                        <div>
+                            <div
+                                style={{
+                                    fontSize: "0.92rem",
+                                    fontWeight: 700,
+                                    color: "#365314",
+                                }}
+                            >
+                                Lancaster Historic Overlay
+                            </div>
+                            <div
+                                style={{
+                                    fontSize: "0.8rem",
+                                    color: "#4b5563",
+                                    marginTop: "2px",
+                                }}
+                            >
+                                {selectedHistoricOverlay?.description || "Compare today with older River Lune mapping."}
+                            </div>
+                        </div>
+                        <div
+                            style={{
+                                fontSize: "0.79rem",
+                                color: isHistoricOverlayEnabled ? "#3f6212" : "#64748b",
+                                fontWeight: 700,
+                            }}
+                        >
+                            {isHistoricOverlayEnabled ? "Overlay visible" : "Overlay hidden"}
+                        </div>
+                    </div>
+
+                    <div
+                        style={{
+                            display: "grid",
+                            gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1.4fr) minmax(200px, 1fr)",
+                            gap: "12px",
+                            alignItems: "end",
+                        }}
+                    >
+                        <label
+                            style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: "6px",
+                                minWidth: 0,
+                            }}
+                        >
+                            <span
+                                style={{
+                                    fontSize: "0.78rem",
+                                    fontWeight: 700,
+                                    color: "#475569",
+                                    textTransform: "uppercase",
+                                    letterSpacing: "0.04em",
+                                }}
+                            >
+                                Layer
+                            </span>
+                            <select
+                                value={selectedHistoricOverlayId}
+                                onChange={(event) => onHistoricOverlaySelect(event.target.value)}
+                                style={{
+                                    minHeight: "38px",
+                                    borderRadius: "10px",
+                                    border: "1px solid #cbd5e1",
+                                    background: "#ffffff",
+                                    color: "#0f172a",
+                                    padding: "8px 10px",
+                                    fontSize: "0.9rem",
+                                }}
+                            >
+                                {historicOverlayLayers.map((layer) => (
+                                    <option key={layer.id} value={layer.id}>
+                                        {layer.label}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+
+                        <label
+                            style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: "6px",
+                            }}
+                        >
+                            <span
+                                style={{
+                                    fontSize: "0.78rem",
+                                    fontWeight: 700,
+                                    color: "#475569",
+                                    textTransform: "uppercase",
+                                    letterSpacing: "0.04em",
+                                }}
+                            >
+                                Opacity {historicOverlayOpacityPercent}%
+                            </span>
+                            <input
+                                type="range"
+                                min="20"
+                                max="100"
+                                step="1"
+                                value={historicOverlayOpacityPercent}
+                                onChange={(event) => onHistoricOverlayOpacityChange(event.target.value)}
+                                style={{
+                                    width: "100%",
+                                    accentColor: "#65a30d",
+                                }}
+                            />
+                        </label>
+                    </div>
+                </div>
+                ) : null
+            ) : (
+                <div
+                    style={{
+                        borderRadius: UI_TOKENS.radius.md,
+                        border: "1px solid #e2e8f0",
+                        background: "linear-gradient(145deg, #f8fafc 0%, #ffffff 100%)",
+                        padding: isMobile ? "9px 10px" : "8px 12px",
+                        color: "#475569",
+                        fontSize: "0.82rem",
+                        lineHeight: 1.45,
+                    }}
+                >
+                    Historic Lancaster maps are ready to use once VITE_MAPTILER_KEY is configured.
+                </div>
+            )}
         </div>
     );
 }
@@ -6849,6 +7163,14 @@ function App() {
     const [isLoadingFloodAlerts, setIsLoadingFloodAlerts] = useState(false);
     const [floodAlertsError, setFloodAlertsError] = useState(null);
     const [floodAlertsUpdatedAt, setFloodAlertsUpdatedAt] = useState("");
+    const [isHistoricOverlayEnabled, setIsHistoricOverlayEnabled] = useState(false);
+    const [selectedHistoricOverlayId, setSelectedHistoricOverlayId] = useState(
+        DEFAULT_HISTORIC_OVERLAY_ID,
+    );
+    const [historicOverlayOpacity, setHistoricOverlayOpacity] = useState(
+        DEFAULT_HISTORIC_OVERLAY_OPACITY,
+    );
+    const [historicOverlayError, setHistoricOverlayError] = useState("");
     const [isWeatherOverlayEnabled, setIsWeatherOverlayEnabled] = useState(false);
     const [weatherOverlayTileUrl, setWeatherOverlayTileUrl] = useState("");
     const [weatherOverlayUpdatedAt, setWeatherOverlayUpdatedAt] = useState("");
@@ -7403,19 +7725,14 @@ function App() {
                             ...val,
                         }));
                     }
-                    // Sort most-recent first; keep up to 80 snapshots
+                    // Sort most-recent first and keep the full release history available.
                     const sorted = [...list]
                         .filter((r) => r.releaseNum)
                         .sort((a, b) => {
-                            const getDate = (item) => {
-                                const match =
-                                    item.releaseName.match(/\d{4}-\d{2}-\d{2}/);
-                                return match ? new Date(match[0]) : new Date(0);
-                            };
-
-                            return getDate(b) - getDate(a); // newest first
-                        })
-                        .slice(0, 80);
+                            const dateA = getWaybackReleaseDate(a);
+                            const dateB = getWaybackReleaseDate(b);
+                            return (dateB?.getTime() || 0) - (dateA?.getTime() || 0);
+                        });
                     setWaybackReleases(sorted);
                     // Default to the latest World Imagery snapshot
                     if (sorted.length > 0) setSelectedWaybackId(sorted[0].releaseNum);
@@ -9091,6 +9408,23 @@ function App() {
         setIsPoiPanelOpen(false);
         setEditingHistoricalPoiId(null);
     };
+    const selectedHistoricOverlay = useMemo(
+        () => HISTORIC_OVERLAY_LAYERS.find((layer) => layer.id === selectedHistoricOverlayId)
+            || HISTORIC_OVERLAY_LAYERS[0],
+        [selectedHistoricOverlayId],
+    );
+    const historicOverlayTileUrl = useMemo(
+        () => buildHistoricOverlayTileUrl(selectedHistoricOverlay?.tileId),
+        [selectedHistoricOverlay],
+    );
+    const historicOverlayOpacityPercent = useMemo(
+        () => Math.round(historicOverlayOpacity * 100),
+        [historicOverlayOpacity],
+    );
+    const groupedWaybackReleases = useMemo(
+        () => buildWaybackReleaseGroups(waybackReleases),
+        [waybackReleases],
+    );
     const weatherOverlayUpdatedLabel = useMemo(() => {
         if (!weatherOverlayUpdatedAt) return "";
 
@@ -9102,6 +9436,16 @@ function App() {
             minute: "2-digit",
         });
     }, [weatherOverlayUpdatedAt]);
+
+    useEffect(() => {
+        if (HAS_MAPTILER_KEY) return;
+        setIsHistoricOverlayEnabled(false);
+        setHistoricOverlayError("");
+    }, []);
+
+    useEffect(() => {
+        setHistoricOverlayError("");
+    }, [selectedHistoricOverlayId]);
 
     useEffect(() => {
         if (!selectedGps || !selectedGeoLookupKey) {
@@ -9349,13 +9693,33 @@ function App() {
             <ControlToggles
                 isMobile={isMobile}
                 isTidePlannerCollapsed={isTidePlannerCollapsed}
+                hasHistoricOverlayAccess={HAS_MAPTILER_KEY}
+                isHistoricOverlayEnabled={isHistoricOverlayEnabled}
                 isWeatherOverlayEnabled={isWeatherOverlayEnabled}
                 isContributorsVisible={isContributorsVisible}
                 isHistoricalPoisVisible={isHistoricalPoisVisible}
+                historicOverlayLayers={HISTORIC_OVERLAY_LAYERS}
+                selectedHistoricOverlayId={selectedHistoricOverlayId}
+                historicOverlayOpacityPercent={historicOverlayOpacityPercent}
                 weatherOverlayUpdatedLabel={weatherOverlayUpdatedLabel}
                 onToggleTidePlanner={() =>
                     setIsTidePlannerCollapsed((prev) => !prev)
                 }
+                onToggleHistoricOverlay={() => {
+                    if (!HAS_MAPTILER_KEY) return;
+                    setHistoricOverlayError("");
+                    setIsHistoricOverlayEnabled((prev) => !prev);
+                }}
+                onHistoricOverlaySelect={(nextLayerId) => {
+                    setHistoricOverlayError("");
+                    setSelectedHistoricOverlayId(nextLayerId);
+                }}
+                onHistoricOverlayOpacityChange={(nextValue) => {
+                    const parsed = Number.parseInt(nextValue, 10);
+                    if (!Number.isFinite(parsed)) return;
+                    const clamped = Math.min(Math.max(parsed, 20), 100);
+                    setHistoricOverlayOpacity(clamped / 100);
+                }}
                 onToggleWeatherOverlay={() =>
                     setIsWeatherOverlayEnabled((prev) => !prev)
                 }
@@ -9407,6 +9771,23 @@ function App() {
                     }}
                 >
                     {weatherOverlayError}
+                </div>
+            ) : null}
+
+            {isHistoricOverlayEnabled && historicOverlayError ? (
+                <div
+                    style={{
+                        marginBottom: "8px",
+                        padding: isMobile ? "9px 10px" : "8px 10px",
+                        borderRadius: "10px",
+                        border: "1px solid #bef264",
+                        background: "#f7fee7",
+                        color: "#3f6212",
+                        fontSize: "0.82rem",
+                        lineHeight: 1.4,
+                    }}
+                >
+                    {historicOverlayError}
                 </div>
             ) : null}
 
@@ -9465,6 +9846,25 @@ function App() {
                             opacity={0.58}
                             maxZoom={19}
                             maxNativeZoom={RAINVIEWER_MAX_SUPPORTED_ZOOM}
+                        />
+                    ) : null}
+                    {isHistoricOverlayEnabled && historicOverlayTileUrl ? (
+                        <TileLayer
+                            key={`historic-overlay-${selectedHistoricOverlay.id}`}
+                            url={historicOverlayTileUrl}
+                            attribution={HISTORIC_OVERLAY_ATTRIBUTION}
+                            opacity={historicOverlayOpacity}
+                            maxZoom={19}
+                            eventHandlers={{
+                                load: () => {
+                                    setHistoricOverlayError("");
+                                },
+                                tileerror: () => {
+                                    setHistoricOverlayError(
+                                        `Historic layer \"${selectedHistoricOverlay.label}\" could not be loaded right now.`,
+                                    );
+                                },
+                            }}
                         />
                     ) : null}
                     <WeatherOverlayZoomGuard
@@ -10237,7 +10637,7 @@ function App() {
                             pointerEvents: isMapToolsOpen ? "auto" : "none",
                         }}
                     >
-                        {waybackReleases.length > 0 ? (
+                        {groupedWaybackReleases.length > 0 ? (
                             <label
                                 style={{
                                     display: "grid",
@@ -10266,13 +10666,17 @@ function App() {
                                     }}
                                 >
                                     <option value="">Mapbox (Live)</option>
-                                    {waybackReleases.map((r) => (
-                                        <option
-                                            key={r.releaseNum}
-                                            value={r.releaseNum}
-                                        >
-                                            {r.releaseName}
-                                        </option>
+                                    {groupedWaybackReleases.map((group) => (
+                                        <optgroup key={group.label} label={group.label}>
+                                            {group.options.map((release) => (
+                                                <option
+                                                    key={release.releaseNum}
+                                                    value={release.releaseNum}
+                                                >
+                                                    {formatWaybackOptionLabel(release)}
+                                                </option>
+                                            ))}
+                                        </optgroup>
                                     ))}
                                 </select>
                             </label>

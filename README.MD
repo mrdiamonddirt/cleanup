@@ -16,6 +16,7 @@ The goal is simple: pull trolleys, bikes, and other rubbish out of the river and
 - **Real-time Tracking:** Log items (Trolleys, Bikes, etc.) with a single click and persist coordinates to a SQL database.
 - **State Management:** Track the recovery status of items with visual indicators (✅ vs ❌).
 - **Impact Dashboard:** Real-time calculation of cleanup progress using filtered data arrays.
+- **Historic Lancaster Overlays:** Compare the River Lune corridor against curated National Library of Scotland historic map layers delivered through MapTiler.
 
 ## 📐 Technical Implementation
 To maintain the aspect ratio of the aerial imagery, I implemented a custom `CRS.Simple` coordinate system mapped to the image dimensions (1687x830). This ensures that markers stay pinned to exact pixel coordinates regardless of screen scaling.
@@ -58,6 +59,7 @@ Repository variables for non-sensitive production config:
 
 ```env
 SEO_SITE_URL=https://rivercleanup.co.uk
+VITE_MAPTILER_KEY=...
 VITE_FACEBOOK_PAGE_RECIPIENT_ID=
 VITE_COMMUNITY_EMAIL_ACCOUNT=
 VITE_OWNER_GITHUB_LOGINS=mrdiamonddirt
@@ -67,6 +69,8 @@ VITE_ENABLE_PUBLIC_REPORTS=true
 ```
 
 If you add a new production `VITE_*` key, update both [`.github/workflows/refresh-lancaster-tides.yml`](.github/workflows/refresh-lancaster-tides.yml) and `.env.example` in the same change so the scheduled rebuild does not drop it.
+
+Historic Lancaster overlays use a small curated set of NLS layers through MapTiler. If `VITE_MAPTILER_KEY` is missing, the app keeps the control disabled and the base map continues to work normally.
 
 ## 🔐 Auth (GitHub + Owner Write Access)
 - Sign-in uses Supabase Auth with the GitHub provider.
