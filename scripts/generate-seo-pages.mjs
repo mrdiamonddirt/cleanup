@@ -8,6 +8,8 @@ const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "..");
 const publicDir = path.join(projectRoot, "public");
 const shareRoot = path.join(publicDir, "share");
+const poiRoot = path.join(publicDir, "poi");
+const legacyHistoryRoot = path.join(publicDir, "history");
 const fallbackImage = "/river-photo.jpg";
 
 const TYPE_LABELS = {
@@ -184,6 +186,82 @@ const buildIndexHtml = ({ siteUrl, itemCount }) => `<!doctype html>
 </html>
 `;
 
+const buildPoiHtml = ({
+        siteUrl,
+    poiUrl,
+        appUrl,
+        ogImageUrl,
+        title,
+        description,
+        poi,
+}) => {
+        const images = Array.isArray(poi?.poi_images) ? poi.poi_images : [];
+        const imageGallery = images.slice(0, 4).map((image) => {
+                const src = ensureAbsoluteUrl(siteUrl, image?.image_url || "");
+                const alt = escapeHtml(image?.alt_text || `${poi?.title || "Historical reference"} image`);
+                const caption = escapeHtml(image?.caption || "");
+
+                return `<figure style="margin:0; display:grid; gap:6px;">
+    <img src="${escapeHtml(src)}" alt="${alt}" style="width:100%; border-radius:10px; border:1px solid #fed7aa; max-height:280px; object-fit:cover;" />
+    ${caption ? `<figcaption style="font-size:0.86rem; color:#7c2d12;">${caption}</figcaption>` : ""}
+</figure>`;
+        }).join("\n");
+
+        const jsonLd = {
+                "@context": "https://schema.org",
+                "@type": "Place",
+                "name": title,
+                "url": poiUrl,
+                "description": description,
+                "image": ogImageUrl,
+                "geo": {
+                        "@type": "GeoCoordinates",
+                        "latitude": poi?.latitude,
+                        "longitude": poi?.longitude,
+                },
+        };
+
+        return `<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+        <meta name="theme-color" content="#7c2d12" />
+        <meta name="description" content="${escapeHtml(description)}" />
+        <meta name="robots" content="index, follow" />
+
+        <meta property="og:type" content="article" />
+        <meta property="og:site_name" content="River Bank Cleanup Tracker" />
+        <meta property="og:title" content="${escapeHtml(title)}" />
+        <meta property="og:description" content="${escapeHtml(description)}" />
+        <meta property="og:url" content="${escapeHtml(poiUrl)}" />
+        <meta property="og:image" content="${escapeHtml(ogImageUrl)}" />
+        <meta property="og:image:alt" content="POI image" />
+
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="${escapeHtml(title)}" />
+        <meta name="twitter:description" content="${escapeHtml(description)}" />
+        <meta name="twitter:image" content="${escapeHtml(ogImageUrl)}" />
+
+        <link rel="canonical" href="${escapeHtml(poiUrl)}" />
+
+        <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
+        <title>${escapeHtml(title)}</title>
+    </head>
+    <body style="font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif; margin: 0; padding: 24px; background: #fff7ed; color: #0f172a;">
+        <main style="max-width: 760px; margin: 0 auto; background: #ffffff; border-radius: 14px; padding: 22px; box-shadow: 0 12px 26px rgba(124, 45, 18, 0.12); border: 1px solid #fed7aa; display: grid; gap: 14px;">
+            <h1 style="margin: 0; font-size: 1.5rem; line-height: 1.3; color: #7c2d12;">${escapeHtml(title)}</h1>
+            <p style="margin: 0; line-height: 1.6; color: #334155;">${escapeHtml(description)}</p>
+            ${imageGallery}
+            <p style="margin: 0;">
+                <a href="${escapeHtml(appUrl)}" style="display: inline-block; background: #7c2d12; color: #ffffff; text-decoration: none; padding: 10px 14px; border-radius: 10px; font-weight: 600;">Open In Cleanup Tracker</a>
+            </p>
+        </main>
+    </body>
+</html>
+`;
+};
+
 const main = async () => {
     const localEnv = await readLocalDotEnv();
     const supabaseUrl =
@@ -212,10 +290,14 @@ const main = async () => {
 
     await rm(shareRoot, { recursive: true, force: true });
     await mkdir(shareRoot, { recursive: true });
+    await rm(poiRoot, { recursive: true, force: true });
+    await mkdir(poiRoot, { recursive: true });
+    await rm(legacyHistoryRoot, { recursive: true, force: true });
 
     if (!supabaseUrl || !supabaseKey) {
         const indexHtml = buildIndexHtml({ siteUrl, itemCount: 0 });
         await writeFile(path.join(shareRoot, "index.html"), indexHtml, "utf8");
+        await writeFile(path.join(poiRoot, "index.html"), buildIndexHtml({ siteUrl, itemCount: 0 }), "utf8");
         console.warn("Skipped SEO share page generation: Supabase env vars are missing.");
         return;
     }
@@ -239,6 +321,49 @@ const main = async () => {
 
     const items = Array.isArray(data) ? data.filter((item) => item && item.id !== null && item.id !== undefined) : [];
 
+    const { data: historicalData, error: historicalError } = await supabase
+        .from("pois")
+        .select(`
+            id,
+            slug,
+            title,
+            summary,
+            description,
+            latitude,
+            longitude,
+            is_historic,
+            updated_at,
+            poi_images (
+                image_url,
+                alt_text,
+                caption,
+                display_order,
+                is_featured
+            )
+        `)
+        .eq("status", "published")
+        .eq("is_public", true)
+        .order("updated_at", { ascending: false })
+        .limit(500);
+
+    let historicalPois = [];
+    if (historicalError) {
+        const message = String(historicalError.message || "").toLowerCase();
+        const missingHistoricalTable =
+            message.includes("pois") &&
+            (message.includes("could not find") || message.includes("does not exist"));
+
+        if (missingHistoricalTable) {
+            console.warn("POI SEO generation skipped: pois table is missing.");
+        } else {
+            throw new Error(`Failed to fetch historical POIs for SEO prerender: ${historicalError.message}`);
+        }
+    } else {
+        historicalPois = Array.isArray(historicalData)
+            ? historicalData.filter((poi) => poi && typeof poi.slug === "string" && poi.slug.trim())
+            : [];
+    }
+
     for (const item of items) {
         const id = String(item.id).trim();
         if (!id) continue;
@@ -261,9 +386,51 @@ const main = async () => {
 
     await writeFile(path.join(shareRoot, "index.html"), buildIndexHtml({ siteUrl, itemCount: items.length }), "utf8");
 
+    for (const poi of historicalPois) {
+        const slug = String(poi.slug).trim();
+        if (!slug) continue;
+
+        const sortedImages = Array.isArray(poi.poi_images)
+            ? [...poi.poi_images].sort(
+                (left, right) => Number(left?.display_order || 0) - Number(right?.display_order || 0),
+            )
+            : [];
+        const featuredImage = sortedImages.find((image) => image?.is_featured) || sortedImages[0] || null;
+        const title = `${poi.title || "POI"} | River Lune POI`;
+        const contextText = poi?.is_historic ? "Historic POI" : "POI";
+        const description = (poi.summary || poi.description || `${contextText} on the River Lune cleanup map.`).trim();
+        const poiUrl = `${siteUrl}/poi/${encodeURIComponent(slug)}/`;
+        const appUrl = `${siteUrl}/?poi=${encodeURIComponent(slug)}`;
+        const ogImageUrl = ensureAbsoluteUrl(siteUrl, featuredImage?.image_url || "");
+
+        const folder = path.join(poiRoot, encodeURIComponent(slug));
+        await mkdir(folder, { recursive: true });
+        await writeFile(
+            path.join(folder, "index.html"),
+            buildPoiHtml({
+                siteUrl,
+                poiUrl,
+                appUrl,
+                ogImageUrl,
+                title,
+                description,
+                poi: {
+                    ...poi,
+                    poi_images: sortedImages,
+                },
+            }),
+            "utf8",
+        );
+    }
+
+    await writeFile(path.join(poiRoot, "index.html"), buildIndexHtml({ siteUrl, itemCount: historicalPois.length }), "utf8");
+
     const shareFolders = await readdir(shareRoot, { withFileTypes: true });
     const generatedPages = shareFolders.filter((entry) => entry.isDirectory()).length;
+    const poiFolders = await readdir(poiRoot, { withFileTypes: true });
+    const generatedPoiPages = poiFolders.filter((entry) => entry.isDirectory()).length;
     console.log(`Generated ${generatedPages} SEO share pages in ${shareRoot}.`);
+    console.log(`Generated ${generatedPoiPages} SEO POI pages in ${poiRoot}.`);
 };
 
 await main();

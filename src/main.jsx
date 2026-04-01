@@ -14,6 +14,8 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { hasSupabaseConfig, supabase } from "./supabaseClient";
 import ContributorBusinessPanel from "./components/panels/ContributorBusinessPanel";
+import PoiPanel from "./components/panels/PoiPanel";
+import PoiCard from "./components/PoiCard";
 
 // --- LEAFLET ICON FIX ---
 import markerIcon from "leaflet/dist/images/marker-icon.png";
@@ -96,6 +98,8 @@ const ENABLE_PUBLIC_REPORTS = String(import.meta.env.VITE_ENABLE_PUBLIC_REPORTS 
 const REPORT_NOTE_MAX_LENGTH = 280;
 const REPORT_ACTION_COOLDOWN_MS = 12_000;
 const REPORT_CONSENT_STORAGE_KEY = "cleanup-report-consent-v1";
+const HISTORICAL_POI_STATUS_DRAFT = "draft";
+const HISTORICAL_POI_STATUS_PUBLISHED = "published";
 
 const LazyTidePlanner = lazy(() => import("./components/panels/TidePlanner"));
 const LazyFloodStatusPanel = lazy(() => import("./components/panels/FloodStatusPanel"));
@@ -1151,7 +1155,12 @@ const sanitizeImageFile = async (file) => {
 
     try {
         if (typeof OffscreenCanvas === "function" && typeof createImageBitmap === "function") {
-            const bitmap = await createImageBitmap(file);
+            let bitmap;
+            try {
+                bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+            } catch {
+                bitmap = await createImageBitmap(file);
+            }
             canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
             const context = canvas.getContext("2d");
 
@@ -1297,6 +1306,42 @@ const getFlowStationIcon = () =>
         iconSize: [38, 38],
         iconAnchor: [19, 19],
     });
+
+const getPoiIcon = (isHistoric = false, isMuseum = false) => {
+    let emoji = "📍";
+    let color = "#0f766e";
+    let borderColor = "#0f766e";
+    let bgGradient = "#f0fdfa 0%, #ccfbf1 100%";
+    let shadowColor = "rgba(15, 118, 110, 0.28)";
+    let className = "poi-marker";
+
+    if (isMuseum) {
+        emoji = "🏛️";
+        color = "#581c87";
+        borderColor = "#7c3aed";
+        bgGradient = "#f5f3ff 0%, #ede9fe 100%";
+        shadowColor = "rgba(92, 28, 135, 0.28)";
+        className = "museum-poi-marker";
+    } else if (isHistoric) {
+        emoji = "📜";
+        color = "#9a3412";
+        borderColor = "#8b5e34";
+        bgGradient = "#fff7ed 0%, #ffedd5 100%";
+        shadowColor = "rgba(154, 52, 18, 0.28)";
+        className = "historical-poi-marker";
+    }
+
+    return L.divIcon({
+        className,
+        html: `
+            <div style="width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; transform: rotate(45deg); border-radius: 8px; border: 2px solid ${borderColor}; background: linear-gradient(180deg, ${bgGradient}); box-shadow: 0 3px 10px ${shadowColor};">
+                <span style="transform: rotate(-45deg); color: ${color}; font-size: 18px; font-weight: 800; line-height: 1;">${emoji}</span>
+            </div>
+        `,
+        iconSize: [38, 38],
+        iconAnchor: [19, 19],
+    });
+};
 
 const getContributorIcon = (logoUrl, businessName) => {
     const hasLogo = typeof logoUrl === "string" && logoUrl.trim();
@@ -2642,6 +2687,7 @@ function AppTopBar({
     onSignOut,
     isLoadingItems,
     onOpenContributorPanel,
+    onOpenPoiPanel,
 }) {
     const signedIn = Boolean(currentUser);
     const syncLabel = isLoadingItems ? "Syncing" : "Up to date";
@@ -2806,6 +2852,28 @@ function AppTopBar({
                 >
                     {isMobile ? "★" : "★ Contributors"}
                 </button>
+
+                {canManageItems ? (
+                    <button
+                        type="button"
+                        onClick={onOpenPoiPanel}
+                        style={{
+                            border: "1px solid #9a3412",
+                            background: "#ffedd5",
+                            color: "#9a3412",
+                            borderRadius: UI_TOKENS.radius.pill,
+                            minHeight: "34px",
+                            padding: isMobile ? "0 10px" : "0 11px",
+                            fontSize: "0.76rem",
+                            fontWeight: 700,
+                            whiteSpace: "nowrap",
+                            cursor: "pointer",
+                        }}
+                        aria-label="Open POI manager"
+                    >
+                        {isMobile ? "📍" : "📍 POIs"}
+                    </button>
+                ) : null}
 
                 <button
                     type="button"
@@ -3076,10 +3144,12 @@ function ControlToggles({
     isTidePlannerCollapsed,
     isWeatherOverlayEnabled,
     isContributorsVisible,
+    isHistoricalPoisVisible,
     weatherOverlayUpdatedLabel,
     onToggleTidePlanner,
     onToggleWeatherOverlay,
     onToggleContributors,
+    onToggleHistoricalPois,
 }) {
     return (
         <div
@@ -3185,6 +3255,44 @@ function ControlToggles({
                         {isContributorsVisible
                             ? "Contributors On"
                             : "Contributors Off"}
+                    </span>
+                </button>
+
+                <button
+                    onClick={onToggleHistoricalPois}
+                    style={{
+                        border: isHistoricalPoisVisible
+                            ? "1px solid #9a3412"
+                            : "1px solid #fdba74",
+                        background: isHistoricalPoisVisible
+                            ? "linear-gradient(135deg, #ffedd5, #fff7ed)"
+                            : "linear-gradient(135deg, #eff6ff, #f8fafc)",
+                        color: isHistoricalPoisVisible ? "#9a3412" : "#0f172a",
+                        borderRadius: UI_TOKENS.radius.pill,
+                        padding: isMobile ? "7px 10px" : "5px 10px",
+                        minHeight: "30px",
+                        width: "auto",
+                        fontSize: "0.8rem",
+                        fontWeight: 700,
+                        letterSpacing: "0.01em",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "8px",
+                        boxShadow: "0 4px 16px rgba(15,23,42,0.08)",
+                        cursor: "pointer",
+                    }}
+                    aria-pressed={isHistoricalPoisVisible}
+                    aria-label={
+                        isHistoricalPoisVisible
+                            ? "Hide POIs"
+                            : "Show POIs"
+                    }
+                >
+                    <span>
+                        {isHistoricalPoisVisible
+                            ? "POIs On"
+                            : "POIs Off"}
                     </span>
                 </button>
 
@@ -6689,6 +6797,11 @@ function App() {
     const [isRegionalFlowStationsVisible, setIsRegionalFlowStationsVisible] = useState(true);
     const [isContributorsVisible, setIsContributorsVisible] = useState(true);
     const [contributors, setContributors] = useState([]);
+    const [historicalPois, setHistoricalPois] = useState([]);
+    const [isHistoricalPoisVisible, setIsHistoricalPoisVisible] = useState(true);
+    const [isPoiPanelOpen, setIsPoiPanelOpen] = useState(false);
+    const [selectedHistoricalPoiId, setSelectedHistoricalPoiId] = useState(null);
+    const [editingHistoricalPoiId, setEditingHistoricalPoiId] = useState(null);
     const [selectedContributorId, setSelectedContributorId] = useState(null);
     const [isContributorPanelOpen, setIsContributorPanelOpen] = useState(false);
     const [floodAlerts, setFloodAlerts] = useState([]);
@@ -7275,6 +7388,7 @@ function App() {
     useEffect(() => {
         void fetchItems();
         void fetchContributors();
+        void fetchHistoricalPois();
     }, []);
 
     useEffect(() => {
@@ -7744,6 +7858,202 @@ function App() {
 
         setContributors(Array.isArray(data) ? data : []);
         return true;
+    }
+
+    async function fetchHistoricalPois() {
+        if (!hasSupabaseConfig) {
+            setHistoricalPois([]);
+            return false;
+        }
+
+        const { data, error } = await supabase
+            .from("pois")
+            .select(`
+                *,
+                poi_images (
+                    id,
+                    image_url,
+                    alt_text,
+                    caption,
+                    display_order,
+                    is_featured
+                )
+            `)
+            .order("updated_at", { ascending: false });
+
+        if (error) {
+            setHistoricalPois([]);
+            return false;
+        }
+
+        const normalized = Array.isArray(data)
+            ? data.map((poi) => {
+                const images = Array.isArray(poi.poi_images)
+                    ? [...poi.poi_images].sort(
+                        (left, right) =>
+                            Number(left?.display_order || 0) - Number(right?.display_order || 0),
+                    )
+                    : [];
+
+                return {
+                    ...poi,
+                    poi_images: images,
+                };
+            })
+            : [];
+
+        setHistoricalPois(normalized);
+        return true;
+    }
+
+    const uploadHistoricalPoiImage = async (file) => {
+        const sanitizedFile = await sanitizeImageFile(file);
+        return uploadImage(sanitizedFile);
+    };
+
+    async function saveHistoricalPoi({
+        poiId,
+        title,
+        slug,
+        summary,
+        description,
+        latitude,
+        longitude,
+        period_start_year,
+        period_end_year,
+        is_historic,
+        is_museum,
+        google_maps_url,
+        wiki_url,
+        status,
+        is_public,
+        imageRows,
+    }) {
+        if (!canManageItems) {
+            throw new Error("Read-only account");
+        }
+
+        const normalizedStatus =
+            status === HISTORICAL_POI_STATUS_PUBLISHED
+                ? HISTORICAL_POI_STATUS_PUBLISHED
+                : HISTORICAL_POI_STATUS_DRAFT;
+        const isPublished = normalizedStatus === HISTORICAL_POI_STATUS_PUBLISHED;
+
+        const payload = {
+            title,
+            slug,
+            summary: summary || null,
+            description: description || null,
+            latitude,
+            longitude,
+            period_start_year: Number.isFinite(period_start_year) ? period_start_year : null,
+            period_end_year: Number.isFinite(period_end_year) ? period_end_year : null,
+            is_historic: Boolean(is_historic),
+            is_museum: Boolean(is_museum),
+            google_maps_url: google_maps_url || null,
+            wiki_url: wiki_url || null,
+            status: normalizedStatus,
+            is_public: Boolean(is_public && isPublished),
+            published_at: null,
+        };
+
+        if (!poiId) {
+            payload.published_at = isPublished ? new Date().toISOString() : null;
+            payload.created_by = currentUser?.id || null;
+
+            const { data, error } = await supabase
+                .from("pois")
+                .insert([payload])
+                .select("id")
+                .single();
+
+            if (error || !data?.id) {
+                throw new Error(error?.message || "Failed to create POI");
+            }
+
+            if (Array.isArray(imageRows) && imageRows.length > 0) {
+                const imagePayload = imageRows.slice(0, 10).map((row, index) => ({
+                    poi_id: data.id,
+                    image_url: row.image_url,
+                    alt_text: row.alt_text || null,
+                    caption: row.caption || null,
+                    display_order: index,
+                    is_featured: index === 0,
+                    uploaded_by: currentUser?.id || null,
+                }));
+
+                const { error: imageInsertError } = await supabase
+                    .from("poi_images")
+                    .insert(imagePayload);
+
+                if (imageInsertError) {
+                    throw new Error(imageInsertError.message || "POI created but image save failed");
+                }
+            }
+
+            return;
+        }
+
+        const existingPoi = historicalPois.find((poi) => String(poi?.id) === String(poiId));
+        payload.published_at = isPublished
+            ? (existingPoi?.published_at || new Date().toISOString())
+            : null;
+
+        const { error: updateError } = await supabase
+            .from("pois")
+            .update(payload)
+            .eq("id", poiId);
+
+        if (updateError) {
+            throw new Error(updateError?.message || "Failed to update POI");
+        }
+
+        if (Array.isArray(imageRows) && imageRows.length > 0) {
+            const existingImages = Array.isArray(existingPoi?.poi_images)
+                ? existingPoi.poi_images
+                : [];
+            const startOrder = existingImages.length;
+
+            const imagePayload = imageRows.slice(0, 10).map((row, index) => ({
+                poi_id: poiId,
+                image_url: row.image_url,
+                alt_text: row.alt_text || null,
+                caption: row.caption || null,
+                display_order: startOrder + index,
+                is_featured: existingImages.length === 0 && index === 0,
+                uploaded_by: currentUser?.id || null,
+            }));
+
+            const { error: imageInsertError } = await supabase
+                .from("poi_images")
+                .insert(imagePayload);
+
+            if (imageInsertError) {
+                throw new Error(imageInsertError.message || "POI updated but image save failed");
+            }
+        }
+    }
+
+    async function deleteHistoricalPoi(poiId) {
+        if (!canManageItems) {
+            throw new Error("Read-only account");
+        }
+        if (!poiId) {
+            throw new Error("Missing POI id");
+        }
+
+        const { error } = await supabase
+            .from("pois")
+            .delete()
+            .eq("id", poiId);
+
+        if (error) {
+            throw new Error(error?.message || "Failed to delete POI");
+        }
+
+        setSelectedHistoricalPoiId((prev) => (String(prev) === String(poiId) ? null : prev));
+        setEditingHistoricalPoiId((prev) => (String(prev) === String(poiId) ? null : prev));
+        setIsPoiPanelOpen(false);
     }
 
     async function saveGeoLookupForItem(itemId, geoLookup) {
@@ -8603,7 +8913,8 @@ function App() {
         + Number(statusFilter !== "all")
         + Number(!isLuneStationsVisible)
         + Number(!isRegionalFlowStationsVisible)
-        + Number(!isContributorsVisible);
+        + Number(!isContributorsVisible)
+        + Number(!isHistoricalPoisVisible);
     const luneStationKeySet = useMemo(
         () => new Set(luneStations.map((station) => getEaStationKey(station)).filter(Boolean)),
         [luneStations],
@@ -8656,6 +8967,69 @@ function App() {
         () => (selectedContributor ? resolveContributorMapsUrl(selectedContributor) : ""),
         [selectedContributor],
     );
+    const selectedHistoricalPoi = useMemo(
+        () =>
+            selectedHistoricalPoiId === null
+                ? null
+                : historicalPois.find(
+                    (poi) => String(poi?.id) === String(selectedHistoricalPoiId),
+                ) || null,
+        [historicalPois, selectedHistoricalPoiId],
+    );
+    const selectedHistoricalPoiPublicUrl = useMemo(() => {
+        if (!selectedHistoricalPoi) return "";
+        if (selectedHistoricalPoi.status !== HISTORICAL_POI_STATUS_PUBLISHED) return "";
+        if (!selectedHistoricalPoi.is_public) return "";
+
+        const slug = String(selectedHistoricalPoi.slug || "").trim();
+        if (!slug) return "";
+        if (typeof window === "undefined") return "";
+
+        return `${window.location.origin}${import.meta.env.BASE_URL}poi/${encodeURIComponent(slug)}/`;
+    }, [selectedHistoricalPoi]);
+    const editingHistoricalPoi = useMemo(
+        () =>
+            editingHistoricalPoiId === null
+                ? null
+                : historicalPois.find(
+                    (poi) => String(poi?.id) === String(editingHistoricalPoiId),
+                ) || null,
+        [historicalPois, editingHistoricalPoiId],
+    );
+
+    const closeNonRelevantOverlayUi = () => {
+        setSelectedItemId(null);
+        setEditingItemId(null);
+        setSelectedContributorId(null);
+        setIsContributorPanelOpen(false);
+        setReportLocation(null);
+        setPendingReportLocation(null);
+        setIsReportConsentOpen(false);
+        setReportNote("");
+        setReportStatus("");
+        setIsFilterSheetOpen(false);
+        setIsMapToolsOpen(false);
+    };
+
+    const openPoiCreatePanel = () => {
+        closeNonRelevantOverlayUi();
+        setEditingHistoricalPoiId(null);
+        setSelectedHistoricalPoiId(null);
+        setIsPoiPanelOpen(true);
+    };
+
+    const openPoiEditPanel = (poiId) => {
+        if (!poiId) return;
+        closeNonRelevantOverlayUi();
+        setEditingHistoricalPoiId(poiId);
+        setSelectedHistoricalPoiId(null);
+        setIsPoiPanelOpen(true);
+    };
+
+    const closePoiPanel = () => {
+        setIsPoiPanelOpen(false);
+        setEditingHistoricalPoiId(null);
+    };
     const weatherOverlayUpdatedLabel = useMemo(() => {
         if (!weatherOverlayUpdatedAt) return "";
 
@@ -8738,6 +9112,50 @@ function App() {
         if (isContributorsVisible) return;
         setSelectedContributorId(null);
     }, [isContributorsVisible]);
+
+    useEffect(() => {
+        if (isHistoricalPoisVisible) return;
+        setSelectedHistoricalPoiId(null);
+    }, [isHistoricalPoisVisible]);
+
+    useEffect(() => {
+        if (selectedItemId === null) return;
+
+        setEditingHistoricalPoiId(null);
+        setSelectedHistoricalPoiId(null);
+        setSelectedContributorId(null);
+        setIsPoiPanelOpen(false);
+        setIsContributorPanelOpen(false);
+        setPendingLocation(null);
+        setPendingItemType(null);
+        setReportLocation(null);
+        setPendingReportLocation(null);
+        setIsReportConsentOpen(false);
+        setReportNote("");
+        setReportStatus("");
+        setIsFilterSheetOpen(false);
+        setIsMapToolsOpen(false);
+    }, [selectedItemId]);
+
+    useEffect(() => {
+        if (selectedHistoricalPoiId === null) return;
+
+        setEditingHistoricalPoiId(null);
+        setSelectedItemId(null);
+        setEditingItemId(null);
+        setSelectedContributorId(null);
+        setIsPoiPanelOpen(false);
+        setIsContributorPanelOpen(false);
+        setPendingLocation(null);
+        setPendingItemType(null);
+        setReportLocation(null);
+        setPendingReportLocation(null);
+        setIsReportConsentOpen(false);
+        setReportNote("");
+        setReportStatus("");
+        setIsFilterSheetOpen(false);
+        setIsMapToolsOpen(false);
+    }, [selectedHistoricalPoiId]);
 
     useEffect(() => {
         if (selectedContributorId === null) return;
@@ -8840,6 +9258,7 @@ function App() {
                 onSignOut={signOut}
                 isLoadingItems={isLoadingItems}
                 onOpenContributorPanel={() => setIsContributorPanelOpen(true)}
+                onOpenPoiPanel={openPoiCreatePanel}
             />
 
             {isMobile && authError ? (
@@ -8871,6 +9290,7 @@ function App() {
                 isTidePlannerCollapsed={isTidePlannerCollapsed}
                 isWeatherOverlayEnabled={isWeatherOverlayEnabled}
                 isContributorsVisible={isContributorsVisible}
+                isHistoricalPoisVisible={isHistoricalPoisVisible}
                 weatherOverlayUpdatedLabel={weatherOverlayUpdatedLabel}
                 onToggleTidePlanner={() =>
                     setIsTidePlannerCollapsed((prev) => !prev)
@@ -8880,6 +9300,9 @@ function App() {
                 }
                 onToggleContributors={() =>
                     setIsContributorsVisible((prev) => !prev)
+                }
+                onToggleHistoricalPois={() =>
+                    setIsHistoricalPoisVisible((prev) => !prev)
                 }
             />
 
@@ -9085,6 +9508,30 @@ function App() {
                             />
                         );
                     })}
+
+                    {isHistoricalPoisVisible
+                        ? historicalPois.map((poi) => {
+                              const latitude = Number(poi?.latitude);
+                              const longitude = Number(poi?.longitude);
+
+                              if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+                                  return null;
+                              }
+
+                              return (
+                                  <Marker
+                                      key={`historical-poi-${poi.id}`}
+                                      position={[latitude, longitude]}
+                                      icon={getPoiIcon(Boolean(poi?.is_historic), Boolean(poi?.is_museum))}
+                                      eventHandlers={{
+                                          click: () => {
+                                              setSelectedHistoricalPoiId(poi.id);
+                                          },
+                                      }}
+                                  />
+                              );
+                          })
+                        : null}
 
                     {isContributorsVisible
                         ? contributors.map((contributor) => {
@@ -10009,6 +10456,30 @@ function App() {
                 onContributorUpdated={fetchContributors}
                 onContributorDeleted={fetchContributors}
             />
+
+            <PoiPanel
+                isOpen={isPoiPanelOpen}
+                onClose={closePoiPanel}
+                canManageItems={canManageItems}
+                isMobile={isMobile}
+                mode={editingHistoricalPoi ? "edit" : "create"}
+                initialPoi={editingHistoricalPoi}
+                onSavePoi={saveHistoricalPoi}
+                onDeletePoi={deleteHistoricalPoi}
+                onUploadPoiImage={uploadHistoricalPoiImage}
+                onRefresh={fetchHistoricalPois}
+                pendingLocation={pendingLocation}
+            />
+
+            {selectedHistoricalPoi ? (
+                <PoiCard
+                    poi={selectedHistoricalPoi}
+                    onClose={() => setSelectedHistoricalPoiId(null)}
+                    onEdit={openPoiEditPanel}
+                    isMobile={isMobile}
+                    canManage={canManageItems}
+                />
+            ) : null}
 
             <Suspense fallback={null}>
                 <LazySelectedItemDrawer

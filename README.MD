@@ -29,8 +29,15 @@ To maintain the aspect ratio of the aerial imagery, I implemented a custom `CRS.
 ## 🔎 SEO Share Pages (Supabase Prerender)
 - Build-time SEO page generation runs with `npm run generate:seo`.
 - Generated files are written to `public/share/<item-id>/index.html`.
+- Published POIs are generated to `public/poi/<slug>/index.html`.
 - Each share page contains crawler-friendly Open Graph/Twitter metadata from Supabase item data.
 - Human visitors can open the app directly with `?item=<id>` deep links.
+
+### POI Schema (Phase 1)
+- Initial SQL migration is in [supabase/migrations/20260401_create_pois.sql](supabase/migrations/20260401_create_pois.sql).
+- This migration creates `pois` and `poi_images` with RLS policies.
+- POIs can be marked with `is_historic` to identify historical references without splitting into a separate entity type.
+- Until this migration is applied, POI page generation is skipped automatically while normal share-page generation still succeeds.
 
 Auto rebuilds on GitHub Actions generate a `.env.production` file during the workflow. Any production `VITE_*` key used by the app needs to be configured in GitHub as part of that rebuild path.
 

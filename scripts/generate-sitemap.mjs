@@ -120,6 +120,38 @@ const main = async () => {
                 }
             }
         }
+
+        const { data: historicalData, error: historicalError } = await supabase
+            .from("pois")
+            .select("slug")
+            .eq("status", "published")
+            .eq("is_public", true)
+            .order("updated_at", { ascending: false })
+            .limit(500);
+
+        if (historicalError) {
+            const message = String(historicalError.message || "").toLowerCase();
+            const missingHistoricalTable =
+                message.includes("pois") &&
+                (message.includes("could not find") || message.includes("does not exist"));
+
+            if (missingHistoricalTable) {
+                console.warn("Sitemap: pois table missing, skipping POI URLs.");
+            } else {
+                console.warn(`Sitemap: Failed to fetch historical POIs: ${historicalError.message}`);
+            }
+        } else {
+            const historicalPois = Array.isArray(historicalData)
+                ? historicalData.filter((poi) => poi && typeof poi.slug === "string" && poi.slug.trim())
+                : [];
+
+            for (const poi of historicalPois) {
+                const slug = String(poi.slug).trim();
+                if (slug) {
+                    urls.push(`${siteUrl}/poi/${encodeURIComponent(slug)}/`);
+                }
+            }
+        }
     } else {
         console.warn("Sitemap: Skipped item URLs - Supabase env vars are missing.");
     }
