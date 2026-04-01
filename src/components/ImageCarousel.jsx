@@ -11,6 +11,15 @@ export default function ImageCarousel({ images = [] }) {
     const [isFullscreen, setIsFullscreen] = useState(false);
 
     const hasImages = images && images.length > 0;
+    const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 0;
+    const isMobileViewport = viewportWidth > 0 && viewportWidth <= 768;
+    const isCompactMobile = viewportWidth > 0 && viewportWidth <= 400;
+    const carouselGap = isCompactMobile ? "6px" : isMobileViewport ? "8px" : "10px";
+    const mediaMinHeight = isCompactMobile
+        ? "clamp(124px, 23vh, 172px)"
+        : isMobileViewport
+            ? "clamp(140px, 26vh, 196px)"
+            : "220px";
 
     if (!hasImages) {
         return (
@@ -74,7 +83,7 @@ export default function ImageCarousel({ images = [] }) {
             <div
                 style={{
                     display: "grid",
-                    gap: "10px",
+                    gap: carouselGap,
                     borderRadius: "12px",
                     overflow: "hidden",
                     background: "#f8fafc",
@@ -86,7 +95,7 @@ export default function ImageCarousel({ images = [] }) {
                         position: "relative",
                         width: "100%",
                         aspectRatio: "3 / 2",
-                        minHeight: "220px",
+                        minHeight: mediaMinHeight,
                         background: "#f1f5f9",
                         borderRadius: "12px",
                         overflow: "hidden",
@@ -252,35 +261,51 @@ export default function ImageCarousel({ images = [] }) {
                     )}
                 </div>
 
-                <div style={{ padding: "10px 12px", paddingBottom: "12px" }}>
-                    {currentImage.alt_text && (
+                <div
+                    style={{
+                        padding: isCompactMobile ? "8px 10px" : "9px 11px",
+                        paddingBottom: isCompactMobile ? "10px" : "10px",
+                    }}
+                >
+                    {(currentImage.alt_text || currentImage.caption) && (
                         <div
                             style={{
-                                fontSize: "0.8rem",
-                                fontWeight: 600,
-                                color: "#1e293b",
-                                marginBottom: "4px",
+                                maxHeight: isCompactMobile ? "78px" : "132px",
+                                overflowY: "auto",
+                                paddingRight: "2px",
+                                marginBottom: isCompactMobile ? "6px" : "6px",
                             }}
                         >
-                            {currentImage.alt_text}
-                        </div>
-                    )}
-                    {currentImage.caption && (
-                        <div
-                            style={{
-                                fontSize: "0.75rem",
-                                color: "#64748b",
-                                marginBottom: "8px",
-                            }}
-                        >
-                            {currentImage.caption}
+                            {currentImage.alt_text && (
+                                <div
+                                    style={{
+                                        fontSize: "0.8rem",
+                                        fontWeight: 600,
+                                        color: "#1e293b",
+                                        marginBottom: currentImage.caption ? "4px" : "0",
+                                    }}
+                                >
+                                    {currentImage.alt_text}
+                                </div>
+                            )}
+                            {currentImage.caption && (
+                                <div
+                                    style={{
+                                        fontSize: "0.75rem",
+                                        color: "#64748b",
+                                        marginBottom: "0",
+                                    }}
+                                >
+                                    {currentImage.caption}
+                                </div>
+                            )}
                         </div>
                     )}
 
                     {hasMultipleImages && (
                         <div
                             style={{
-                                paddingTop: "4px",
+                                paddingTop: isCompactMobile ? "3px" : "4px",
                                 borderTop: "1px solid #e2e8f0",
                                 fontSize: "0.72rem",
                                 color: "#64748b",
