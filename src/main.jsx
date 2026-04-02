@@ -33,61 +33,14 @@ const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || "";
 const HAS_MAPBOX_TOKEN = Boolean(MAPBOX_TOKEN && MAPBOX_TOKEN.trim());
 const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY || "";
 const HAS_MAPTILER_KEY = Boolean(MAPTILER_KEY && MAPTILER_KEY.trim());
+const HISTORIC_OVERLAY_DRAFTS_STORAGE_KEY = "cleanup-historic-overlay-drafts-v1";
+const HISTORIC_OVERLAY_ATTRIBUTION =
+    'Historic map &copy; <a href="https://maps.nls.uk/">National Library of Scotland</a> via <a href="https://www.maptiler.com/">MapTiler</a>';
 // River Lune, Lancaster — adjust if needed
 const RIVER_LUNE_CENTER = [54.052776, -2.801216];
 const RIVER_LUNE_ZOOM = 15;
 
-const HISTORIC_OVERLAY_LAYERS = [
-    {
-        id: "lancaster-1900s",
-        tileId: "uk-osgb1888",
-        label: "Lancaster 1900s Overview",
-        description: "Best all-round starting point for the River Lune corridor.",
-        startYear: 1888,
-        endYear: 1905,
-        isDefault: true,
-    },
-    {
-        id: "lancaster-one-inch-hills",
-        tileId: "uk-osgb63k1885",
-        label: "One-Inch Hills, 1885-1903",
-        description: "Broader late-Victorian relief and route context across Lancaster.",
-        startYear: 1885,
-        endYear: 1903,
-    },
-    {
-        id: "lancaster-six-inch",
-        tileId: "uk-osgb10k1888",
-        label: "Six-Inch Detail, 1888-1913",
-        description: "Most detailed local land, field, and street context.",
-        startYear: 1888,
-        endYear: 1913,
-    },
-    {
-        id: "lancaster-interwar",
-        tileId: "uk-osgb1919",
-        label: "Interwar Overview, 1920s-1940s",
-        description: "Useful for comparing between the Edwardian and post-war landscape.",
-        startYear: 1919,
-        endYear: 1947,
-    },
-    {
-        id: "lancaster-provisional",
-        tileId: "uk-osgb25k1937",
-        label: "Provisional Edition, 1937-1961",
-        description: "Good mid-20th-century comparison for Lancaster approaches.",
-        startYear: 1937,
-        endYear: 1961,
-    },
-    {
-        id: "lancaster-seventh-series",
-        tileId: "uk-osgb63k1955",
-        label: "Seventh Series, 1955-1961",
-        description: "Post-war one-inch touring map view for roads, rail, and settlement change.",
-        startYear: 1955,
-        endYear: 1961,
-    },
-].sort((leftLayer, rightLayer) => {
+const compareHistoricOverlayLayers = (leftLayer, rightLayer) => {
     if (leftLayer.startYear !== rightLayer.startYear) {
         return leftLayer.startYear - rightLayer.startYear;
     }
@@ -97,22 +50,447 @@ const HISTORIC_OVERLAY_LAYERS = [
     }
 
     return leftLayer.label.localeCompare(rightLayer.label);
-});
+};
+
+const PROVIDER_HISTORIC_OVERLAY_LAYERS = [
+    {
+        id: "lancaster-1900s",
+        type: "tile",
+        tileId: "uk-osgb1888",
+        label: "Lancaster 1900s Overview",
+        description: "Best all-round starting point for the River Lune corridor.",
+        startYear: 1888,
+        endYear: 1905,
+        isDefault: true,
+        attribution: HISTORIC_OVERLAY_ATTRIBUTION,
+    },
+    {
+        id: "lancaster-one-inch-hills",
+        type: "tile",
+        tileId: "uk-osgb63k1885",
+        label: "One-Inch Hills, 1885-1903",
+        description: "Broader late-Victorian relief and route context across Lancaster.",
+        startYear: 1885,
+        endYear: 1903,
+        attribution: HISTORIC_OVERLAY_ATTRIBUTION,
+    },
+    {
+        id: "lancaster-six-inch",
+        type: "tile",
+        tileId: "uk-osgb10k1888",
+        label: "Six-Inch Detail, 1888-1913",
+        description: "Most detailed local land, field, and street context.",
+        startYear: 1888,
+        endYear: 1913,
+        attribution: HISTORIC_OVERLAY_ATTRIBUTION,
+    },
+    {
+        id: "lancaster-interwar",
+        type: "tile",
+        tileId: "uk-osgb1919",
+        label: "Interwar Overview, 1920s-1940s",
+        description: "Useful for comparing between the Edwardian and post-war landscape.",
+        startYear: 1919,
+        endYear: 1947,
+        attribution: HISTORIC_OVERLAY_ATTRIBUTION,
+    },
+    {
+        id: "lancaster-provisional",
+        type: "tile",
+        tileId: "uk-osgb25k1937",
+        label: "Provisional Edition, 1937-1961",
+        description: "Good mid-20th-century comparison for Lancaster approaches.",
+        startYear: 1937,
+        endYear: 1961,
+        attribution: HISTORIC_OVERLAY_ATTRIBUTION,
+    },
+    {
+        id: "lancaster-seventh-series",
+        type: "tile",
+        tileId: "uk-osgb63k1955",
+        label: "Seventh Series, 1955-1961",
+        description: "Post-war one-inch touring map view for roads, rail, and settlement change.",
+        startYear: 1955,
+        endYear: 1961,
+        attribution: HISTORIC_OVERLAY_ATTRIBUTION,
+    },
+].sort(compareHistoricOverlayLayers);
 const DEFAULT_HISTORIC_OVERLAY_ID =
-    HISTORIC_OVERLAY_LAYERS.find((layer) => layer.isDefault)?.id ||
-    HISTORIC_OVERLAY_LAYERS[0]?.id ||
+    PROVIDER_HISTORIC_OVERLAY_LAYERS.find((layer) => layer.isDefault)?.id ||
+    PROVIDER_HISTORIC_OVERLAY_LAYERS[0]?.id ||
     "";
-const EARLIEST_HISTORIC_OVERLAY_YEAR = HISTORIC_OVERLAY_LAYERS.reduce(
+const EARLIEST_HISTORIC_OVERLAY_YEAR = PROVIDER_HISTORIC_OVERLAY_LAYERS.reduce(
     (oldestYear, layer) => Math.min(oldestYear, layer.startYear),
     Number.POSITIVE_INFINITY,
 );
 const DEFAULT_HISTORIC_OVERLAY_OPACITY = 0.72;
-const HISTORIC_OVERLAY_ATTRIBUTION =
-    'Historic map &copy; <a href="https://maps.nls.uk/">National Library of Scotland</a> via <a href="https://www.maptiler.com/">MapTiler</a>';
+const DEFAULT_HISTORIC_DRAFT_EDITOR_OPACITY = 0.62;
+
+const buildHistoricDraftCornersFromBounds = (bounds) => {
+    const normalizedBounds = normalizeHistoricOverlayBounds(bounds);
+    if (!normalizedBounds) return null;
+
+    const [[south, west], [north, east]] = normalizedBounds;
+    return {
+        nw: [north, west],
+        ne: [north, east],
+        se: [south, east],
+        sw: [south, west],
+    };
+};
+
+const deriveHistoricBoundsFromCorners = (corners) => {
+    if (!corners) return null;
+
+    const entries = [corners.nw, corners.ne, corners.se, corners.sw]
+        .map((corner) => (Array.isArray(corner) ? [Number(corner[0]), Number(corner[1])] : null))
+        .filter(Boolean);
+    if (entries.length !== 4) return null;
+
+    const lats = entries.map((corner) => corner[0]);
+    const lngs = entries.map((corner) => corner[1]);
+    if (![...lats, ...lngs].every((coordinate) => Number.isFinite(coordinate))) {
+        return null;
+    }
+
+    return normalizeHistoricOverlayBounds([
+        [Math.min(...lats), Math.min(...lngs)],
+        [Math.max(...lats), Math.max(...lngs)],
+    ]);
+};
+
+const normalizeHistoricOverlayCorner = (value) => {
+    if (!Array.isArray(value) || value.length !== 2) return null;
+
+    const latitude = Number(value[0]);
+    const longitude = Number(value[1]);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+    if (latitude < -90 || latitude > 90) return null;
+    if (!isFiniteCoordinate(longitude)) return null;
+
+    return [latitude, longitude];
+};
+
+const normalizeHistoricOverlayCorners = (value, fallbackBounds = null) => {
+    if (!value || typeof value !== "object") {
+        return buildHistoricDraftCornersFromBounds(fallbackBounds);
+    }
+
+    const nextCorners = {
+        nw: normalizeHistoricOverlayCorner(value.nw),
+        ne: normalizeHistoricOverlayCorner(value.ne),
+        se: normalizeHistoricOverlayCorner(value.se),
+        sw: normalizeHistoricOverlayCorner(value.sw),
+    };
+
+    if (Object.values(nextCorners).every(Boolean)) {
+        return nextCorners;
+    }
+
+    return buildHistoricDraftCornersFromBounds(fallbackBounds);
+};
+
+const HISTORIC_OVERLAY_DRAFT_TEMPLATES = [
+    {
+        id: "mackreth-1778",
+        type: "image",
+        label: "Mackreth Map, 1778",
+        description: "Draft placement for the 1778 Mackreth Lancaster map.",
+        startYear: 1778,
+        endYear: 1778,
+        imageUrl: "/historic_maps/lancasteruniversity Lancaster S. Mackreth 1778.jpg",
+        sourceUrl: "",
+        attribution: "",
+        status: "draft",
+        bounds: null,
+        corners: null,
+        editorOpacity: DEFAULT_HISTORIC_DRAFT_EDITOR_OPACITY,
+        controlPoints: [],
+    },
+    {
+        id: "docton-1684",
+        type: "image",
+        label: "Docton Map, 1684",
+        description: "Draft placement for the 1684 Docton Lancaster map.",
+        startYear: 1684,
+        endYear: 1684,
+        imageUrl: "/historic_maps/docton1684.jpg",
+        sourceUrl: "",
+        attribution: "",
+        status: "draft",
+        bounds: null,
+        corners: null,
+        editorOpacity: DEFAULT_HISTORIC_DRAFT_EDITOR_OPACITY,
+        controlPoints: [],
+    },
+];
 
 const buildHistoricOverlayTileUrl = (tileId) => {
     if (!tileId || !HAS_MAPTILER_KEY) return "";
     return `https://api.maptiler.com/tiles/${tileId}/{z}/{x}/{y}.jpg?key=${MAPTILER_KEY}`;
+};
+
+const isFiniteCoordinate = (value) => Number.isFinite(value) && value >= -180 && value <= 180;
+
+const normalizeHistoricOverlayBounds = (value) => {
+    if (!Array.isArray(value) || value.length !== 2) return null;
+
+    const southWest = Array.isArray(value[0]) ? value[0] : null;
+    const northEast = Array.isArray(value[1]) ? value[1] : null;
+    if (!southWest || !northEast || southWest.length !== 2 || northEast.length !== 2) {
+        return null;
+    }
+
+    const south = Number(southWest[0]);
+    const west = Number(southWest[1]);
+    const north = Number(northEast[0]);
+    const east = Number(northEast[1]);
+
+    if (![south, west, north, east].every((coordinate) => Number.isFinite(coordinate))) {
+        return null;
+    }
+
+    if (south >= north || west >= east) return null;
+    if (south < -90 || north > 90 || !isFiniteCoordinate(west) || !isFiniteCoordinate(east)) {
+        return null;
+    }
+
+    return [
+        [south, west],
+        [north, east],
+    ];
+};
+
+const normalizeHistoricOverlayControlPoints = (value) => {
+    if (!Array.isArray(value)) return [];
+
+    return value
+        .map((point) => {
+            const imageX = Number(point?.imageX);
+            const imageY = Number(point?.imageY);
+            const latitude = Number(point?.latitude);
+            const longitude = Number(point?.longitude);
+            if (![imageX, imageY, latitude, longitude].every((coordinate) => Number.isFinite(coordinate))) {
+                return null;
+            }
+
+            return {
+                imageX,
+                imageY,
+                latitude,
+                longitude,
+            };
+        })
+        .filter(Boolean);
+};
+
+const normalizeHistoricOverlayDraft = (draft, template) => {
+    const baseTemplate = template || {};
+    const nextDraft = isPlainObjectRecord(draft) ? draft : {};
+    const imageUrl = typeof nextDraft.imageUrl === "string"
+        ? nextDraft.imageUrl.trim()
+        : baseTemplate.imageUrl || "";
+    const sourceUrl = typeof nextDraft.sourceUrl === "string"
+        ? nextDraft.sourceUrl.trim()
+        : baseTemplate.sourceUrl || "";
+    const attribution = typeof nextDraft.attribution === "string"
+        ? nextDraft.attribution.trim()
+        : baseTemplate.attribution || "";
+    const status = nextDraft.status === "ready" ? "ready" : "draft";
+    const normalizedBounds = normalizeHistoricOverlayBounds(nextDraft.bounds || baseTemplate.bounds || null);
+    const corners = normalizeHistoricOverlayCorners(
+        nextDraft.corners || baseTemplate.corners || null,
+        normalizedBounds,
+    );
+    const derivedBounds = deriveHistoricBoundsFromCorners(corners) || normalizedBounds;
+    const editorOpacity = Number.parseFloat(nextDraft.editorOpacity);
+
+    return {
+        ...baseTemplate,
+        ...nextDraft,
+        id: baseTemplate.id || String(nextDraft.id || "").trim(),
+        type: "image",
+        label: baseTemplate.label || "Untitled historic draft",
+        description: baseTemplate.description || "",
+        startYear: Number(baseTemplate.startYear || 0),
+        endYear: Number(baseTemplate.endYear || 0),
+        imageUrl,
+        sourceUrl,
+        attribution,
+        status,
+        bounds: derivedBounds,
+        corners,
+        editorOpacity: Number.isFinite(editorOpacity)
+            ? Math.min(Math.max(editorOpacity, 0.1), 1)
+            : Number(baseTemplate.editorOpacity || DEFAULT_HISTORIC_DRAFT_EDITOR_OPACITY),
+        controlPoints: normalizeHistoricOverlayControlPoints(nextDraft.controlPoints),
+    };
+};
+
+const getHistoricOverlayCornerCenter = (corners) => {
+    if (!corners) return null;
+
+    const entries = [corners.nw, corners.ne, corners.se, corners.sw]
+        .map((corner) => normalizeHistoricOverlayCorner(corner))
+        .filter(Boolean);
+    if (entries.length !== 4) return null;
+
+    const avgLat = entries.reduce((sum, [latitude]) => sum + latitude, 0) / entries.length;
+    const avgLng = entries.reduce((sum, [, longitude]) => sum + longitude, 0) / entries.length;
+    return [avgLat, avgLng];
+};
+
+const offsetHistoricOverlayCorners = (corners, latitudeDelta, longitudeDelta) => {
+    if (!corners) return corners;
+
+    const nextCorners = {};
+    for (const key of ["nw", "ne", "se", "sw"]) {
+        const corner = normalizeHistoricOverlayCorner(corners[key]);
+        if (!corner) return corners;
+        nextCorners[key] = [corner[0] + latitudeDelta, corner[1] + longitudeDelta];
+    }
+
+    return nextCorners;
+};
+
+const createHistoricOverlayHandleIcon = (label, fillColor) =>
+    L.divIcon({
+        className: "historic-overlay-handle-icon",
+        html: `<div style="width:22px;height:22px;border-radius:999px;border:2px solid #ffffff;background:${fillColor};box-shadow:0 4px 12px rgba(15,23,42,0.35);display:flex;align-items:center;justify-content:center;color:#ffffff;font-size:10px;font-weight:800;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">${label}</div>`,
+        iconSize: [22, 22],
+        iconAnchor: [11, 11],
+    });
+
+const HISTORIC_OVERLAY_HANDLE_ICONS = {
+    nw: createHistoricOverlayHandleIcon("NW", "#1d4ed8"),
+    ne: createHistoricOverlayHandleIcon("NE", "#1d4ed8"),
+    se: createHistoricOverlayHandleIcon("SE", "#1d4ed8"),
+    sw: createHistoricOverlayHandleIcon("SW", "#1d4ed8"),
+    center: createHistoricOverlayHandleIcon("+", "#0f766e"),
+};
+
+const solveLinearSystem = (matrix, vector) => {
+    const size = matrix.length;
+    const augmented = matrix.map((row, rowIndex) => [...row, vector[rowIndex]]);
+
+    for (let pivotIndex = 0; pivotIndex < size; pivotIndex += 1) {
+        let maxRow = pivotIndex;
+        for (let rowIndex = pivotIndex + 1; rowIndex < size; rowIndex += 1) {
+            if (Math.abs(augmented[rowIndex][pivotIndex]) > Math.abs(augmented[maxRow][pivotIndex])) {
+                maxRow = rowIndex;
+            }
+        }
+
+        if (Math.abs(augmented[maxRow][pivotIndex]) < 1e-9) {
+            return null;
+        }
+
+        if (maxRow !== pivotIndex) {
+            [augmented[pivotIndex], augmented[maxRow]] = [augmented[maxRow], augmented[pivotIndex]];
+        }
+
+        const pivot = augmented[pivotIndex][pivotIndex];
+        for (let columnIndex = pivotIndex; columnIndex <= size; columnIndex += 1) {
+            augmented[pivotIndex][columnIndex] /= pivot;
+        }
+
+        for (let rowIndex = 0; rowIndex < size; rowIndex += 1) {
+            if (rowIndex === pivotIndex) continue;
+            const factor = augmented[rowIndex][pivotIndex];
+            for (let columnIndex = pivotIndex; columnIndex <= size; columnIndex += 1) {
+                augmented[rowIndex][columnIndex] -= factor * augmented[pivotIndex][columnIndex];
+            }
+        }
+    }
+
+    return augmented.map((row) => row[size]);
+};
+
+const computeProjectiveMatrix3d = (sourceWidth, sourceHeight, destinationPoints) => {
+    if (!Number.isFinite(sourceWidth) || !Number.isFinite(sourceHeight)) return "";
+    if (sourceWidth <= 0 || sourceHeight <= 0) return "";
+    if (!Array.isArray(destinationPoints) || destinationPoints.length !== 4) return "";
+
+    const sourcePoints = [
+        [0, 0],
+        [sourceWidth, 0],
+        [sourceWidth, sourceHeight],
+        [0, sourceHeight],
+    ];
+
+    const matrix = [];
+    const vector = [];
+
+    sourcePoints.forEach(([sourceX, sourceY], index) => {
+        const point = destinationPoints[index];
+        if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) {
+            matrix.length = 0;
+            vector.length = 0;
+            return;
+        }
+
+        matrix.push([sourceX, sourceY, 1, 0, 0, 0, -sourceX * point.x, -sourceY * point.x]);
+        vector.push(point.x);
+        matrix.push([0, 0, 0, sourceX, sourceY, 1, -sourceX * point.y, -sourceY * point.y]);
+        vector.push(point.y);
+    });
+
+    if (matrix.length !== 8 || vector.length !== 8) return "";
+
+    const solution = solveLinearSystem(matrix, vector);
+    if (!solution) return "";
+
+    const [h11, h12, h13, h21, h22, h23, h31, h32] = solution;
+    const coefficients = [
+        h11, h21, 0, h31,
+        h12, h22, 0, h32,
+        0, 0, 1, 0,
+        h13, h23, 0, 1,
+    ];
+
+    return `matrix3d(${coefficients.map((value) => Number(value.toFixed(12))).join(",")})`;
+};
+
+const buildHistoricOverlayDrafts = (storedDrafts) => {
+    const legacyDraftIdAliases = new Map([
+        ["housman-clark-binns-1800-1825", "docton-1684"],
+    ]);
+    const draftMap = new Map(
+        (Array.isArray(storedDrafts) ? storedDrafts : [])
+            .filter(isPlainObjectRecord)
+            .map((draft) => {
+                const draftId = String(draft.id || "").trim();
+                const canonicalId = legacyDraftIdAliases.get(draftId) || draftId;
+                if (draftId === canonicalId) {
+                    return [canonicalId, draft];
+                }
+
+                const migratedDraft = { ...draft, id: canonicalId };
+                delete migratedDraft.label;
+                delete migratedDraft.description;
+                delete migratedDraft.startYear;
+                delete migratedDraft.endYear;
+                delete migratedDraft.imageUrl;
+                delete migratedDraft.sourceUrl;
+                delete migratedDraft.attribution;
+
+                return [canonicalId, migratedDraft];
+            }),
+    );
+
+    return HISTORIC_OVERLAY_DRAFT_TEMPLATES.map((template) =>
+        normalizeHistoricOverlayDraft(draftMap.get(template.id), template),
+    );
+};
+
+const readHistoricOverlayEditorModeFromQuery = () => {
+    if (typeof window === "undefined") return false;
+
+    const value = new URLSearchParams(window.location.search).get("historic_editor");
+    if (!value) return false;
+
+    const normalized = value.trim().toLowerCase();
+    return normalized === "1" || normalized === "true" || normalized === "yes";
 };
 
 const getWaybackReleaseDate = (release) => {
@@ -897,6 +1275,11 @@ const deferUntilIdle = (callback, timeoutMs = 1200) => {
 };
 
 const storedItemsBootstrap = readStoredJson(ITEMS_STORAGE_KEY, [], Array.isArray);
+const storedHistoricOverlayDrafts = readStoredJson(
+    HISTORIC_OVERLAY_DRAFTS_STORAGE_KEY,
+    [],
+    Array.isArray,
+);
 const startupStoredState = {
     items: storedItemsBootstrap,
     counts: readStoredJson(COUNT_STORAGE_KEY, {}, isPlainObjectRecord),
@@ -904,6 +1287,7 @@ const startupStoredState = {
     weights: readStoredJson(WEIGHT_STORAGE_KEY, {}, isPlainObjectRecord),
     geolookup: readStoredJson(GEOLOOKUP_STORAGE_KEY, {}, isPlainObjectRecord),
     itemStory: readStoredJson(ITEM_STORY_STORAGE_KEY, {}, isPlainObjectRecord),
+    historicOverlayDrafts: buildHistoricOverlayDrafts(storedHistoricOverlayDrafts),
 };
 
 const inferDbCountFieldSupport = (items) => {
@@ -3454,12 +3838,12 @@ function ControlToggles({
                             ? (isHistoricOverlayEnabled
                                 ? "Hide historic Lancaster maps"
                                 : "Show historic Lancaster maps")
-                            : "Historic maps require a MapTiler key"
+                            : "Historic maps are not available right now"
                     }
                     title={
                         hasHistoricOverlayAccess
                             ? "Toggle historic Lancaster maps"
-                            : "Set VITE_MAPTILER_KEY to enable historic maps"
+                            : "Historic maps are not available right now"
                     }
                 >
                     <span>
@@ -3707,7 +4091,7 @@ function ControlToggles({
                         lineHeight: 1.45,
                     }}
                 >
-                    Historic Lancaster maps are ready to use once VITE_MAPTILER_KEY is configured.
+                    Historic overlays will appear here once a provider-backed or custom calibrated layer is available.
                 </div>
             )}
         </div>
@@ -3752,6 +4136,161 @@ function WeatherOverlayZoomGuard({ isWeatherOverlayEnabled }) {
     }, [map, isWeatherOverlayEnabled]);
 
     return null;
+}
+
+function TransformedHistoricImageOverlay({
+    imageUrl,
+    corners,
+    opacity = 1,
+    attribution = "",
+    onLoad,
+    onError,
+}) {
+    const map = useMap();
+    const imageRef = useRef(null);
+    const sizeRef = useRef({ width: 0, height: 0 });
+
+    useEffect(() => {
+        const overlayPane = map.getPanes().overlayPane;
+        if (!overlayPane || !imageUrl || !corners) return undefined;
+
+        const image = document.createElement("img");
+        imageRef.current = image;
+        image.alt = "Historic map overlay";
+        image.src = imageUrl;
+        image.draggable = false;
+        image.style.position = "absolute";
+        image.style.left = "0";
+        image.style.top = "0";
+        image.style.transformOrigin = "0 0";
+        image.style.pointerEvents = "none";
+        image.style.userSelect = "none";
+        image.style.zIndex = "410";
+        image.style.maxWidth = "none";
+        image.style.maxHeight = "none";
+        image.style.opacity = String(opacity);
+        overlayPane.appendChild(image);
+
+        const updateTransform = () => {
+            const { width, height } = sizeRef.current;
+            if (!width || !height) return;
+
+            const nextCorners = [corners.nw, corners.ne, corners.se, corners.sw]
+                .map((corner) => normalizeHistoricOverlayCorner(corner));
+            if (nextCorners.some((corner) => !corner)) return;
+
+            const destinationPoints = nextCorners.map(([latitude, longitude]) =>
+                map.latLngToLayerPoint([latitude, longitude]),
+            );
+            const transform = computeProjectiveMatrix3d(width, height, destinationPoints);
+            if (!transform) return;
+
+            image.style.width = `${width}px`;
+            image.style.height = `${height}px`;
+            image.style.transform = transform;
+            image.style.opacity = String(opacity);
+        };
+
+        const handleLoad = () => {
+            sizeRef.current = {
+                width: image.naturalWidth,
+                height: image.naturalHeight,
+            };
+            updateTransform();
+            if (typeof onLoad === "function") onLoad();
+        };
+
+        const handleError = () => {
+            if (typeof onError === "function") onError();
+        };
+
+        image.addEventListener("load", handleLoad);
+        image.addEventListener("error", handleError);
+
+        const refreshOverlay = () => {
+            updateTransform();
+        };
+
+        map.on("zoom viewreset move resize", refreshOverlay);
+        if (image.complete && image.naturalWidth > 0) {
+            handleLoad();
+        }
+
+        return () => {
+            map.off("zoom viewreset move resize", refreshOverlay);
+            image.removeEventListener("load", handleLoad);
+            image.removeEventListener("error", handleError);
+            image.remove();
+            imageRef.current = null;
+        };
+    }, [attribution, corners, imageUrl, map, onError, onLoad, opacity]);
+
+    useEffect(() => {
+        if (!attribution || !map.attributionControl) return undefined;
+
+        map.attributionControl.addAttribution(attribution);
+        return () => {
+            map.attributionControl.removeAttribution(attribution);
+        };
+    }, [attribution, map]);
+
+    return null;
+}
+
+function HistoricOverlayCornerHandles({ corners, onCornerChange, onMoveOverlay }) {
+    const center = useMemo(() => getHistoricOverlayCornerCenter(corners), [corners]);
+    if (!corners) return null;
+
+    return (
+        <>
+            {[
+                ["nw", corners.nw],
+                ["ne", corners.ne],
+                ["se", corners.se],
+                ["sw", corners.sw],
+            ].map(([key, position]) => {
+                const normalizedPosition = normalizeHistoricOverlayCorner(position);
+                if (!normalizedPosition) return null;
+
+                return (
+                    <Marker
+                        key={key}
+                        position={normalizedPosition}
+                        draggable
+                        icon={HISTORIC_OVERLAY_HANDLE_ICONS[key]}
+                        eventHandlers={{
+                            dragend: (event) => {
+                                const nextLatLng = event.target.getLatLng();
+                                onCornerChange(key, [nextLatLng.lat, nextLatLng.lng]);
+                            },
+                        }}
+                    />
+                );
+            })}
+            {center ? (
+                <Marker
+                    position={center}
+                    draggable
+                    icon={HISTORIC_OVERLAY_HANDLE_ICONS.center}
+                    eventHandlers={{
+                        dragstart: (event) => {
+                            event.target.__historicOverlayStartLatLng = event.target.getLatLng();
+                        },
+                        dragend: (event) => {
+                            const startLatLng = event.target.__historicOverlayStartLatLng;
+                            const nextLatLng = event.target.getLatLng();
+                            if (!startLatLng) return;
+
+                            onMoveOverlay(
+                                nextLatLng.lat - startLatLng.lat,
+                                nextLatLng.lng - startLatLng.lng,
+                            );
+                        },
+                    }}
+                />
+            ) : null}
+        </>
+    );
 }
 
 function FilterControls({
@@ -7166,6 +7705,9 @@ function App() {
     const [isLoadingFloodAlerts, setIsLoadingFloodAlerts] = useState(false);
     const [floodAlertsError, setFloodAlertsError] = useState(null);
     const [floodAlertsUpdatedAt, setFloodAlertsUpdatedAt] = useState("");
+    const [historicOverlayDrafts, setHistoricOverlayDrafts] = useState(
+        () => startupStoredState.historicOverlayDrafts,
+    );
     const [isHistoricOverlayEnabled, setIsHistoricOverlayEnabled] = useState(false);
     const [selectedHistoricOverlayId, setSelectedHistoricOverlayId] = useState(
         DEFAULT_HISTORIC_OVERLAY_ID,
@@ -7174,6 +7716,10 @@ function App() {
         DEFAULT_HISTORIC_OVERLAY_OPACITY,
     );
     const [historicOverlayError, setHistoricOverlayError] = useState("");
+    const [selectedHistoricOverlayDraftId, setSelectedHistoricOverlayDraftId] = useState(
+        HISTORIC_OVERLAY_DRAFT_TEMPLATES[0]?.id || "",
+    );
+    const [isHistoricOverlayDraftPreviewEnabled, setIsHistoricOverlayDraftPreviewEnabled] = useState(false);
     const [isWeatherOverlayEnabled, setIsWeatherOverlayEnabled] = useState(false);
     const [weatherOverlayTileUrl, setWeatherOverlayTileUrl] = useState("");
     const [weatherOverlayUpdatedAt, setWeatherOverlayUpdatedAt] = useState("");
@@ -7201,7 +7747,10 @@ function App() {
     const geocodeAttemptedKeysRef = useRef(new Set());
     const shareCopyTimeoutRef = useRef(null);
     const reportStatusTimeoutRef = useRef(null);
+    const [isHistoricOverlayEditorModeRequested] = useState(readHistoricOverlayEditorModeFromQuery);
     const canManageItems = useMemo(() => canUserManageItems(currentUser), [currentUser]);
+    const isHistoricOverlayEditorModeEnabled =
+        canManageItems && isHistoricOverlayEditorModeRequested;
     const canUsePublicReports = ENABLE_PUBLIC_REPORTS && !canManageItems;
     const hasMessengerTarget = Boolean(FACEBOOK_PAGE_RECIPIENT_ID);
     const hasCommunityEmailTarget = Boolean(COMMUNITY_EMAIL_ACCOUNT);
@@ -7888,6 +8437,13 @@ function App() {
     useEffect(() => {
         localStorage.setItem(REPORT_CONSENT_STORAGE_KEY, JSON.stringify(hasAcceptedReportConsent));
     }, [hasAcceptedReportConsent]);
+
+    useEffect(() => {
+        localStorage.setItem(
+            HISTORIC_OVERLAY_DRAFTS_STORAGE_KEY,
+            JSON.stringify(historicOverlayDrafts),
+        );
+    }, [historicOverlayDrafts]);
 
     useEffect(() => {
         const handleResize = () => {
@@ -9411,14 +9967,87 @@ function App() {
         setIsPoiPanelOpen(false);
         setEditingHistoricalPoiId(null);
     };
+    const readyCustomHistoricOverlayLayers = useMemo(
+        () => historicOverlayDrafts
+            .map((draft) => {
+                const normalizedCorners = normalizeHistoricOverlayCorners(draft.corners, draft.bounds);
+                const normalizedBounds = deriveHistoricBoundsFromCorners(normalizedCorners)
+                    || normalizeHistoricOverlayBounds(draft.bounds);
+                if (draft.status !== "ready" || !draft.imageUrl || !normalizedCorners || !normalizedBounds) {
+                    return null;
+                }
+
+                return {
+                    ...draft,
+                    corners: normalizedCorners,
+                    bounds: normalizedBounds,
+                    attribution: draft.attribution || "Historic map overlay (custom calibration)",
+                };
+            })
+            .filter(Boolean),
+        [historicOverlayDrafts],
+    );
+    const historicOverlayLayers = useMemo(
+        () => [
+            ...(HAS_MAPTILER_KEY ? PROVIDER_HISTORIC_OVERLAY_LAYERS : []),
+            ...readyCustomHistoricOverlayLayers,
+        ].sort(compareHistoricOverlayLayers),
+        [readyCustomHistoricOverlayLayers],
+    );
+    const hasHistoricOverlayAccess = historicOverlayLayers.length > 0;
     const selectedHistoricOverlay = useMemo(
-        () => HISTORIC_OVERLAY_LAYERS.find((layer) => layer.id === selectedHistoricOverlayId)
-            || HISTORIC_OVERLAY_LAYERS[0],
-        [selectedHistoricOverlayId],
+        () => historicOverlayLayers.find((layer) => layer.id === selectedHistoricOverlayId)
+            || historicOverlayLayers[0]
+            || null,
+        [historicOverlayLayers, selectedHistoricOverlayId],
     );
     const historicOverlayTileUrl = useMemo(
-        () => buildHistoricOverlayTileUrl(selectedHistoricOverlay?.tileId),
+        () => selectedHistoricOverlay?.type === "tile"
+            ? buildHistoricOverlayTileUrl(selectedHistoricOverlay?.tileId)
+            : "",
         [selectedHistoricOverlay],
+    );
+    const selectedHistoricOverlayDraft = useMemo(
+        () => historicOverlayDrafts.find((draft) => draft.id === selectedHistoricOverlayDraftId)
+            || historicOverlayDrafts[0]
+            || null,
+        [historicOverlayDrafts, selectedHistoricOverlayDraftId],
+    );
+    const historicOverlayDraftPreview = useMemo(() => {
+        if (!isHistoricOverlayEditorModeEnabled || !isHistoricOverlayDraftPreviewEnabled) {
+            return null;
+        }
+
+        const normalizedCorners = normalizeHistoricOverlayCorners(
+            selectedHistoricOverlayDraft?.corners,
+            selectedHistoricOverlayDraft?.bounds,
+        );
+        const normalizedBounds = deriveHistoricBoundsFromCorners(normalizedCorners)
+            || normalizeHistoricOverlayBounds(selectedHistoricOverlayDraft?.bounds);
+        if (!selectedHistoricOverlayDraft?.imageUrl || !normalizedCorners || !normalizedBounds) {
+            return null;
+        }
+
+        return {
+            ...selectedHistoricOverlayDraft,
+            corners: normalizedCorners,
+            bounds: normalizedBounds,
+            editorOpacity: Number.isFinite(Number(selectedHistoricOverlayDraft?.editorOpacity))
+                ? Number(selectedHistoricOverlayDraft.editorOpacity)
+                : DEFAULT_HISTORIC_DRAFT_EDITOR_OPACITY,
+        };
+    }, [
+        isHistoricOverlayDraftPreviewEnabled,
+        isHistoricOverlayEditorModeEnabled,
+        selectedHistoricOverlayDraft,
+    ]);
+    const shouldRenderHistoricOverlayDraftPreview = Boolean(
+        historicOverlayDraftPreview
+            && (
+                historicOverlayDraftPreview.status !== "ready"
+                || !isHistoricOverlayEnabled
+                || selectedHistoricOverlayId !== historicOverlayDraftPreview.id
+            ),
     );
     const historicOverlayOpacityPercent = useMemo(
         () => Math.round(historicOverlayOpacity * 100),
@@ -9441,10 +10070,34 @@ function App() {
     }, [weatherOverlayUpdatedAt]);
 
     useEffect(() => {
-        if (HAS_MAPTILER_KEY) return;
+        if (hasHistoricOverlayAccess) return;
         setIsHistoricOverlayEnabled(false);
         setHistoricOverlayError("");
-    }, []);
+    }, [hasHistoricOverlayAccess]);
+
+    useEffect(() => {
+        if (!historicOverlayLayers.length) return;
+
+        const selectedLayerExists = historicOverlayLayers.some(
+            (layer) => layer.id === selectedHistoricOverlayId,
+        );
+        if (selectedLayerExists) return;
+
+        setSelectedHistoricOverlayId(
+            historicOverlayLayers.find((layer) => layer.isDefault)?.id || historicOverlayLayers[0].id,
+        );
+    }, [historicOverlayLayers, selectedHistoricOverlayId]);
+
+    useEffect(() => {
+        if (!historicOverlayDrafts.length) return;
+
+        const selectedDraftExists = historicOverlayDrafts.some(
+            (draft) => draft.id === selectedHistoricOverlayDraftId,
+        );
+        if (selectedDraftExists) return;
+
+        setSelectedHistoricOverlayDraftId(historicOverlayDrafts[0].id);
+    }, [historicOverlayDrafts, selectedHistoricOverlayDraftId]);
 
     useEffect(() => {
         setHistoricOverlayError("");
@@ -9696,12 +10349,12 @@ function App() {
             <ControlToggles
                 isMobile={isMobile}
                 isTidePlannerCollapsed={isTidePlannerCollapsed}
-                hasHistoricOverlayAccess={HAS_MAPTILER_KEY}
+                hasHistoricOverlayAccess={hasHistoricOverlayAccess}
                 isHistoricOverlayEnabled={isHistoricOverlayEnabled}
                 isWeatherOverlayEnabled={isWeatherOverlayEnabled}
                 isContributorsVisible={isContributorsVisible}
                 isHistoricalPoisVisible={isHistoricalPoisVisible}
-                historicOverlayLayers={HISTORIC_OVERLAY_LAYERS}
+                historicOverlayLayers={historicOverlayLayers}
                 selectedHistoricOverlayId={selectedHistoricOverlayId}
                 historicOverlayOpacityPercent={historicOverlayOpacityPercent}
                 weatherOverlayUpdatedLabel={weatherOverlayUpdatedLabel}
@@ -9709,7 +10362,7 @@ function App() {
                     setIsTidePlannerCollapsed((prev) => !prev)
                 }
                 onToggleHistoricOverlay={() => {
-                    if (!HAS_MAPTILER_KEY) return;
+                    if (!hasHistoricOverlayAccess) return;
                     setHistoricOverlayError("");
                     setIsHistoricOverlayEnabled((prev) => !prev);
                 }}
@@ -9733,6 +10386,380 @@ function App() {
                     setIsHistoricalPoisVisible((prev) => !prev)
                 }
             />
+
+            {isHistoricOverlayEditorModeEnabled ? (
+                <div
+                    style={{
+                        marginBottom: "10px",
+                        borderRadius: "14px",
+                        border: "1px solid #cbd5e1",
+                        background: "linear-gradient(145deg, rgba(255,255,255,0.96) 0%, rgba(248,250,252,0.96) 100%)",
+                        padding: isMobile ? "12px" : "14px",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "12px",
+                    }}
+                >
+                    <div
+                        style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: "12px",
+                            flexWrap: "wrap",
+                        }}
+                    >
+                        <div>
+                            <div
+                                style={{
+                                    fontSize: "0.92rem",
+                                    fontWeight: 700,
+                                    color: "#1d4ed8",
+                                }}
+                            >
+                                Historic Overlay Draft Editor
+                            </div>
+                            <div
+                                style={{
+                                    fontSize: "0.8rem",
+                                    color: "#475569",
+                                    marginTop: "2px",
+                                }}
+                            >
+                                Owner-only draft placement. Open with ?historic_editor=1 and use the current map view as a quick starting fit.
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setIsHistoricOverlayDraftPreviewEnabled((prev) => !prev)}
+                            style={{
+                                borderRadius: UI_TOKENS.radius.pill,
+                                border: isHistoricOverlayDraftPreviewEnabled
+                                    ? "1px solid #1d4ed8"
+                                    : "1px solid #cbd5e1",
+                                background: isHistoricOverlayDraftPreviewEnabled
+                                    ? "linear-gradient(135deg, #dbeafe, #eff6ff)"
+                                    : "linear-gradient(135deg, #eff6ff, #f8fafc)",
+                                color: isHistoricOverlayDraftPreviewEnabled ? "#1d4ed8" : "#0f172a",
+                                padding: "7px 11px",
+                                fontSize: "0.79rem",
+                                fontWeight: 700,
+                                cursor: "pointer",
+                            }}
+                        >
+                            {isHistoricOverlayDraftPreviewEnabled ? "Draft Preview On" : "Draft Preview Off"}
+                        </button>
+                    </div>
+
+                    <div
+                        style={{
+                            display: "grid",
+                            gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1fr) minmax(0, 1.2fr)",
+                            gap: "12px",
+                        }}
+                    >
+                        <label style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                            <span style={{ fontSize: "0.77rem", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                                Draft Map
+                            </span>
+                            <select
+                                value={selectedHistoricOverlayDraftId}
+                                onChange={(event) => setSelectedHistoricOverlayDraftId(event.target.value)}
+                                style={{
+                                    minHeight: "38px",
+                                    borderRadius: "10px",
+                                    border: "1px solid #cbd5e1",
+                                    background: "#ffffff",
+                                    color: "#0f172a",
+                                    padding: "8px 10px",
+                                    fontSize: "0.9rem",
+                                }}
+                            >
+                                {historicOverlayDrafts.map((draft) => (
+                                    <option key={draft.id} value={draft.id}>
+                                        {draft.label}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "end" }}>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (!mapInstance || !selectedHistoricOverlayDraft) return;
+
+                                    const currentBounds = mapInstance.getBounds();
+                                    setHistoricOverlayDrafts((prev) => prev.map((draft) => (
+                                        draft.id === selectedHistoricOverlayDraft.id
+                                            ? {
+                                                ...draft,
+                                                corners: buildHistoricDraftCornersFromBounds([
+                                                    [currentBounds.getSouth(), currentBounds.getWest()],
+                                                    [currentBounds.getNorth(), currentBounds.getEast()],
+                                                ]),
+                                                bounds: [
+                                                    [currentBounds.getSouth(), currentBounds.getWest()],
+                                                    [currentBounds.getNorth(), currentBounds.getEast()],
+                                                ],
+                                            }
+                                            : draft
+                                    )));
+                                }}
+                                disabled={!mapInstance || !selectedHistoricOverlayDraft}
+                                style={{
+                                    borderRadius: UI_TOKENS.radius.pill,
+                                    border: "1px solid #93c5fd",
+                                    background: "#eff6ff",
+                                    color: "#1d4ed8",
+                                    padding: "7px 11px",
+                                    fontSize: "0.79rem",
+                                    fontWeight: 700,
+                                    cursor: !mapInstance || !selectedHistoricOverlayDraft ? "not-allowed" : "pointer",
+                                    opacity: !mapInstance || !selectedHistoricOverlayDraft ? 0.6 : 1,
+                                }}
+                            >
+                                Use Current Map View
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (!selectedHistoricOverlayDraft) return;
+                                    setHistoricOverlayDrafts((prev) => prev.map((draft) => (
+                                        draft.id === selectedHistoricOverlayDraft.id
+                                            ? {
+                                                ...draft,
+                                                corners: buildHistoricDraftCornersFromBounds(draft.bounds),
+                                            }
+                                            : draft
+                                    )));
+                                }}
+                                disabled={!selectedHistoricOverlayDraft?.bounds}
+                                style={{
+                                    borderRadius: UI_TOKENS.radius.pill,
+                                    border: "1px solid #cbd5e1",
+                                    background: "#ffffff",
+                                    color: "#334155",
+                                    padding: "7px 11px",
+                                    fontSize: "0.79rem",
+                                    fontWeight: 700,
+                                    cursor: !selectedHistoricOverlayDraft?.bounds ? "not-allowed" : "pointer",
+                                    opacity: !selectedHistoricOverlayDraft?.bounds ? 0.6 : 1,
+                                }}
+                            >
+                                Reset To Bounds
+                            </button>
+
+                            <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.8rem", color: "#334155" }}>
+                                <span>Status</span>
+                                <select
+                                    value={selectedHistoricOverlayDraft?.status || "draft"}
+                                    onChange={(event) => {
+                                        const nextStatus = event.target.value === "ready" ? "ready" : "draft";
+                                        setHistoricOverlayDrafts((prev) => prev.map((draft) => (
+                                            draft.id === selectedHistoricOverlayDraftId
+                                                ? { ...draft, status: nextStatus }
+                                                : draft
+                                        )));
+                                    }}
+                                    style={{
+                                        minHeight: "34px",
+                                        borderRadius: "10px",
+                                        border: "1px solid #cbd5e1",
+                                        background: "#ffffff",
+                                        color: "#0f172a",
+                                        padding: "6px 8px",
+                                        fontSize: "0.84rem",
+                                    }}
+                                >
+                                    <option value="draft">Draft only</option>
+                                    <option value="ready">Ready for public selector</option>
+                                </select>
+                            </label>
+
+                            <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.8rem", color: "#334155", minWidth: isMobile ? "100%" : "220px" }}>
+                                <span>Editor Opacity</span>
+                                <input
+                                    type="range"
+                                    min="10"
+                                    max="100"
+                                    step="1"
+                                    value={Math.round((selectedHistoricOverlayDraft?.editorOpacity || DEFAULT_HISTORIC_DRAFT_EDITOR_OPACITY) * 100)}
+                                    onChange={(event) => {
+                                        const parsed = Number.parseInt(event.target.value, 10);
+                                        if (!Number.isFinite(parsed)) return;
+                                        const nextOpacity = Math.min(Math.max(parsed, 10), 100) / 100;
+                                        setHistoricOverlayDrafts((prev) => prev.map((draft) => (
+                                            draft.id === selectedHistoricOverlayDraftId
+                                                ? { ...draft, editorOpacity: nextOpacity }
+                                                : draft
+                                        )));
+                                    }}
+                                    style={{ width: "100%", accentColor: "#2563eb" }}
+                                />
+                            </label>
+                        </div>
+                    </div>
+
+                    {selectedHistoricOverlayDraft ? (
+                        <>
+                            <label style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                                <span style={{ fontSize: "0.77rem", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                                    Image URL
+                                </span>
+                                <input
+                                    type="url"
+                                    value={selectedHistoricOverlayDraft.imageUrl}
+                                    onChange={(event) => {
+                                        const nextValue = event.target.value;
+                                        setHistoricOverlayDrafts((prev) => prev.map((draft) => (
+                                            draft.id === selectedHistoricOverlayDraftId
+                                                ? { ...draft, imageUrl: nextValue }
+                                                : draft
+                                        )));
+                                    }}
+                                    placeholder="https://... or /historic/mackreth-1778.jpg"
+                                    style={{ minHeight: "38px", borderRadius: "10px", border: "1px solid #cbd5e1", background: "#ffffff", color: "#0f172a", padding: "8px 10px", fontSize: "0.9rem" }}
+                                />
+                            </label>
+
+                            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "10px" }}>
+                                <label style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                                    <span style={{ fontSize: "0.77rem", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                                        Source URL
+                                    </span>
+                                    <input
+                                        type="url"
+                                        value={selectedHistoricOverlayDraft.sourceUrl}
+                                        onChange={(event) => {
+                                            const nextValue = event.target.value;
+                                            setHistoricOverlayDrafts((prev) => prev.map((draft) => (
+                                                draft.id === selectedHistoricOverlayDraftId
+                                                    ? { ...draft, sourceUrl: nextValue }
+                                                    : draft
+                                            )));
+                                        }}
+                                        placeholder="Archive page or source record"
+                                        style={{ minHeight: "38px", borderRadius: "10px", border: "1px solid #cbd5e1", background: "#ffffff", color: "#0f172a", padding: "8px 10px", fontSize: "0.9rem" }}
+                                    />
+                                </label>
+
+                                <label style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                                    <span style={{ fontSize: "0.77rem", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                                        Attribution
+                                    </span>
+                                    <input
+                                        type="text"
+                                        value={selectedHistoricOverlayDraft.attribution}
+                                        onChange={(event) => {
+                                            const nextValue = event.target.value;
+                                            setHistoricOverlayDrafts((prev) => prev.map((draft) => (
+                                                draft.id === selectedHistoricOverlayDraftId
+                                                    ? { ...draft, attribution: nextValue }
+                                                    : draft
+                                            )));
+                                        }}
+                                        placeholder="Archive / library credit"
+                                        style={{ minHeight: "38px", borderRadius: "10px", border: "1px solid #cbd5e1", background: "#ffffff", color: "#0f172a", padding: "8px 10px", fontSize: "0.9rem" }}
+                                    />
+                                </label>
+                            </div>
+
+                            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "10px" }}>
+                                {[
+                                    { key: "nw", label: "North West" },
+                                    { key: "ne", label: "North East" },
+                                    { key: "se", label: "South East" },
+                                    { key: "sw", label: "South West" },
+                                ].map((cornerField) => {
+                                    const currentCorner = selectedHistoricOverlayDraft.corners?.[cornerField.key] || ["", ""];
+
+                                    return (
+                                        <div key={cornerField.key} style={{ border: "1px solid #dbeafe", borderRadius: "12px", background: "#f8fbff", padding: "10px", display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
+                                            <div style={{ gridColumn: "1 / -1", fontSize: "0.77rem", fontWeight: 700, color: "#1d4ed8", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                                                {cornerField.label}
+                                            </div>
+                                            <label style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                                                <span style={{ fontSize: "0.72rem", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                                                    Lat
+                                                </span>
+                                                <input
+                                                    type="number"
+                                                    step="0.000001"
+                                                    value={Number.isFinite(Number(currentCorner[0])) ? Number(currentCorner[0]) : ""}
+                                                    onChange={(event) => {
+                                                        const nextValue = Number.parseFloat(event.target.value);
+                                                        setHistoricOverlayDrafts((prev) => prev.map((draft) => {
+                                                            if (draft.id !== selectedHistoricOverlayDraftId) return draft;
+                                                            const nextCorners = {
+                                                                ...(draft.corners || buildHistoricDraftCornersFromBounds(draft.bounds) || {}),
+                                                                [cornerField.key]: [
+                                                                    Number.isFinite(nextValue) ? nextValue : null,
+                                                                    draft.corners?.[cornerField.key]?.[1] ?? null,
+                                                                ],
+                                                            };
+                                                            return {
+                                                                ...draft,
+                                                                corners: nextCorners,
+                                                                bounds: deriveHistoricBoundsFromCorners(nextCorners) || draft.bounds,
+                                                            };
+                                                        }));
+                                                    }}
+                                                    style={{ minHeight: "38px", borderRadius: "10px", border: "1px solid #cbd5e1", background: "#ffffff", color: "#0f172a", padding: "8px 10px", fontSize: "0.9rem" }}
+                                                />
+                                            </label>
+                                            <label style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                                                <span style={{ fontSize: "0.72rem", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                                                    Lng
+                                                </span>
+                                                <input
+                                                    type="number"
+                                                    step="0.000001"
+                                                    value={Number.isFinite(Number(currentCorner[1])) ? Number(currentCorner[1]) : ""}
+                                                    onChange={(event) => {
+                                                        const nextValue = Number.parseFloat(event.target.value);
+                                                        setHistoricOverlayDrafts((prev) => prev.map((draft) => {
+                                                            if (draft.id !== selectedHistoricOverlayDraftId) return draft;
+                                                            const nextCorners = {
+                                                                ...(draft.corners || buildHistoricDraftCornersFromBounds(draft.bounds) || {}),
+                                                                [cornerField.key]: [
+                                                                    draft.corners?.[cornerField.key]?.[0] ?? null,
+                                                                    Number.isFinite(nextValue) ? nextValue : null,
+                                                                ],
+                                                            };
+                                                            return {
+                                                                ...draft,
+                                                                corners: nextCorners,
+                                                                bounds: deriveHistoricBoundsFromCorners(nextCorners) || draft.bounds,
+                                                            };
+                                                        }));
+                                                    }}
+                                                    style={{ minHeight: "38px", borderRadius: "10px", border: "1px solid #cbd5e1", background: "#ffffff", color: "#0f172a", padding: "8px 10px", fontSize: "0.9rem" }}
+                                                />
+                                            </label>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            <div
+                                style={{
+                                    borderRadius: "12px",
+                                    border: "1px solid #dbeafe",
+                                    background: "#eff6ff",
+                                    padding: "10px 12px",
+                                    color: "#1e3a8a",
+                                    fontSize: "0.8rem",
+                                    lineHeight: 1.5,
+                                }}
+                            >
+                                Drag the blue corner handles on the map to rotate or reshape the draft, or use the numeric corner fields here for precise placement. The green center handle moves the full draft without changing its shape.
+                            </div>
+                        </>
+                    ) : null}
+                </div>
+            ) : null}
 
             {isDeferredUiReady ? (
                 <Suspense fallback={null}>
@@ -9851,24 +10878,93 @@ function App() {
                             maxNativeZoom={RAINVIEWER_MAX_SUPPORTED_ZOOM}
                         />
                     ) : null}
-                    {isHistoricOverlayEnabled && historicOverlayTileUrl ? (
-                        <TileLayer
-                            key={`historic-overlay-${selectedHistoricOverlay.id}`}
-                            url={historicOverlayTileUrl}
-                            attribution={HISTORIC_OVERLAY_ATTRIBUTION}
-                            opacity={historicOverlayOpacity}
-                            maxZoom={19}
-                            eventHandlers={{
-                                load: () => {
+                    {shouldRenderHistoricOverlayDraftPreview ? (
+                        <TransformedHistoricImageOverlay
+                            key={`historic-draft-preview-${historicOverlayDraftPreview.id}`}
+                            imageUrl={historicOverlayDraftPreview.imageUrl}
+                            corners={historicOverlayDraftPreview.corners}
+                            attribution={historicOverlayDraftPreview.attribution || "Historic draft preview"}
+                            opacity={historicOverlayDraftPreview.editorOpacity}
+                            onLoad={() => {
+                                setHistoricOverlayError("");
+                            }}
+                            onError={() => {
+                                setHistoricOverlayError(
+                                    `Historic draft \"${historicOverlayDraftPreview.label}\" could not be loaded right now.`,
+                                );
+                            }}
+                        />
+                    ) : null}
+                    {isHistoricOverlayEditorModeEnabled && historicOverlayDraftPreview?.corners ? (
+                        <HistoricOverlayCornerHandles
+                            corners={historicOverlayDraftPreview.corners}
+                            onCornerChange={(cornerKey, nextCorner) => {
+                                setHistoricOverlayDrafts((prev) => prev.map((draft) => {
+                                    if (draft.id !== historicOverlayDraftPreview.id) return draft;
+                                    const nextCorners = {
+                                        ...(draft.corners || buildHistoricDraftCornersFromBounds(draft.bounds) || {}),
+                                        [cornerKey]: nextCorner,
+                                    };
+                                    return {
+                                        ...draft,
+                                        corners: nextCorners,
+                                        bounds: deriveHistoricBoundsFromCorners(nextCorners) || draft.bounds,
+                                    };
+                                }));
+                            }}
+                            onMoveOverlay={(latitudeDelta, longitudeDelta) => {
+                                setHistoricOverlayDrafts((prev) => prev.map((draft) => {
+                                    if (draft.id !== historicOverlayDraftPreview.id) return draft;
+                                    const nextCorners = offsetHistoricOverlayCorners(
+                                        draft.corners || buildHistoricDraftCornersFromBounds(draft.bounds),
+                                        latitudeDelta,
+                                        longitudeDelta,
+                                    );
+                                    return {
+                                        ...draft,
+                                        corners: nextCorners,
+                                        bounds: deriveHistoricBoundsFromCorners(nextCorners) || draft.bounds,
+                                    };
+                                }));
+                            }}
+                        />
+                    ) : null}
+                    {isHistoricOverlayEnabled && selectedHistoricOverlay ? (
+                        selectedHistoricOverlay.type === "tile" ? (
+                            <TileLayer
+                                key={`historic-overlay-${selectedHistoricOverlay.id}`}
+                                url={historicOverlayTileUrl}
+                                attribution={selectedHistoricOverlay.attribution || HISTORIC_OVERLAY_ATTRIBUTION}
+                                opacity={historicOverlayOpacity}
+                                maxZoom={19}
+                                eventHandlers={{
+                                    load: () => {
+                                        setHistoricOverlayError("");
+                                    },
+                                    tileerror: () => {
+                                        setHistoricOverlayError(
+                                            `Historic layer \"${selectedHistoricOverlay.label}\" could not be loaded right now.`,
+                                        );
+                                    },
+                                }}
+                            />
+                        ) : (
+                            <TransformedHistoricImageOverlay
+                                key={`historic-overlay-${selectedHistoricOverlay.id}`}
+                                imageUrl={selectedHistoricOverlay.imageUrl}
+                                corners={selectedHistoricOverlay.corners}
+                                attribution={selectedHistoricOverlay.attribution || "Historic map overlay (custom calibration)"}
+                                opacity={historicOverlayOpacity}
+                                onLoad={() => {
                                     setHistoricOverlayError("");
-                                },
-                                tileerror: () => {
+                                }}
+                                onError={() => {
                                     setHistoricOverlayError(
                                         `Historic layer \"${selectedHistoricOverlay.label}\" could not be loaded right now.`,
                                     );
-                                },
-                            }}
-                        />
+                                }}
+                            />
+                        )
                     ) : null}
                     <WeatherOverlayZoomGuard
                         isWeatherOverlayEnabled={isWeatherOverlayEnabled}
