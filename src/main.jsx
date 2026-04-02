@@ -37,6 +37,8 @@ const HISTORIC_OVERLAY_DRAFTS_STORAGE_KEY = "cleanup-historic-overlay-drafts-v1"
 const HISTORIC_OVERLAY_STATUS_DRAFT = "draft";
 const HISTORIC_OVERLAY_STATUS_READY = "ready";
 const HISTORIC_OVERLAY_AUTOSAVE_DEBOUNCE_MS = 700;
+const LIVE_LOCATION_PANE_NAME = "live-location-pane";
+const LIVE_LOCATION_PANE_Z_INDEX = 690;
 const HISTORIC_OVERLAY_ATTRIBUTION =
     'Historic map &copy; <a href="https://maps.nls.uk/">National Library of Scotland</a> via <a href="https://www.maptiler.com/">MapTiler</a>';
 // River Lune, Lancaster — adjust if needed
@@ -7820,6 +7822,7 @@ function App() {
     const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
     const [isMapToolsOpen, setIsMapToolsOpen] = useState(false);
     const [mapInstance, setMapInstance] = useState(null);
+    const [isLiveLocationPaneReady, setIsLiveLocationPaneReady] = useState(false);
     const [copiedShareItemId, setCopiedShareItemId] = useState(null);
     const [shareCopyStatus, setShareCopyStatus] = useState("");
     const [isDeferredUiReady, setIsDeferredUiReady] = useState(false);
@@ -9532,6 +9535,27 @@ function App() {
                 onMapReady(null);
             };
         }, [map, onMapReady]);
+
+        return null;
+    }
+
+    function LiveLocationPane({ onReady }) {
+        const map = useMap();
+
+        useEffect(() => {
+            let pane = map.getPane(LIVE_LOCATION_PANE_NAME);
+
+            if (!pane) {
+                pane = map.createPane(LIVE_LOCATION_PANE_NAME);
+            }
+
+            pane.style.zIndex = String(LIVE_LOCATION_PANE_Z_INDEX);
+            onReady(true);
+
+            return () => {
+                onReady(false);
+            };
+        }, [map, onReady]);
 
         return null;
     }
@@ -11319,24 +11343,9 @@ function App() {
                         isWeatherOverlayEnabled={isWeatherOverlayEnabled}
                     />
                     <MapInstanceBinder onMapReady={setMapInstance} />
+                    <LiveLocationPane onReady={setIsLiveLocationPaneReady} />
                     <MapEvents />
                     <LiveLocationAutoCenter />
-
-                    {isLiveLocationEnabled && liveLocation && (
-                        <CircleMarker
-                            center={[
-                                liveLocation.latitude,
-                                liveLocation.longitude,
-                            ]}
-                            radius={8}
-                            pathOptions={{
-                                color: "#0284c7",
-                                fillColor: "#38bdf8",
-                                fillOpacity: 0.75,
-                                weight: 2,
-                            }}
-                        />
-                    )}
 
                     {pendingLocation && (
                         <Marker
@@ -11865,6 +11874,23 @@ function App() {
                               );
                           })
                         : null}
+
+                    {isLiveLocationEnabled && liveLocation && isLiveLocationPaneReady && (
+                        <CircleMarker
+                            center={[
+                                liveLocation.latitude,
+                                liveLocation.longitude,
+                            ]}
+                            radius={8}
+                            pane={LIVE_LOCATION_PANE_NAME}
+                            pathOptions={{
+                                color: "#0284c7",
+                                fillColor: "#38bdf8",
+                                fillOpacity: 0.75,
+                                weight: 2,
+                            }}
+                        />
+                    )}
                 </MapContainer>
 
                 <button
