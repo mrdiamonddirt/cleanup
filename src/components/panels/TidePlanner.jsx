@@ -20,6 +20,7 @@ export default function TidePlanner({
     const [liveTideTimeMs, setLiveTideTimeMs] = useState(() => Date.now());
     const [activeCleanupWindowIndex, setActiveCleanupWindowIndex] = useState(null);
     const tideChartViewportRef = useRef(null);
+    const autoCenteredTideChartSignatureRef = useRef(null);
 
     useEffect(() => {
         if (isTidePlannerCollapsed || !tideChartData?.points?.length) return undefined;
@@ -59,6 +60,16 @@ export default function TidePlanner({
 
         return (Date.now() - updatedAtMs) / (60 * 60 * 1000);
     }, [lancasterTideUpdatedAt]);
+    const tideChartSignature = useMemo(() => {
+        if (!tideChartData?.points?.length) return null;
+
+        return [
+            tideChartData.minTime,
+            tideChartData.maxTime,
+            tideChartData.width,
+            tideChartData.points.length,
+        ].join(":");
+    }, [tideChartData]);
     const isTideSnapshotStale =
         Number.isFinite(tideSnapshotAgeHours) &&
         tideSnapshotAgeHours >= TIDE_DATA_STALE_WARNING_HOURS;
@@ -108,6 +119,35 @@ export default function TidePlanner({
             setActiveCleanupWindowIndex(null);
         }
     }, [activeCleanupWindowIndex, tideChartData]);
+
+    useEffect(() => {
+        if (isTidePlannerCollapsed || !tideChartSignature || !currentTideMarker) return undefined;
+        if (autoCenteredTideChartSignatureRef.current === tideChartSignature) return undefined;
+
+        let animationFrameId = 0;
+        let nestedAnimationFrameId = 0;
+
+        animationFrameId = window.requestAnimationFrame(() => {
+            nestedAnimationFrameId = window.requestAnimationFrame(() => {
+                const viewport = tideChartViewportRef.current;
+                if (!viewport) return;
+
+                const maxScrollLeft = Math.max(viewport.scrollWidth - viewport.clientWidth, 0);
+                const targetScrollLeft = Math.min(
+                    Math.max(currentTideMarker.x - viewport.clientWidth / 2, 0),
+                    maxScrollLeft,
+                );
+
+                viewport.scrollLeft = targetScrollLeft;
+                autoCenteredTideChartSignatureRef.current = tideChartSignature;
+            });
+        });
+
+        return () => {
+            window.cancelAnimationFrame(animationFrameId);
+            window.cancelAnimationFrame(nestedAnimationFrameId);
+        };
+    }, [currentTideMarker, isTidePlannerCollapsed, tideChartSignature]);
 
     useEffect(() => {
         if (!isMobile || activeCleanupWindowIndex === null) return undefined;
