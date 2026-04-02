@@ -43,39 +43,69 @@ const HISTORIC_OVERLAY_LAYERS = [
         tileId: "uk-osgb1888",
         label: "Lancaster 1900s Overview",
         description: "Best all-round starting point for the River Lune corridor.",
+        startYear: 1888,
+        endYear: 1905,
+        isDefault: true,
     },
     {
         id: "lancaster-one-inch-hills",
         tileId: "uk-osgb63k1885",
         label: "One-Inch Hills, 1885-1903",
         description: "Broader late-Victorian relief and route context across Lancaster.",
+        startYear: 1885,
+        endYear: 1903,
     },
     {
         id: "lancaster-six-inch",
         tileId: "uk-osgb10k1888",
         label: "Six-Inch Detail, 1888-1913",
         description: "Most detailed local land, field, and street context.",
+        startYear: 1888,
+        endYear: 1913,
     },
     {
         id: "lancaster-interwar",
         tileId: "uk-osgb1919",
         label: "Interwar Overview, 1920s-1940s",
         description: "Useful for comparing between the Edwardian and post-war landscape.",
+        startYear: 1919,
+        endYear: 1947,
     },
     {
         id: "lancaster-provisional",
         tileId: "uk-osgb25k1937",
         label: "Provisional Edition, 1937-1961",
         description: "Good mid-20th-century comparison for Lancaster approaches.",
+        startYear: 1937,
+        endYear: 1961,
     },
     {
         id: "lancaster-seventh-series",
         tileId: "uk-osgb63k1955",
         label: "Seventh Series, 1955-1961",
         description: "Post-war one-inch touring map view for roads, rail, and settlement change.",
+        startYear: 1955,
+        endYear: 1961,
     },
-];
-const DEFAULT_HISTORIC_OVERLAY_ID = HISTORIC_OVERLAY_LAYERS[0].id;
+].sort((leftLayer, rightLayer) => {
+    if (leftLayer.startYear !== rightLayer.startYear) {
+        return leftLayer.startYear - rightLayer.startYear;
+    }
+
+    if (leftLayer.endYear !== rightLayer.endYear) {
+        return leftLayer.endYear - rightLayer.endYear;
+    }
+
+    return leftLayer.label.localeCompare(rightLayer.label);
+});
+const DEFAULT_HISTORIC_OVERLAY_ID =
+    HISTORIC_OVERLAY_LAYERS.find((layer) => layer.isDefault)?.id ||
+    HISTORIC_OVERLAY_LAYERS[0]?.id ||
+    "";
+const EARLIEST_HISTORIC_OVERLAY_YEAR = HISTORIC_OVERLAY_LAYERS.reduce(
+    (oldestYear, layer) => Math.min(oldestYear, layer.startYear),
+    Number.POSITIVE_INFINITY,
+);
 const DEFAULT_HISTORIC_OVERLAY_OPACITY = 0.72;
 const HISTORIC_OVERLAY_ATTRIBUTION =
     'Historic map &copy; <a href="https://maps.nls.uk/">National Library of Scotland</a> via <a href="https://www.maptiler.com/">MapTiler</a>';
@@ -3561,6 +3591,15 @@ function ControlToggles({
                                 }}
                             >
                                 {selectedHistoricOverlay?.description || "Compare today with older River Lune mapping."}
+                            </div>
+                            <div
+                                style={{
+                                    fontSize: "0.76rem",
+                                    color: "#64748b",
+                                    marginTop: "4px",
+                                }}
+                            >
+                                Provider-backed NLS coverage currently starts at {EARLIEST_HISTORIC_OVERLAY_YEAR} for this Great Britain overlay set.
                             </div>
                         </div>
                         <div

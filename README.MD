@@ -70,7 +70,7 @@ VITE_ENABLE_PUBLIC_REPORTS=true
 
 If you add a new production `VITE_*` key, update both [`.github/workflows/refresh-lancaster-tides.yml`](.github/workflows/refresh-lancaster-tides.yml) and `.env.example` in the same change so the scheduled rebuild does not drop it.
 
-Historic Lancaster overlays use a small curated set of NLS layers through MapTiler. If `VITE_MAPTILER_KEY` is missing, the app keeps the control disabled and the base map continues to work normally.
+Historic Lancaster overlays use a small curated set of NLS layers through MapTiler. For the current Great Britain provider-backed layer set, coverage starts at 1885-1903; adding anything older depends on MapTiler/NLS exposing an earlier georeferenced tileset for Lancaster rather than just an archival scan. If `VITE_MAPTILER_KEY` is missing, the app keeps the control disabled and the base map continues to work normally.
 
 ## 🔐 Auth (GitHub + Owner Write Access)
 - Sign-in uses Supabase Auth with the GitHub provider.
