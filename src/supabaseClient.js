@@ -16,7 +16,11 @@ function createMissingSupabaseClient() {
     const error = createMissingSupabaseConfigError();
 
     const queryBuilder = {
-        select: async () => ({ data: null, error }),
+        select: () => ({
+            order: async () => ({ data: null, error }),
+            eq: async () => ({ data: null, error }),
+            single: async () => ({ data: null, error }),
+        }),
         update: () => ({
             eq: async () => ({ error }),
         }),
@@ -28,7 +32,9 @@ function createMissingSupabaseClient() {
                 single: async () => ({ data: null, error }),
             }),
         }),
+        upsert: async () => ({ error }),
         eq: async () => ({ error }),
+        order: async () => ({ data: null, error }),
     };
 
     return {

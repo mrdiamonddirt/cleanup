@@ -72,6 +72,14 @@ If you add a new production `VITE_*` key, update both [`.github/workflows/refres
 
 Historic Lancaster overlays use a small curated set of NLS layers through MapTiler. For the current Great Britain provider-backed layer set, coverage starts at 1885-1903; adding anything older depends on MapTiler/NLS exposing an earlier georeferenced tileset for Lancaster rather than just an archival scan. If `VITE_MAPTILER_KEY` is missing, the app keeps the control disabled and the base map continues to work normally.
 
+### Historic Overlay Publishing
+- Shared custom historic overlay calibration now lives in Supabase via [supabase/migrations/20260402_create_historic_overlays.sql](supabase/migrations/20260402_create_historic_overlays.sql).
+- The migration creates `historic_overlays`, plus a small `app_owner_accounts` table and RLS helper functions so only owner accounts can edit or publish overlays while public visitors can read published rows.
+- Apply the migration before using the owner-only historic overlay editor.
+- Owner edits in `?historic_editor=1` auto-save draft calibration to Supabase.
+- Use the editor's Publish action to make a ready overlay visible to everyone immediately without waiting for a site redeploy.
+- The app still keeps overlay identity, labels, years, and image asset URLs in [src/main.jsx](src/main.jsx); Supabase stores only mutable calibration and publish state.
+
 ## 🔐 Auth (GitHub + Owner Write Access)
 - Sign-in uses Supabase Auth with the GitHub provider.
 - Everyone can view the map data.

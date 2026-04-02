@@ -34,6 +34,9 @@ const HAS_MAPBOX_TOKEN = Boolean(MAPBOX_TOKEN && MAPBOX_TOKEN.trim());
 const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY || "";
 const HAS_MAPTILER_KEY = Boolean(MAPTILER_KEY && MAPTILER_KEY.trim());
 const HISTORIC_OVERLAY_DRAFTS_STORAGE_KEY = "cleanup-historic-overlay-drafts-v1";
+const HISTORIC_OVERLAY_STATUS_DRAFT = "draft";
+const HISTORIC_OVERLAY_STATUS_READY = "ready";
+const HISTORIC_OVERLAY_AUTOSAVE_DEBOUNCE_MS = 700;
 const HISTORIC_OVERLAY_ATTRIBUTION =
     'Historic map &copy; <a href="https://maps.nls.uk/">National Library of Scotland</a> via <a href="https://www.maptiler.com/">MapTiler</a>';
 // River Lune, Lancaster — adjust if needed
@@ -296,7 +299,9 @@ const normalizeHistoricOverlayDraft = (draft, template) => {
     const attribution = typeof nextDraft.attribution === "string"
         ? nextDraft.attribution.trim()
         : baseTemplate.attribution || "";
-    const status = nextDraft.status === "ready" ? "ready" : "draft";
+    const status = nextDraft.status === HISTORIC_OVERLAY_STATUS_READY
+        ? HISTORIC_OVERLAY_STATUS_READY
+        : HISTORIC_OVERLAY_STATUS_DRAFT;
     const normalizedBounds = normalizeHistoricOverlayBounds(nextDraft.bounds || baseTemplate.bounds || null);
     const corners = normalizeHistoricOverlayCorners(
         nextDraft.corners || baseTemplate.corners || null,
@@ -304,6 +309,9 @@ const normalizeHistoricOverlayDraft = (draft, template) => {
     );
     const derivedBounds = deriveHistoricBoundsFromCorners(corners) || normalizedBounds;
     const editorOpacity = Number.parseFloat(nextDraft.editorOpacity);
+    const isPublic = Boolean(nextDraft.isPublic);
+    const publishedAt = typeof nextDraft.publishedAt === "string" ? nextDraft.publishedAt.trim() : "";
+    const updatedAt = typeof nextDraft.updatedAt === "string" ? nextDraft.updatedAt.trim() : "";
 
     return {
         ...baseTemplate,
@@ -318,12 +326,120 @@ const normalizeHistoricOverlayDraft = (draft, template) => {
         sourceUrl,
         attribution,
         status,
+        isPublic,
+        publishedAt,
+        updatedAt,
         bounds: derivedBounds,
         corners,
         editorOpacity: Number.isFinite(editorOpacity)
             ? Math.min(Math.max(editorOpacity, 0.1), 1)
             : Number(baseTemplate.editorOpacity || DEFAULT_HISTORIC_DRAFT_EDITOR_OPACITY),
         controlPoints: normalizeHistoricOverlayControlPoints(nextDraft.controlPoints),
+    };
+};
+
+const normalizeHistoricOverlayDraftId = (value) => {
+    const draftId = String(value || "").trim();
+    if (!draftId) return "";
+
+    const legacyDraftIdAliases = new Map([
+        ["housman-clark-binns-1800-1825", "docton-1684"],
+    ]);
+
+    return legacyDraftIdAliases.get(draftId) || draftId;
+};
+
+const normalizeHistoricOverlaySourceRecord = (record) => {
+    if (!isPlainObjectRecord(record)) return null;
+
+    const normalizedId = normalizeHistoricOverlayDraftId(record.overlay_id || record.id);
+    if (!normalizedId) return null;
+
+    return {
+        id: normalizedId,
+        imageUrl: typeof record.imageUrl === "string" ? record.imageUrl : undefined,
+        sourceUrl: typeof (record.sourceUrl ?? record.source_url) === "string"
+            ? String(record.sourceUrl ?? record.source_url)
+            : undefined,
+        attribution: typeof record.attribution === "string" ? record.attribution : undefined,
+        status: record.status === HISTORIC_OVERLAY_STATUS_READY
+            ? HISTORIC_OVERLAY_STATUS_READY
+            : HISTORIC_OVERLAY_STATUS_DRAFT,
+        isPublic: Boolean(record.isPublic ?? record.is_public),
+        publishedAt: typeof (record.publishedAt ?? record.published_at) === "string"
+            ? String(record.publishedAt ?? record.published_at)
+            : "",
+        updatedAt: typeof (record.updatedAt ?? record.updated_at) === "string"
+            ? String(record.updatedAt ?? record.updated_at)
+            : "",
+        bounds: record.bounds ?? null,
+        corners: record.corners ?? null,
+        editorOpacity: record.editorOpacity ?? record.editor_opacity,
+        controlPoints: record.controlPoints ?? record.control_points,
+    };
+};
+
+const serializeHistoricOverlayDraftForSync = (draft) => JSON.stringify({
+    id: normalizeHistoricOverlayDraftId(draft?.id),
+    status: draft?.status === HISTORIC_OVERLAY_STATUS_READY
+        ? HISTORIC_OVERLAY_STATUS_READY
+        : HISTORIC_OVERLAY_STATUS_DRAFT,
+    isPublic: Boolean(draft?.isPublic),
+    publishedAt: typeof draft?.publishedAt === "string" ? draft.publishedAt : "",
+    bounds: normalizeHistoricOverlayBounds(draft?.bounds),
+    corners: normalizeHistoricOverlayCorners(draft?.corners, draft?.bounds),
+    editorOpacity: Number.isFinite(Number(draft?.editorOpacity))
+        ? Math.min(Math.max(Number(draft.editorOpacity), 0.1), 1)
+        : DEFAULT_HISTORIC_DRAFT_EDITOR_OPACITY,
+    sourceUrl: typeof draft?.sourceUrl === "string" ? draft.sourceUrl.trim() : "",
+    attribution: typeof draft?.attribution === "string" ? draft.attribution.trim() : "",
+    controlPoints: normalizeHistoricOverlayControlPoints(draft?.controlPoints),
+});
+
+const isHistoricOverlayDraftPersistable = (draft) => {
+    if (!draft) return false;
+
+    const normalizedCorners = normalizeHistoricOverlayCorners(draft.corners, draft.bounds);
+    const normalizedBounds = deriveHistoricBoundsFromCorners(normalizedCorners)
+        || normalizeHistoricOverlayBounds(draft.bounds);
+
+    return Boolean(
+        normalizedCorners
+        || normalizedBounds
+        || normalizeHistoricOverlayControlPoints(draft.controlPoints).length
+        || (typeof draft.sourceUrl === "string" && draft.sourceUrl.trim())
+        || (typeof draft.attribution === "string" && draft.attribution.trim())
+        || draft.status === HISTORIC_OVERLAY_STATUS_READY
+        || draft.isPublic,
+    );
+};
+
+const buildHistoricOverlayDraftSnapshotMap = (drafts) => new Map(
+    (Array.isArray(drafts) ? drafts : []).map((draft) => [
+        normalizeHistoricOverlayDraftId(draft?.id),
+        serializeHistoricOverlayDraftForSync(draft),
+    ]),
+);
+
+const buildHistoricOverlayUpsertPayload = (draft) => {
+    const normalizedDraft = normalizeHistoricOverlayDraft(
+        draft,
+        HISTORIC_OVERLAY_DRAFT_TEMPLATES.find((template) => template.id === draft?.id),
+    );
+
+    return {
+        overlay_id: normalizedDraft.id,
+        status: normalizedDraft.status,
+        is_public: Boolean(normalizedDraft.isPublic),
+        bounds: normalizedDraft.bounds,
+        corners: normalizedDraft.corners,
+        control_points: normalizedDraft.controlPoints,
+        editor_opacity: normalizedDraft.editorOpacity,
+        source_url: normalizedDraft.sourceUrl || "",
+        attribution: normalizedDraft.attribution || "",
+        published_at: normalizedDraft.isPublic
+            ? (normalizedDraft.publishedAt || new Date().toISOString())
+            : null,
     };
 };
 
@@ -451,35 +567,25 @@ const computeProjectiveMatrix3d = (sourceWidth, sourceHeight, destinationPoints)
     return `matrix3d(${coefficients.map((value) => Number(value.toFixed(12))).join(",")})`;
 };
 
-const buildHistoricOverlayDrafts = (storedDrafts) => {
-    const legacyDraftIdAliases = new Map([
-        ["housman-clark-binns-1800-1825", "docton-1684"],
-    ]);
-    const draftMap = new Map(
-        (Array.isArray(storedDrafts) ? storedDrafts : [])
-            .filter(isPlainObjectRecord)
-            .map((draft) => {
-                const draftId = String(draft.id || "").trim();
-                const canonicalId = legacyDraftIdAliases.get(draftId) || draftId;
-                if (draftId === canonicalId) {
-                    return [canonicalId, draft];
-                }
-
-                const migratedDraft = { ...draft, id: canonicalId };
-                delete migratedDraft.label;
-                delete migratedDraft.description;
-                delete migratedDraft.startYear;
-                delete migratedDraft.endYear;
-                delete migratedDraft.imageUrl;
-                delete migratedDraft.sourceUrl;
-                delete migratedDraft.attribution;
-
-                return [canonicalId, migratedDraft];
-            }),
+const buildHistoricOverlayDrafts = (storedDrafts, remoteDrafts = []) => {
+    const buildDraftMap = (drafts) => new Map(
+        (Array.isArray(drafts) ? drafts : [])
+            .map(normalizeHistoricOverlaySourceRecord)
+            .filter(Boolean)
+            .map((draft) => [draft.id, draft]),
     );
 
+    const storedDraftMap = buildDraftMap(storedDrafts);
+    const remoteDraftMap = buildDraftMap(remoteDrafts);
+
     return HISTORIC_OVERLAY_DRAFT_TEMPLATES.map((template) =>
-        normalizeHistoricOverlayDraft(draftMap.get(template.id), template),
+        normalizeHistoricOverlayDraft(
+            {
+                ...(storedDraftMap.get(template.id) || {}),
+                ...(remoteDraftMap.get(template.id) || {}),
+            },
+            template,
+        ),
     );
 };
 
@@ -3787,33 +3893,6 @@ function ControlToggles({
                     </span>
                     <span style={{ fontSize: "0.9em" }}>
                         {isTidePlannerCollapsed ? "▾" : "▴"}
-                    </span>
-                </button>
-
-                <button
-                    onClick={onToggleContributors}
-                    style={{
-                        ...controlButtonBaseStyle,
-                        border: isContributorsVisible
-                            ? "1px solid #ca8a04"
-                            : "1px solid #fcd34d",
-                        background: isContributorsVisible
-                            ? "linear-gradient(135deg, #fef3c7, #fffbeb)"
-                            : "linear-gradient(135deg, #eff6ff, #f8fafc)",
-                        color: isContributorsVisible ? "#854d0e" : "#0f172a",
-                        cursor: "pointer",
-                    }}
-                    aria-pressed={isContributorsVisible}
-                    aria-label={
-                        isContributorsVisible
-                            ? "Hide contributors"
-                            : "Show contributors"
-                    }
-                >
-                    <span>
-                        {isContributorsVisible
-                            ? "Contributors On"
-                            : "Contributors Off"}
                     </span>
                 </button>
 
@@ -7708,6 +7787,7 @@ function App() {
     const [historicOverlayDrafts, setHistoricOverlayDrafts] = useState(
         () => startupStoredState.historicOverlayDrafts,
     );
+    const [isHistoricOverlayDraftsHydrated, setIsHistoricOverlayDraftsHydrated] = useState(false);
     const [isHistoricOverlayEnabled, setIsHistoricOverlayEnabled] = useState(false);
     const [selectedHistoricOverlayId, setSelectedHistoricOverlayId] = useState(
         DEFAULT_HISTORIC_OVERLAY_ID,
@@ -7716,6 +7796,9 @@ function App() {
         DEFAULT_HISTORIC_OVERLAY_OPACITY,
     );
     const [historicOverlayError, setHistoricOverlayError] = useState("");
+    const [historicOverlaySyncStatus, setHistoricOverlaySyncStatus] = useState({ kind: "idle", message: "" });
+    const [historicOverlayLoadError, setHistoricOverlayLoadError] = useState("");
+    const [publishingHistoricOverlayId, setPublishingHistoricOverlayId] = useState("");
     const [selectedHistoricOverlayDraftId, setSelectedHistoricOverlayDraftId] = useState(
         HISTORIC_OVERLAY_DRAFT_TEMPLATES[0]?.id || "",
     );
@@ -7747,6 +7830,7 @@ function App() {
     const geocodeAttemptedKeysRef = useRef(new Set());
     const shareCopyTimeoutRef = useRef(null);
     const reportStatusTimeoutRef = useRef(null);
+    const historicOverlayRemoteSnapshotsRef = useRef(new Map());
     const [isHistoricOverlayEditorModeRequested] = useState(readHistoricOverlayEditorModeFromQuery);
     const canManageItems = useMemo(() => canUserManageItems(currentUser), [currentUser]);
     const isHistoricOverlayEditorModeEnabled =
@@ -8302,6 +8386,11 @@ function App() {
     }, []);
 
     useEffect(() => {
+        if (!authReady) return;
+        void fetchHistoricOverlays();
+    }, [authReady, currentUser?.id]);
+
+    useEffect(() => {
         const cancelIdle = deferUntilIdle(() => {
             setIsDeferredUiReady(true);
         });
@@ -8439,11 +8528,60 @@ function App() {
     }, [hasAcceptedReportConsent]);
 
     useEffect(() => {
-        localStorage.setItem(
-            HISTORIC_OVERLAY_DRAFTS_STORAGE_KEY,
-            JSON.stringify(historicOverlayDrafts),
-        );
-    }, [historicOverlayDrafts]);
+        if (!canManageItems || !authReady || !hasSupabaseConfig || !isHistoricOverlayDraftsHydrated) {
+            return undefined;
+        }
+
+        const draftsToPersist = historicOverlayDrafts.filter((draft) => {
+            if (!isHistoricOverlayDraftPersistable(draft)) return false;
+
+            return serializeHistoricOverlayDraftForSync(draft)
+                !== historicOverlayRemoteSnapshotsRef.current.get(draft.id);
+        });
+        if (!draftsToPersist.length) {
+            return undefined;
+        }
+
+        setHistoricOverlaySyncStatus({
+            kind: "saving",
+            message: `Saving ${draftsToPersist.length === 1 ? "draft" : "drafts"} to Supabase...`,
+        });
+
+        const timerId = window.setTimeout(() => {
+            void (async () => {
+                try {
+                    await upsertHistoricOverlayDrafts(draftsToPersist);
+                    const nextRemoteSnapshots = new Map(historicOverlayRemoteSnapshotsRef.current);
+                    draftsToPersist.forEach((draft) => {
+                        nextRemoteSnapshots.set(draft.id, serializeHistoricOverlayDraftForSync(draft));
+                    });
+                    historicOverlayRemoteSnapshotsRef.current = nextRemoteSnapshots;
+                    setHistoricOverlaySyncStatus({
+                        kind: "saved",
+                        message: `Historic overlay ${draftsToPersist.length === 1 ? "draft" : "drafts"} saved.`,
+                    });
+                    setHistoricOverlayLoadError("");
+                } catch (error) {
+                    setHistoricOverlaySyncStatus({
+                        kind: "error",
+                        message: error instanceof Error
+                            ? error.message
+                            : "Historic overlay draft save failed.",
+                    });
+                }
+            })();
+        }, HISTORIC_OVERLAY_AUTOSAVE_DEBOUNCE_MS);
+
+        return () => {
+            window.clearTimeout(timerId);
+        };
+    }, [
+        authReady,
+        canManageItems,
+        hasSupabaseConfig,
+        historicOverlayDrafts,
+        isHistoricOverlayDraftsHydrated,
+    ]);
 
     useEffect(() => {
         const handleResize = () => {
@@ -8841,6 +8979,141 @@ function App() {
 
         setHistoricalPois(normalized);
         return true;
+    }
+
+    async function fetchHistoricOverlays() {
+        const localFallbackDrafts = Array.isArray(storedHistoricOverlayDrafts)
+            ? storedHistoricOverlayDrafts
+            : [];
+
+        if (!hasSupabaseConfig) {
+            setHistoricOverlayDrafts(buildHistoricOverlayDrafts(localFallbackDrafts));
+            historicOverlayRemoteSnapshotsRef.current = buildHistoricOverlayDraftSnapshotMap(
+                buildHistoricOverlayDrafts([]),
+            );
+            setHistoricOverlayLoadError("Historic overlay publishing requires Supabase configuration.");
+            setIsHistoricOverlayDraftsHydrated(true);
+            return false;
+        }
+
+        const { data, error } = await supabase
+            .from("historic_overlays")
+            .select("*")
+            .order("updated_at", { ascending: false });
+
+        if (error) {
+            setHistoricOverlayDrafts(buildHistoricOverlayDrafts(localFallbackDrafts));
+            historicOverlayRemoteSnapshotsRef.current = buildHistoricOverlayDraftSnapshotMap(
+                buildHistoricOverlayDrafts([]),
+            );
+            setHistoricOverlayLoadError(
+                error.message || "Historic overlay drafts could not be loaded from Supabase.",
+            );
+            setHistoricOverlaySyncStatus({
+                kind: "error",
+                message: "Could not load shared historic overlay drafts from Supabase.",
+            });
+            setIsHistoricOverlayDraftsHydrated(true);
+            return false;
+        }
+
+        const normalizedRemoteDrafts = Array.isArray(data)
+            ? data.map(normalizeHistoricOverlaySourceRecord).filter(Boolean)
+            : [];
+        const mergedDrafts = buildHistoricOverlayDrafts(localFallbackDrafts, normalizedRemoteDrafts);
+
+        setHistoricOverlayDrafts(mergedDrafts);
+        historicOverlayRemoteSnapshotsRef.current = buildHistoricOverlayDraftSnapshotMap(
+            buildHistoricOverlayDrafts([], normalizedRemoteDrafts),
+        );
+        setHistoricOverlayLoadError("");
+        setHistoricOverlaySyncStatus((previous) => previous.kind === "error"
+            ? { kind: "idle", message: "" }
+            : previous);
+        setIsHistoricOverlayDraftsHydrated(true);
+        return true;
+    }
+
+    async function upsertHistoricOverlayDrafts(draftsToPersist) {
+        if (!canManageItems) {
+            throw new Error("Read-only account");
+        }
+
+        if (!hasSupabaseConfig) {
+            throw new Error("Supabase is not configured for this deployment.");
+        }
+
+        const payload = (Array.isArray(draftsToPersist) ? draftsToPersist : [])
+            .filter(Boolean)
+            .filter(isHistoricOverlayDraftPersistable)
+            .map(buildHistoricOverlayUpsertPayload);
+        if (!payload.length) {
+            return [];
+        }
+
+        const { error } = await supabase
+            .from("historic_overlays")
+            .upsert(payload, { onConflict: "overlay_id" });
+
+        if (error) {
+            throw new Error(error.message || "Historic overlay draft save failed.");
+        }
+
+        return payload;
+    }
+
+    async function publishHistoricOverlay(overlayId) {
+        if (!overlayId || publishingHistoricOverlayId) return;
+
+        const targetDraft = historicOverlayDrafts.find((draft) => draft.id === overlayId);
+        if (!targetDraft) return;
+
+        const nextPublishedAt = targetDraft.publishedAt || new Date().toISOString();
+        const nextDraft = normalizeHistoricOverlayDraft(
+            {
+                ...targetDraft,
+                status: HISTORIC_OVERLAY_STATUS_READY,
+                isPublic: true,
+                publishedAt: nextPublishedAt,
+            },
+            HISTORIC_OVERLAY_DRAFT_TEMPLATES.find((template) => template.id === overlayId),
+        );
+
+        setPublishingHistoricOverlayId(overlayId);
+        setHistoricOverlaySyncStatus({
+            kind: "publishing",
+            message: `Publishing ${nextDraft.label}...`,
+        });
+
+        try {
+            await upsertHistoricOverlayDrafts([nextDraft]);
+
+            setHistoricOverlayDrafts((previousDrafts) => previousDrafts.map((draft) => (
+                draft.id === overlayId
+                    ? nextDraft
+                    : draft
+            )));
+            historicOverlayRemoteSnapshotsRef.current.set(
+                overlayId,
+                serializeHistoricOverlayDraftForSync(nextDraft),
+            );
+            setSelectedHistoricOverlayId(overlayId);
+            setIsHistoricOverlayEnabled(true);
+            setHistoricOverlaySyncStatus({
+                kind: "saved",
+                message: `${nextDraft.label} is now public.`,
+            });
+            setHistoricOverlayLoadError("");
+        } catch (error) {
+            setHistoricOverlaySyncStatus({
+                kind: "error",
+                message: error instanceof Error
+                    ? error.message
+                    : "Historic overlay publish failed.",
+            });
+        } finally {
+            setPublishingHistoricOverlayId("");
+        }
     }
 
     const uploadHistoricalPoiImage = async (file) => {
@@ -9973,7 +10246,13 @@ function App() {
                 const normalizedCorners = normalizeHistoricOverlayCorners(draft.corners, draft.bounds);
                 const normalizedBounds = deriveHistoricBoundsFromCorners(normalizedCorners)
                     || normalizeHistoricOverlayBounds(draft.bounds);
-                if (draft.status !== "ready" || !draft.imageUrl || !normalizedCorners || !normalizedBounds) {
+                if (
+                    draft.status !== HISTORIC_OVERLAY_STATUS_READY
+                    || !draft.isPublic
+                    || !draft.imageUrl
+                    || !normalizedCorners
+                    || !normalizedBounds
+                ) {
                     return null;
                 }
 
@@ -10013,6 +10292,22 @@ function App() {
             || null,
         [historicOverlayDrafts, selectedHistoricOverlayDraftId],
     );
+    const canPublishSelectedHistoricOverlayDraft = useMemo(() => {
+        const normalizedCorners = normalizeHistoricOverlayCorners(
+            selectedHistoricOverlayDraft?.corners,
+            selectedHistoricOverlayDraft?.bounds,
+        );
+        const normalizedBounds = deriveHistoricBoundsFromCorners(normalizedCorners)
+            || normalizeHistoricOverlayBounds(selectedHistoricOverlayDraft?.bounds);
+
+        return Boolean(
+            selectedHistoricOverlayDraft
+            && selectedHistoricOverlayDraft.status === HISTORIC_OVERLAY_STATUS_READY
+            && selectedHistoricOverlayDraft.imageUrl
+            && normalizedCorners
+            && normalizedBounds,
+        );
+    }, [selectedHistoricOverlayDraft]);
     const historicOverlayDraftPreview = useMemo(() => {
         if (!isHistoricOverlayEditorModeEnabled || !isHistoricOverlayDraftPreviewEnabled) {
             return null;
@@ -10426,7 +10721,7 @@ function App() {
                                     marginTop: "2px",
                                 }}
                             >
-                                Owner-only draft placement. Open with ?historic_editor=1 and use the current map view as a quick starting fit.
+                                Owner-only shared draft placement. Draft changes auto-save to Supabase and Publish makes the selected overlay public immediately.
                             </div>
                         </div>
                         <button
@@ -10450,6 +10745,26 @@ function App() {
                             {isHistoricOverlayDraftPreviewEnabled ? "Draft Preview On" : "Draft Preview Off"}
                         </button>
                     </div>
+
+                    {historicOverlayLoadError || historicOverlaySyncStatus.message ? (
+                        <div
+                            style={{
+                                borderRadius: "12px",
+                                border: historicOverlaySyncStatus.kind === "error"
+                                    ? "1px solid #fecaca"
+                                    : "1px solid #bfdbfe",
+                                background: historicOverlaySyncStatus.kind === "error"
+                                    ? "#fef2f2"
+                                    : "#eff6ff",
+                                color: historicOverlaySyncStatus.kind === "error" ? "#b91c1c" : "#1d4ed8",
+                                padding: "9px 11px",
+                                fontSize: "0.8rem",
+                                lineHeight: 1.45,
+                            }}
+                        >
+                            {historicOverlayLoadError || historicOverlaySyncStatus.message}
+                        </div>
+                    ) : null}
 
                     <div
                         style={{
@@ -10556,10 +10871,21 @@ function App() {
                                 <select
                                     value={selectedHistoricOverlayDraft?.status || "draft"}
                                     onChange={(event) => {
-                                        const nextStatus = event.target.value === "ready" ? "ready" : "draft";
+                                        const nextStatus = event.target.value === HISTORIC_OVERLAY_STATUS_READY
+                                            ? HISTORIC_OVERLAY_STATUS_READY
+                                            : HISTORIC_OVERLAY_STATUS_DRAFT;
                                         setHistoricOverlayDrafts((prev) => prev.map((draft) => (
                                             draft.id === selectedHistoricOverlayDraftId
-                                                ? { ...draft, status: nextStatus }
+                                                ? {
+                                                    ...draft,
+                                                    status: nextStatus,
+                                                    isPublic: nextStatus === HISTORIC_OVERLAY_STATUS_READY
+                                                        ? draft.isPublic
+                                                        : false,
+                                                    publishedAt: nextStatus === HISTORIC_OVERLAY_STATUS_READY
+                                                        ? draft.publishedAt
+                                                        : "",
+                                                }
                                                 : draft
                                         )));
                                     }}
@@ -10577,6 +10903,33 @@ function App() {
                                     <option value="ready">Ready for public selector</option>
                                 </select>
                             </label>
+
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    void publishHistoricOverlay(selectedHistoricOverlayDraftId);
+                                }}
+                                disabled={!canPublishSelectedHistoricOverlayDraft || publishingHistoricOverlayId === selectedHistoricOverlayDraftId}
+                                style={{
+                                    borderRadius: UI_TOKENS.radius.pill,
+                                    border: "1px solid #1d4ed8",
+                                    background: "linear-gradient(135deg, #1d4ed8, #2563eb)",
+                                    color: "#ffffff",
+                                    padding: "7px 12px",
+                                    fontSize: "0.79rem",
+                                    fontWeight: 700,
+                                    cursor: !canPublishSelectedHistoricOverlayDraft || publishingHistoricOverlayId === selectedHistoricOverlayDraftId
+                                        ? "not-allowed"
+                                        : "pointer",
+                                    opacity: !canPublishSelectedHistoricOverlayDraft || publishingHistoricOverlayId === selectedHistoricOverlayDraftId
+                                        ? 0.6
+                                        : 1,
+                                }}
+                            >
+                                {publishingHistoricOverlayId === selectedHistoricOverlayDraftId
+                                    ? "Publishing..."
+                                    : (selectedHistoricOverlayDraft?.isPublic ? "Republish Public Overlay" : "Publish Public Overlay")}
+                            </button>
 
                             <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.8rem", color: "#334155", minWidth: isMobile ? "100%" : "220px" }}>
                                 <span>Editor Opacity</span>
@@ -10611,16 +10964,9 @@ function App() {
                                 <input
                                     type="url"
                                     value={selectedHistoricOverlayDraft.imageUrl}
-                                    onChange={(event) => {
-                                        const nextValue = event.target.value;
-                                        setHistoricOverlayDrafts((prev) => prev.map((draft) => (
-                                            draft.id === selectedHistoricOverlayDraftId
-                                                ? { ...draft, imageUrl: nextValue }
-                                                : draft
-                                        )));
-                                    }}
+                                    readOnly
                                     placeholder="https://... or /historic/mackreth-1778.jpg"
-                                    style={{ minHeight: "38px", borderRadius: "10px", border: "1px solid #cbd5e1", background: "#ffffff", color: "#0f172a", padding: "8px 10px", fontSize: "0.9rem" }}
+                                    style={{ minHeight: "38px", borderRadius: "10px", border: "1px solid #cbd5e1", background: "#f8fafc", color: "#0f172a", padding: "8px 10px", fontSize: "0.9rem" }}
                                 />
                             </label>
 
@@ -10755,6 +11101,9 @@ function App() {
                                 }}
                             >
                                 Drag the blue corner handles on the map to rotate or reshape the draft, or use the numeric corner fields here for precise placement. The green center handle moves the full draft without changing its shape.
+                                {selectedHistoricOverlayDraft?.isPublic
+                                    ? " This overlay is currently public; further edits will auto-save and change the live version."
+                                    : " Mark the draft ready, then Publish when you want it to appear for everyone."}
                             </div>
                         </>
                     ) : null}
