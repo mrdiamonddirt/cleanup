@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
+import React, { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { createPortal } from "react-dom";
 import {
@@ -644,14 +644,24 @@ const buildWaybackReleaseGroups = (releases) => {
 
 const TYPE_LABELS = {
     bike: "Bike",
+    historic: "Historic find",
     motorbike: "Motorbike",
     trolley: "Trolley",
     misc: "Misc",
 };
 
+const TYPE_PLURAL_LABELS = {
+    bike: "bikes",
+    historic: "historic finds",
+    motorbike: "motorbikes",
+    trolley: "trolleys",
+    misc: "misc items",
+};
+
 const ASSUMED_ITEM_WEIGHTS_KG = {
     trolley: 28,
     bike: 15,
+    historic: 1,
     motorbike: 180,
     misc: 30,
 };
@@ -1883,6 +1893,19 @@ const normalizeType = (value) => {
     }
     if (normalized === "bike") return "bike";
     if (
+        normalized === "historic" ||
+        normalized === "historic find" ||
+        normalized === "historic value" ||
+        normalized === "historically significant" ||
+        normalized === "artifact" ||
+        normalized === "artefact" ||
+        normalized.includes("historic") ||
+        normalized.includes("artifact") ||
+        normalized.includes("artefact")
+    ) {
+        return "historic";
+    }
+    if (
         normalized === "trolley" ||
         normalized === "trolly" ||
         normalized === "trolleys" ||
@@ -1902,6 +1925,7 @@ const getIcon = (type, isRecovered) => {
 
     const iconMap = {
         bike: "🚲",
+        historic: "🏺",
         motorbike: "🏍️",
         trolley: "🛒",
         misc: "🧰",
@@ -1909,6 +1933,7 @@ const getIcon = (type, isRecovered) => {
 
     const colors = {
         bike: "#3498db",
+        historic: "#a16207",
         motorbike: "#dc2626",
         trolley: "#e67e22",
         misc: "#7f8c8d",
@@ -1918,6 +1943,25 @@ const getIcon = (type, isRecovered) => {
     const emoji = iconMap[normalizedType] || iconMap.misc;
     const ringColor = isRecovered ? "#2ecc71" : baseColor;
     const opacity = isRecovered ? 0.8 : 1;
+
+    if (normalizedType === "historic") {
+        return L.divIcon({
+            className: "cleanup-marker cleanup-marker-historic",
+            html: `
+                <div style="position: relative; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; border-radius: 14px; border: 2px solid ${ringColor}; background: linear-gradient(180deg, #fffaf0 0%, #fef3c7 100%); box-shadow: 0 4px 12px rgba(146,64,14,0.25); font-size: 18px; opacity: ${opacity}; transform: rotate(-8deg);">
+                    <span style="transform: rotate(8deg);">${emoji}</span>
+                    <span style="position: absolute; top: -5px; left: -5px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 999px; background: ${isRecovered ? "#2ecc71" : "#92400e"}; color: #ffffff; font-size: 9px; font-weight: 800; line-height: 18px; text-align: center; border: 1px solid #ffffff; letter-spacing: 0.04em;">HF</span>
+                    ${
+                        isRecovered
+                            ? '<span style="position: absolute; bottom: -3px; right: -3px; width: 16px; height: 16px; border-radius: 50%; background: #2ecc71; color: white; font-size: 11px; line-height: 16px; text-align: center; border: 1px solid #fff;">✓</span>'
+                            : ""
+                    }
+                </div>
+            `,
+            iconSize: [38, 38],
+            iconAnchor: [19, 19],
+        });
+    }
 
     return L.divIcon({
         className: "cleanup-marker",
@@ -2633,7 +2677,7 @@ function PendingPlacementOverlay({
                         }}
                     />
                     <div style={{ marginTop: "4px", fontSize: "0.74rem", color: "#64748b", lineHeight: 1.35 }}>
-                        Defaults to {formatWeightKg(getDefaultWeightForType(pendingItemType))} for {TYPE_LABELS[pendingItemType].toLowerCase()}s.
+                        Defaults to {formatWeightKg(getDefaultWeightForType(pendingItemType))} for {TYPE_PLURAL_LABELS[pendingItemType] || "items"}.
                     </div>
                 </div>
             ) : null}
@@ -2699,6 +2743,7 @@ function PendingPlacementOverlay({
                     <>
                         {[
                             { key: "bike", label: "🚲 Bike" },
+                            { key: "historic", label: "🏺 Historic find" },
                             { key: "motorbike", label: "🏍️ Motorbike" },
                             { key: "trolley", label: "🛒 Trolley" },
                             { key: "misc", label: "🧰 Misc" },
@@ -3332,6 +3377,7 @@ function HeroBanner({
 
 function AppTopBar({
     isMobile,
+    isSticky,
     authReady,
     currentUser,
     canManageItems,
@@ -3341,27 +3387,35 @@ function AppTopBar({
     isLoadingItems,
     onOpenContributorPanel,
     onOpenPoiPanel,
+    isStatsExpanded,
+    onToggleStats,
+    mobileStatsSummary,
+    children,
 }) {
     const signedIn = Boolean(currentUser);
     const syncLabel = isLoadingItems ? "Syncing" : "Up to date";
+    const showMobileStatsToggle = isMobile && typeof onToggleStats === "function";
+    const showStatsInline = !showMobileStatsToggle || isStatsExpanded;
 
     return (
         <div
             style={{
-                position: "sticky",
-                top: `calc(env(safe-area-inset-top, 0px) + ${isMobile ? "2px" : "0px"})`,
-                zIndex: 1050,
-                marginBottom: UI_TOKENS.spacing.sm,
+                position: isSticky ? "sticky" : "relative",
+                top: isSticky
+                    ? `calc(env(safe-area-inset-top, 0px) + ${isMobile ? "2px" : "0px"})`
+                    : undefined,
+                zIndex: isSticky ? 1050 : "auto",
+                marginBottom: 0,
                 padding: isMobile ? "8px 10px" : "9px 12px",
                 borderRadius: UI_TOKENS.radius.md,
                 border: "1px solid rgba(148,163,184,0.35)",
-                background: "rgba(255,255,255,0.86)",
+                background: isMobile
+                    ? "linear-gradient(180deg, rgba(255,255,255,0.94), rgba(248,250,252,0.9))"
+                    : "rgba(255,255,255,0.86)",
                 backdropFilter: "blur(16px)",
                 boxShadow: UI_TOKENS.shadow.soft,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: "10px",
+                display: "grid",
+                gap: isMobile ? "8px" : "10px",
             }}
         >
             <style>
@@ -3377,143 +3431,163 @@ function AppTopBar({
                             animation: none !important;
                         }
                     }
+
+                    .app-horizontal-chip-row {
+                        scrollbar-width: none;
+                        -ms-overflow-style: none;
+                    }
+
+                    .app-horizontal-chip-row::-webkit-scrollbar {
+                        display: none;
+                    }
                 `}
             </style>
-            <div style={{ minWidth: 0 }}>
-                <div
-                    style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "7px",
-                        padding: isMobile ? "3px 8px" : "4px 9px",
-                        borderRadius: "999px",
-                        border: "1px solid rgba(147,197,253,0.55)",
-                        background: "linear-gradient(135deg, rgba(239,246,255,0.92), rgba(224,242,254,0.78))",
-                        boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.45)",
-                    }}
-                >
-                    <span
+            <div
+                style={{
+                    display: "flex",
+                    alignItems: isMobile ? "stretch" : "center",
+                    justifyContent: "space-between",
+                    gap: isMobile ? "8px" : "10px",
+                    flexWrap: isMobile ? "wrap" : "nowrap",
+                }}
+            >
+                <div style={{ minWidth: 0, flex: "1 1 280px" }}>
+                    <div
                         style={{
-                            width: "7px",
-                            height: "7px",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "7px",
+                            padding: isMobile ? "3px 8px" : "4px 9px",
                             borderRadius: "999px",
-                            background: "#0ea5e9",
-                            boxShadow: "0 0 10px rgba(14,165,233,0.7)",
-                            flexShrink: 0,
-                        }}
-                    />
-                    <span
-                        className="river-title-shimmer"
-                        style={{
-                            fontWeight: 800,
-                            letterSpacing: "-0.02em",
-                            fontSize: isMobile ? "0.96rem" : "1.03rem",
-                            lineHeight: 1,
-                            background: "linear-gradient(100deg, #0f172a 5%, #1d4ed8 40%, #0ea5e9 65%, #1d4ed8 85%, #0f172a 100%)",
-                            backgroundSize: "220% 220%",
-                            animation: "riverTitleShimmer 7s ease-in-out infinite",
-                            WebkitBackgroundClip: "text",
-                            backgroundClip: "text",
-                            color: "transparent",
+                            border: "1px solid rgba(147,197,253,0.55)",
+                            background: "linear-gradient(135deg, rgba(239,246,255,0.92), rgba(224,242,254,0.78))",
+                            boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.45)",
                         }}
                     >
-                        River Lune Cleanup
-                    </span>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: "7px", marginTop: "2px", fontSize: "0.72rem", color: "#475569" }}>
-                    <span
+                        <span
+                            style={{
+                                width: "7px",
+                                height: "7px",
+                                borderRadius: "999px",
+                                background: "#0ea5e9",
+                                boxShadow: "0 0 10px rgba(14,165,233,0.7)",
+                                flexShrink: 0,
+                            }}
+                        />
+                        <span
+                            className="river-title-shimmer"
+                            style={{
+                                fontWeight: 800,
+                                letterSpacing: "-0.02em",
+                                fontSize: isMobile ? "0.96rem" : "1.03rem",
+                                lineHeight: 1,
+                                background: "linear-gradient(100deg, #0f172a 5%, #1d4ed8 40%, #0ea5e9 65%, #1d4ed8 85%, #0f172a 100%)",
+                                backgroundSize: "220% 220%",
+                                animation: "riverTitleShimmer 7s ease-in-out infinite",
+                                WebkitBackgroundClip: "text",
+                                backgroundClip: "text",
+                                color: "transparent",
+                            }}
+                        >
+                            River Lune Cleanup
+                        </span>
+                    </div>
+                    <div
                         style={{
-                            width: "8px",
-                            height: "8px",
-                            borderRadius: UI_TOKENS.radius.pill,
-                            background: isLoadingItems ? "#f59e0b" : "#22c55e",
+                            display: "flex",
+                            alignItems: "center",
+                            flexWrap: "wrap",
+                            gap: "7px",
+                            marginTop: "2px",
+                            fontSize: "0.72rem",
+                            color: "#475569",
                         }}
-                    />
-                    <span>{syncLabel}</span>
-                    <span style={{ color: "#cbd5e1" }}>•</span>
-                    <span>{canManageItems ? "Edit mode" : "View-only"}</span>
+                    >
+                        <span
+                            style={{
+                                width: "8px",
+                                height: "8px",
+                                borderRadius: UI_TOKENS.radius.pill,
+                                background: isLoadingItems ? "#f59e0b" : "#22c55e",
+                            }}
+                        />
+                        <span>{syncLabel}</span>
+                        <span style={{ color: "#cbd5e1" }}>•</span>
+                        <span>{canManageItems ? "Edit mode" : "View-only"}</span>
+                    </div>
                 </div>
-            </div>
 
-            <div
-                style={{ display: "flex", alignItems: "center", gap: "6px" }}
-            >
-                <a
-                    href="https://buymeacoffee.com/rivercleanv"
-                    target="_blank"
-                    rel="noreferrer"
+                <div
                     style={{
-                        border: "1px solid #bfdbfe",
-                        background: "#eff6ff",
-                        color: "#1d4ed8",
-                        borderRadius: UI_TOKENS.radius.pill,
-                        minHeight: "34px",
-                        padding: isMobile ? "0 10px" : "0 11px",
-                        fontSize: "0.74rem",
-                        fontWeight: 700,
-                        textDecoration: "none",
-                        display: "inline-flex",
+                        display: "flex",
                         alignItems: "center",
-                        justifyContent: "center",
-                        whiteSpace: "nowrap",
+                        justifyContent: isMobile ? "flex-start" : "flex-end",
+                        flexWrap: isMobile ? "nowrap" : "wrap",
+                        gap: "6px",
+                        flex: isMobile ? "1 1 100%" : "0 1 auto",
+                        minWidth: 0,
+                        overflowX: isMobile ? "auto" : "visible",
+                        paddingBottom: isMobile ? "2px" : 0,
                     }}
-                    aria-label="Support cleanup costs on Ko-fi"
+                    className={isMobile ? "app-horizontal-chip-row" : undefined}
                 >
-                    {isMobile ? "❤" : "❤ Support"}
-                </a>
+                    <a
+                        href="https://buymeacoffee.com/rivercleanv"
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                            border: "1px solid #bfdbfe",
+                            background: "#eff6ff",
+                            color: "#1d4ed8",
+                            borderRadius: UI_TOKENS.radius.pill,
+                            minHeight: "34px",
+                            padding: isMobile ? "0 10px" : "0 11px",
+                            fontSize: "0.74rem",
+                            fontWeight: 700,
+                            textDecoration: "none",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            whiteSpace: "nowrap",
+                            flex: "0 0 auto",
+                        }}
+                        aria-label="Support cleanup costs on Ko-fi"
+                    >
+                        {isMobile ? "❤" : "❤ Support"}
+                    </a>
 
-                <a
-                    href="https://www.facebook.com/profile.php?id=61577489848878"
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{
-                        border: "1px solid #1877f2",
-                        background: "#1877f2",
-                        color: "#fff",
-                        borderRadius: UI_TOKENS.radius.pill,
-                        minHeight: "34px",
-                        padding: isMobile ? "0 10px" : "0 11px",
-                        textDecoration: "none",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        whiteSpace: "nowrap",
-                    }}
-                    aria-label="Facebook page"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                        <path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.97h-1.514c-1.491 0-1.956.93-1.956 1.886v2.268h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/>
-                    </svg>
-                </a>
+                    <a
+                        href="https://www.facebook.com/profile.php?id=61577489848878"
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                            border: "1px solid #1877f2",
+                            background: "#1877f2",
+                            color: "#fff",
+                            borderRadius: UI_TOKENS.radius.pill,
+                            minHeight: "34px",
+                            padding: isMobile ? "0 10px" : "0 11px",
+                            textDecoration: "none",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            whiteSpace: "nowrap",
+                            flex: "0 0 auto",
+                        }}
+                        aria-label="Facebook page"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.97h-1.514c-1.491 0-1.956.93-1.956 1.886v2.268h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/>
+                        </svg>
+                    </a>
 
-                <button
-                    type="button"
-                    onClick={onOpenContributorPanel}
-                    style={{
-                        border: "1px solid #f59e0b",
-                        background: "#fef3c7",
-                        color: "#92400e",
-                        borderRadius: UI_TOKENS.radius.pill,
-                        minHeight: "34px",
-                        padding: isMobile ? "0 10px" : "0 11px",
-                        fontSize: "0.76rem",
-                        fontWeight: 700,
-                        whiteSpace: "nowrap",
-                        cursor: "pointer",
-                    }}
-                    aria-label={canManageItems ? "Open contributor manager" : "Open contributors list"}
-                >
-                    {isMobile ? "★" : "★ Contributors"}
-                </button>
-
-                {canManageItems ? (
                     <button
                         type="button"
-                        onClick={onOpenPoiPanel}
+                        onClick={onOpenContributorPanel}
                         style={{
-                            border: "1px solid #9a3412",
-                            background: "#ffedd5",
-                            color: "#9a3412",
+                            border: "1px solid #f59e0b",
+                            background: "#fef3c7",
+                            color: "#92400e",
                             borderRadius: UI_TOKENS.radius.pill,
                             minHeight: "34px",
                             padding: isMobile ? "0 10px" : "0 11px",
@@ -3521,34 +3595,122 @@ function AppTopBar({
                             fontWeight: 700,
                             whiteSpace: "nowrap",
                             cursor: "pointer",
+                            flex: "0 0 auto",
                         }}
-                        aria-label="Open POI manager"
+                        aria-label={canManageItems ? "Open contributor manager" : "Open contributors list"}
                     >
-                        {isMobile ? "📍" : "📍 POIs"}
+                        {isMobile ? "★" : "★ Contributors"}
                     </button>
-                ) : null}
 
+                    {canManageItems ? (
+                        <button
+                            type="button"
+                            onClick={onOpenPoiPanel}
+                            style={{
+                                border: "1px solid #9a3412",
+                                background: "#ffedd5",
+                                color: "#9a3412",
+                                borderRadius: UI_TOKENS.radius.pill,
+                                minHeight: "34px",
+                                padding: isMobile ? "0 10px" : "0 11px",
+                                fontSize: "0.76rem",
+                                fontWeight: 700,
+                                whiteSpace: "nowrap",
+                                cursor: "pointer",
+                                flex: "0 0 auto",
+                            }}
+                            aria-label="Open POI manager"
+                        >
+                            {isMobile ? "📍" : "📍 POIs"}
+                        </button>
+                    ) : null}
+
+                    <button
+                        type="button"
+                        onClick={signedIn ? onSignOut : onSignIn}
+                        disabled={!authReady || isAuthActionLoading}
+                        style={{
+                            border: `1px solid ${signedIn ? "#cbd5e1" : "#0f172a"}`,
+                            background: signedIn ? "#fff" : "#0f172a",
+                            color: signedIn ? "#0f172a" : "#fff",
+                            borderRadius: UI_TOKENS.radius.pill,
+                            minHeight: "34px",
+                            padding: isMobile ? "0 11px" : "0 12px",
+                            fontSize: "0.76rem",
+                            fontWeight: 700,
+                            whiteSpace: "nowrap",
+                            opacity: !authReady || isAuthActionLoading ? 0.65 : 1,
+                            cursor: !authReady || isAuthActionLoading ? "not-allowed" : "pointer",
+                            flex: "0 0 auto",
+                        }}
+                    >
+                        {signedIn ? "Sign Out" : "Sign In"}
+                    </button>
+                </div>
+            </div>
+
+            {showMobileStatsToggle ? (
                 <button
                     type="button"
-                    onClick={signedIn ? onSignOut : onSignIn}
-                    disabled={!authReady || isAuthActionLoading}
+                    onClick={onToggleStats}
+                    aria-expanded={isStatsExpanded}
                     style={{
-                        border: `1px solid ${signedIn ? "#cbd5e1" : "#0f172a"}`,
-                        background: signedIn ? "#fff" : "#0f172a",
-                        color: signedIn ? "#0f172a" : "#fff",
-                        borderRadius: UI_TOKENS.radius.pill,
-                        minHeight: "34px",
-                        padding: isMobile ? "0 11px" : "0 12px",
-                        fontSize: "0.76rem",
-                        fontWeight: 700,
-                        whiteSpace: "nowrap",
-                        opacity: !authReady || isAuthActionLoading ? 0.65 : 1,
-                        cursor: !authReady || isAuthActionLoading ? "not-allowed" : "pointer",
+                        border: "1px solid rgba(125,211,252,0.55)",
+                        borderRadius: "14px",
+                        background: isStatsExpanded
+                            ? "linear-gradient(145deg, rgba(239,246,255,0.98), rgba(224,242,254,0.92))"
+                            : "linear-gradient(145deg, rgba(248,250,252,0.96), rgba(241,245,249,0.92))",
+                        padding: "8px 10px",
+                        display: "grid",
+                        gap: "2px",
+                        textAlign: "left",
+                        color: "#0f172a",
+                        boxShadow: isStatsExpanded ? "0 12px 28px rgba(14,165,233,0.12)" : "0 1px 0 rgba(255,255,255,0.85) inset",
+                        cursor: "pointer",
                     }}
                 >
-                    {signedIn ? "Sign Out" : "Sign In"}
+                    <span
+                        style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: "10px",
+                            fontSize: "0.68rem",
+                            fontWeight: 800,
+                            letterSpacing: "0.06em",
+                            textTransform: "uppercase",
+                            color: "#0369a1",
+                        }}
+                    >
+                        <span>River stats</span>
+                        <span style={{ fontSize: "0.92rem", color: "#0f172a" }}>
+                            {isStatsExpanded ? "▴" : "▾"}
+                        </span>
+                    </span>
+                    <span
+                        style={{
+                            fontSize: "0.8rem",
+                            fontWeight: 700,
+                            lineHeight: 1.3,
+                            color: "#334155",
+                        }}
+                    >
+                        {mobileStatsSummary}
+                    </span>
                 </button>
-            </div>
+            ) : null}
+
+            {showStatsInline && children ? (
+                <div
+                    style={isMobile ? {
+                        padding: "2px",
+                        borderRadius: "16px",
+                        background: "linear-gradient(180deg, rgba(255,255,255,0.7), rgba(241,245,249,0.66))",
+                    } : undefined}
+                >
+                    {children}
+                </div>
+            ) : null}
         </div>
     );
 }
@@ -3577,18 +3739,22 @@ function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impact
     const statsRef = useRef(null);
     const trolleyWeight = ASSUMED_ITEM_WEIGHTS_KG.trolley;
     const bikeWeight = ASSUMED_ITEM_WEIGHTS_KG.bike;
+    const historicWeight = ASSUMED_ITEM_WEIGHTS_KG.historic;
     const motorbikeWeight = ASSUMED_ITEM_WEIGHTS_KG.motorbike;
     const miscWeight = ASSUMED_ITEM_WEIGHTS_KG.misc;
     const totalTrolley = impactStats.totalByType.trolley;
     const totalBike = impactStats.totalByType.bike;
+    const totalHistoric = impactStats.totalByType.historic;
     const totalMotorbike = impactStats.totalByType.motorbike;
     const totalMisc = impactStats.totalByType.misc;
     const recoveredTrolley = impactStats.recoveredByType.trolley;
     const recoveredBike = impactStats.recoveredByType.bike;
+    const recoveredHistoric = impactStats.recoveredByType.historic;
     const recoveredMotorbike = impactStats.recoveredByType.motorbike;
     const recoveredMisc = impactStats.recoveredByType.misc;
     const remainingTrolley = impactStats.remainingByType.trolley;
     const remainingBike = impactStats.remainingByType.bike;
+    const remainingHistoric = impactStats.remainingByType.historic;
     const remainingMotorbike = impactStats.remainingByType.motorbike;
     const remainingMisc = impactStats.remainingByType.misc;
     const remainingScrapValueMin = impactStats.estimatedRemainingKg * CONSERVATIVE_SCRAP_VALUE_GBP_PER_KG.min;
@@ -3609,67 +3775,349 @@ function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impact
         return () => document.removeEventListener("pointerdown", handlePointerDown);
     }, [activeTooltip]);
 
-    const totalTooltipLines = [
-        "Total items consist of:",
-        `${totalTrolley} trolleys`,
-        `${totalBike} bikes`,
-        `${totalMotorbike} motorbikes`,
-        `${totalMisc} misc`,
-        `Total = ${totals.total} items`,
-    ];
+    const tooltipMetricLabelStyle = {
+        fontSize: isMobile ? "0.62rem" : "0.66rem",
+        fontWeight: 700,
+        letterSpacing: "0.04em",
+        textTransform: "uppercase",
+    };
+    const tooltipMetricValueStyle = {
+        marginTop: "2px",
+        fontSize: isMobile ? "0.88rem" : "0.95rem",
+        fontWeight: 800,
+        lineHeight: 1.1,
+    };
+    const tooltipBreakdownLabelStyle = {
+        fontSize: isMobile ? "0.61rem" : "0.64rem",
+        fontWeight: 700,
+        letterSpacing: "0.04em",
+        textTransform: "uppercase",
+        color: "#64748b",
+    };
+    const tooltipBreakdownValueStyle = {
+        marginTop: "1px",
+        fontSize: isMobile ? "0.8rem" : "0.84rem",
+        fontWeight: 700,
+        color: "#0f172a",
+        lineHeight: 1.15,
+    };
+    const tooltipBreakdownDetailStyle = {
+        marginTop: "2px",
+        fontSize: isMobile ? "0.64rem" : "0.68rem",
+        fontWeight: 600,
+        color: "#64748b",
+        lineHeight: 1.25,
+    };
+    const tooltipSummaryStyle = {
+        fontSize: isMobile ? "0.68rem" : "0.72rem",
+        fontWeight: 600,
+        color: "#64748b",
+        lineHeight: 1.32,
+    };
+    const tooltipTones = {
+        neutral: { border: "#e2e8f0", background: "#f8fafc", label: "#64748b", value: "#0f172a" },
+        success: { border: "#bbf7d0", background: "#f0fdf4", label: "#166534", value: "#166534" },
+        warning: { border: "#fde68a", background: "#fffbeb", label: "#92400e", value: "#92400e" },
+        danger: { border: "#fecaca", background: "#fef2f2", label: "#b91c1c", value: "#b91c1c" },
+        dangerSoft: { border: "#fecaca", background: "#fff1f2", label: "#be123c", value: "#be123c" },
+        blue: { border: "#bfdbfe", background: "#eff6ff", label: "#1d4ed8", value: "#1d4ed8" },
+        slate: { border: "#cbd5e1", background: "#f8fafc", label: "#475569", value: "#0f172a" },
+        teal: { border: "#99f6e4", background: "#f0fdfa", label: "#0f766e", value: "#115e59" },
+    };
 
-    const recoveredTooltipLines = [
-        "Recovered items consist of:",
-        `${recoveredTrolley} trolleys`,
-        `${recoveredBike} bikes`,
-        `${recoveredMotorbike} motorbikes`,
-        `${recoveredMisc} misc`,
-        `Total = ${totals.recovered} items`,
-    ];
+    const renderTooltipMetricCard = ({ label, value, tone = "neutral" }) => {
+        const colors = typeof tone === "string" ? tooltipTones[tone] || tooltipTones.neutral : tone;
 
-    const remainingTooltipLines = [
-        "Remaining items consist of:",
-        `${remainingTrolley} trolleys`,
-        `${remainingBike} bikes`,
-        `${remainingMotorbike} motorbikes`,
-        `${remainingMisc} misc`,
-        `Total = ${totals.remaining} items`,
-    ];
+        return (
+            <div
+                style={{
+                    padding: isMobile ? "6px 7px" : "7px 8px",
+                    borderRadius: UI_TOKENS.radius.sm,
+                    border: `1px solid ${colors.border}`,
+                    background: colors.background,
+                }}
+            >
+                <div style={{ ...tooltipMetricLabelStyle, color: colors.label }}>
+                    {label}
+                </div>
+                <div style={{ ...tooltipMetricValueStyle, color: colors.value }}>
+                    {value}
+                </div>
+            </div>
+        );
+    };
 
-    const locationsTooltipLines = [
-        "Locations currently visible:",
-        `${locationCount} mapped points after filters`,
-    ];
+    const renderTooltipBreakdown = ({ items, columns = 2 }) => (
+        <div
+            style={{
+                display: "grid",
+                gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+                gap: isMobile ? "4px 8px" : "6px 10px",
+                padding: isMobile ? "6px 7px" : "7px 8px",
+                borderRadius: UI_TOKENS.radius.sm,
+                border: "1px solid #e2e8f0",
+                background: "#f8fafc",
+            }}
+        >
+            {items.map((item) => (
+                <div key={item.label} style={{ minWidth: 0 }}>
+                    <div style={tooltipBreakdownLabelStyle}>
+                        {item.label}
+                    </div>
+                    <div style={tooltipBreakdownValueStyle}>
+                        {item.value}
+                    </div>
+                    {item.detail ? <div style={tooltipBreakdownDetailStyle}>{item.detail}</div> : null}
+                </div>
+            ))}
+        </div>
+    );
 
-    const remainingWeightTooltipLines = [
-        "Estimated remaining weight workings:",
-        `${remainingTrolley} trolleys, ${formatWeightKg(impactStats.remainingWeightByType.trolley)} total (${formatWeightKg(trolleyWeight)} default each)`,
-        `${remainingBike} bikes, ${formatWeightKg(impactStats.remainingWeightByType.bike)} total (${formatWeightKg(bikeWeight)} default each)`,
-        `${remainingMotorbike} motorbikes, ${formatWeightKg(impactStats.remainingWeightByType.motorbike)} total (${formatWeightKg(motorbikeWeight)} default each)`,
-        `${remainingMisc} misc, ${formatWeightKg(impactStats.remainingWeightByType.misc)} total (${formatWeightKg(miscWeight)} default each)`,
-        `Total = ${formatWeightKg(Math.round(impactStats.estimatedRemainingKg))}`,
-        "Conservative scrap value estimate:",
-        `${formatGbp(remainingScrapValueMin)} to ${formatGbp(remainingScrapValueMax)} (£0.08-£0.15 per kg)`,
-    ];
+    const buildTooltipContent = ({ metricCards = [], breakdownItems = [], breakdownColumns = 2, summary }) => (
+        <div style={{ display: "grid", gap: isMobile ? "6px" : "8px" }}>
+            {metricCards.length ? (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: isMobile ? "6px" : "8px" }}>
+                    {metricCards.map((card) => (
+                        <div key={card.label}>{renderTooltipMetricCard(card)}</div>
+                    ))}
+                </div>
+            ) : null}
+            {breakdownItems.length ? renderTooltipBreakdown({ items: breakdownItems, columns: breakdownColumns }) : null}
+            {summary ? <div style={tooltipSummaryStyle}>{summary}</div> : null}
+        </div>
+    );
 
-    const removedWeightTooltipLines = [
-        "Estimated removed weight workings:",
-        `${recoveredTrolley} trolleys, ${formatWeightKg(impactStats.recoveredWeightByType.trolley)} total (${formatWeightKg(trolleyWeight)} default each)`,
-        `${recoveredBike} bikes, ${formatWeightKg(impactStats.recoveredWeightByType.bike)} total (${formatWeightKg(bikeWeight)} default each)`,
-        `${recoveredMotorbike} motorbikes, ${formatWeightKg(impactStats.recoveredWeightByType.motorbike)} total (${formatWeightKg(motorbikeWeight)} default each)`,
-        `${recoveredMisc} misc, ${formatWeightKg(impactStats.recoveredWeightByType.misc)} total (${formatWeightKg(miscWeight)} default each)`,
-        `Total = ${formatWeightKg(Math.round(impactStats.estimatedRecoveredKg))}`,
-        "Conservative scrap value estimate:",
-        `${formatGbp(recoveredScrapValueMin)} to ${formatGbp(recoveredScrapValueMax)} (£0.08-£0.15 per kg)`,
-    ];
+    const buildStatusTooltipContent = ({
+        totalLabel,
+        totalValue,
+        totalTone,
+        progressLabel,
+        progressValue,
+        progressTone,
+        bikeCount,
+        trolleyCount,
+        historicCount,
+        motorbikeCount,
+        miscCount,
+        summary,
+    }) => buildTooltipContent({
+        metricCards: [
+            { label: totalLabel, value: totalValue, tone: totalTone },
+            { label: progressLabel, value: progressValue, tone: progressTone },
+        ],
+        breakdownItems: [
+            { label: "Bikes", value: bikeCount },
+            { label: "Trolleys", value: trolleyCount },
+            { label: "Historic", value: historicCount },
+            { label: "Motorbikes", value: motorbikeCount },
+            { label: "Misc", value: miscCount },
+        ],
+        summary,
+    });
 
+    const historicRecoveryRate = totalHistoric > 0 ? Math.round((recoveredHistoric / totalHistoric) * 100) : 0;
+    const recoveredCompletionRate = totals.total > 0 ? Math.round((totals.recovered / totals.total) * 100) : 0;
+    const remainingShareRate = totals.total > 0 ? Math.round((totals.remaining / totals.total) * 100) : 0;
+    const averageItemsPerLocation = locationCount > 0 ? (totals.total / locationCount).toFixed(1) : "0.0";
+    const remainingAverageWeight = totals.remaining > 0 ? formatWeightKg(Math.round(impactStats.estimatedRemainingKg / totals.remaining)) : "0 kg";
+    const recoveredAverageWeight = totals.recovered > 0 ? formatWeightKg(Math.round(impactStats.estimatedRecoveredKg / totals.recovered)) : "0 kg";
+
+    const totalTooltipContent = buildTooltipContent({
+        metricCards: [
+            { label: "Total items", value: totals.total, tone: "neutral" },
+            {
+                label: "Recovered share",
+                value: `${recoveredCompletionRate}%`,
+                tone: totals.recovered > 0 ? "blue" : "slate",
+            },
+        ],
+        breakdownItems: [
+            { label: "Bikes", value: totalBike },
+            { label: "Trolleys", value: totalTrolley },
+            { label: "Historic", value: totalHistoric },
+            { label: "Motorbikes", value: totalMotorbike },
+            { label: "Misc", value: totalMisc },
+        ],
+        summary:
+            totals.total === 0
+                ? "No items are currently visible for the active filters"
+                : `${totals.recovered} recovered, ${totals.remaining} still in the river across ${locationCount} visible locations`,
+    });
+
+    const locationsTooltipContent = buildTooltipContent({
+        metricCards: [
+            { label: "Visible locations", value: locationCount, tone: "slate" },
+            { label: "Items per location", value: averageItemsPerLocation, tone: totals.total > 0 ? "blue" : "neutral" },
+        ],
+        summary:
+            locationCount === 0
+                ? "No mapped points match the current filters"
+                : `${locationCount} mapped points are currently visible after filtering`,
+    });
+
+    const historicTooltipContent = buildTooltipContent({
+        metricCards: [
+            { label: "Total finds", value: totalHistoric, tone: "neutral" },
+            { label: "Recovered", value: recoveredHistoric, tone: "warning" },
+            {
+                label: "Still in river",
+                value: remainingHistoric,
+                tone: remainingHistoric > 0 ? "danger" : "success",
+            },
+            { label: "Recovery progress", value: `${historicRecoveryRate}%`, tone: "blue" },
+        ],
+        summary:
+            totalHistoric === 0
+                ? "No historic finds are currently logged"
+                : remainingHistoric > 0
+                ? `${recoveredHistoric} recovered, ${remainingHistoric} still to recover`
+                : "All logged historic finds have been recovered",
+    });
+
+    const recoveredTooltipContent = buildStatusTooltipContent({
+        totalLabel: "Recovered items",
+        totalValue: totals.recovered,
+        totalTone: tooltipTones.success,
+        progressLabel: "Share of total",
+        progressValue: `${recoveredCompletionRate}%`,
+        progressTone: tooltipTones.blue,
+        bikeCount: recoveredBike,
+        trolleyCount: recoveredTrolley,
+        historicCount: recoveredHistoric,
+        motorbikeCount: recoveredMotorbike,
+        miscCount: recoveredMisc,
+        summary:
+            totals.recovered === 0
+                ? "No items have been marked as recovered yet"
+                : `${totals.recovered} items recovered across the current filtered area`,
+    });
+
+    const remainingTooltipContent = buildStatusTooltipContent({
+        totalLabel: "Items in river",
+        totalValue: totals.remaining,
+        totalTone: totals.remaining > 0 ? tooltipTones.danger : tooltipTones.success,
+        progressLabel: "Share of total",
+        progressValue: `${remainingShareRate}%`,
+        progressTone: totals.remaining > 0 ? tooltipTones.dangerSoft : tooltipTones.success,
+        bikeCount: remainingBike,
+        trolleyCount: remainingTrolley,
+        historicCount: remainingHistoric,
+        motorbikeCount: remainingMotorbike,
+        miscCount: remainingMisc,
+        summary:
+            totals.remaining === 0
+                ? "No items remain in the river for the current filters"
+                : `${totals.remaining} items still need recovery across the current filtered area`,
+    });
+
+    const remainingWeightTooltipContent = buildTooltipContent({
+        metricCards: [
+            { label: "Estimated weight", value: formatWeightKg(Math.round(impactStats.estimatedRemainingKg)), tone: "warning" },
+            {
+                label: "Scrap value",
+                value: `${formatGbp(remainingScrapValueMin)}-${formatGbp(remainingScrapValueMax)}`,
+                tone: "blue",
+            },
+            {
+                label: "Avg per item",
+                value: remainingAverageWeight,
+                tone: totals.remaining > 0 ? "slate" : "neutral",
+            },
+            {
+                label: "Items counted",
+                value: totals.remaining,
+                tone: totals.remaining > 0 ? "danger" : "success",
+            },
+        ],
+        breakdownItems: [
+            {
+                label: "Bikes",
+                value: formatWeightKg(impactStats.remainingWeightByType.bike),
+                detail: `${remainingBike} logged • ${formatWeightKg(bikeWeight)} default each`,
+            },
+            {
+                label: "Trolleys",
+                value: formatWeightKg(impactStats.remainingWeightByType.trolley),
+                detail: `${remainingTrolley} logged • ${formatWeightKg(trolleyWeight)} default each`,
+            },
+            {
+                label: "Historic",
+                value: formatWeightKg(impactStats.remainingWeightByType.historic),
+                detail: `${remainingHistoric} logged • ${formatWeightKg(historicWeight)} default each`,
+            },
+            {
+                label: "Motorbikes",
+                value: formatWeightKg(impactStats.remainingWeightByType.motorbike),
+                detail: `${remainingMotorbike} logged • ${formatWeightKg(motorbikeWeight)} default each`,
+            },
+            {
+                label: "Misc",
+                value: formatWeightKg(impactStats.remainingWeightByType.misc),
+                detail: `${remainingMisc} logged • ${formatWeightKg(miscWeight)} default each`,
+            },
+        ],
+        summary:
+            totals.remaining === 0
+                ? "No remaining weight is estimated for the current filters"
+                : "Estimated from logged counts and default per-type weights where an item does not have its own recorded weight",
+    });
+
+    const removedWeightTooltipContent = buildTooltipContent({
+        metricCards: [
+            { label: "Estimated weight", value: formatWeightKg(Math.round(impactStats.estimatedRecoveredKg)), tone: "teal" },
+            {
+                label: "Scrap value",
+                value: `${formatGbp(recoveredScrapValueMin)}-${formatGbp(recoveredScrapValueMax)}`,
+                tone: "blue",
+            },
+            {
+                label: "Avg per item",
+                value: recoveredAverageWeight,
+                tone: totals.recovered > 0 ? "slate" : "neutral",
+            },
+            {
+                label: "Items counted",
+                value: totals.recovered,
+                tone: totals.recovered > 0 ? "success" : "neutral",
+            },
+        ],
+        breakdownItems: [
+            {
+                label: "Bikes",
+                value: formatWeightKg(impactStats.recoveredWeightByType.bike),
+                detail: `${recoveredBike} logged • ${formatWeightKg(bikeWeight)} default each`,
+            },
+            {
+                label: "Trolleys",
+                value: formatWeightKg(impactStats.recoveredWeightByType.trolley),
+                detail: `${recoveredTrolley} logged • ${formatWeightKg(trolleyWeight)} default each`,
+            },
+            {
+                label: "Historic",
+                value: formatWeightKg(impactStats.recoveredWeightByType.historic),
+                detail: `${recoveredHistoric} logged • ${formatWeightKg(historicWeight)} default each`,
+            },
+            {
+                label: "Motorbikes",
+                value: formatWeightKg(impactStats.recoveredWeightByType.motorbike),
+                detail: `${recoveredMotorbike} logged • ${formatWeightKg(motorbikeWeight)} default each`,
+            },
+            {
+                label: "Misc",
+                value: formatWeightKg(impactStats.recoveredWeightByType.misc),
+                detail: `${recoveredMisc} logged • ${formatWeightKg(miscWeight)} default each`,
+            },
+        ],
+        summary:
+            totals.recovered === 0
+                ? "No recovered weight is estimated for the current filters"
+                : "Estimated from recovered counts and default per-type weights where an item does not have its own recorded weight",
+    });
     const desktopRightAlignedTooltipIds = new Set(["remaining-weight", "removed-weight"]);
-    const mobileRightAlignedTooltipIds = new Set(["recovered-items", "locations", "removed-weight"]);
 
-    const renderStatTile = (id, label, valueNode, tooltipLines, valueColor) => {
-        const alignTooltipRight = isMobile
-            ? mobileRightAlignedTooltipIds.has(id)
-            : desktopRightAlignedTooltipIds.has(id);
+    const renderStatTile = (id, label, valueNode, tooltipContent, valueColor, mobileLabel = label) => {
+        const alignTooltipRight = desktopRightAlignedTooltipIds.has(id);
+        const visibleLabel = isMobile ? mobileLabel : label;
 
         return (
             <button
@@ -3684,44 +4132,56 @@ function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impact
                 style={{
                     position: "relative",
                     width: "100%",
-                    border: "1px solid #dbe4ee",
-                    background: activeTooltip === id ? "#eff6ff" : "rgba(255,255,255,0.84)",
+                    border: `1px solid ${activeTooltip === id ? "#93c5fd" : "rgba(203,213,225,0.92)"}`,
+                    background: activeTooltip === id
+                        ? "linear-gradient(180deg, rgba(239,246,255,0.98), rgba(219,234,254,0.92))"
+                        : "linear-gradient(180deg, rgba(255,255,255,0.94), rgba(248,250,252,0.88))",
                     borderRadius: UI_TOKENS.radius.sm,
-                    padding: isMobile ? "8px 10px" : "7px 10px",
+                    padding: isMobile ? "6px 8px" : "7px 9px",
                     textAlign: "left",
                     color: "#0f172a",
                     cursor: "help",
-                    boxShadow: activeTooltip === id ? "0 10px 24px rgba(37,99,235,0.12)" : "none",
+                    boxShadow: activeTooltip === id ? "0 10px 24px rgba(37,99,235,0.12)" : "0 1px 0 rgba(255,255,255,0.85) inset",
                     minWidth: 0,
-                    minHeight: isMobile ? "auto" : "44px",
+                    minHeight: isMobile ? "40px" : "46px",
+                    display: "grid",
+                    gap: "0",
+                    alignContent: "start",
+                    transition: "border-color 160ms ease, box-shadow 160ms ease, background 160ms ease, transform 160ms ease",
+                    transform: activeTooltip === id ? "translateY(-1px)" : "none",
                 }}
                 aria-expanded={activeTooltip === id}
                 aria-label={`${label}. Tap or hover for breakdown.`}
             >
-                <span style={{ display: "block", paddingRight: "18px" }}>
-                    {label}: <strong style={valueColor ? { color: valueColor } : undefined}>{valueNode}</strong>
+                <span style={{ display: "block", paddingRight: isMobile ? "15px" : "18px" }}>
+                    <span style={{ display: "block", fontSize: isMobile ? "0.54rem" : "0.6rem", fontWeight: 800, letterSpacing: "0.04em", textTransform: "uppercase", color: "#64748b", lineHeight: 1.05 }}>
+                        {visibleLabel}
+                    </span>
+                    <strong style={{ display: "block", marginTop: isMobile ? "2px" : "3px", fontSize: isMobile ? "0.82rem" : "0.88rem", lineHeight: 1.05, color: valueColor || "#0f172a" }}>
+                        {valueNode}
+                    </strong>
                 </span>
                 <span
                     aria-hidden="true"
                     style={{
                         position: "absolute",
-                        top: "7px",
-                        right: "8px",
-                        width: "16px",
-                        height: "16px",
+                        top: isMobile ? "6px" : "7px",
+                        right: isMobile ? "6px" : "8px",
+                        width: isMobile ? "14px" : "16px",
+                        height: isMobile ? "14px" : "16px",
                         borderRadius: "999px",
                         background: activeTooltip === id ? "#2563eb" : "#cbd5e1",
                         color: activeTooltip === id ? "#fff" : "#334155",
                         display: "inline-flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        fontSize: "0.7rem",
+                        fontSize: isMobile ? "0.62rem" : "0.7rem",
                         fontWeight: 700,
                     }}
                 >
                     i
                 </span>
-                {activeTooltip === id ? (
+                {!isMobile && activeTooltip === id ? (
                     <div
                         style={{
                             position: "absolute",
@@ -3730,27 +4190,19 @@ function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impact
                             left: alignTooltipRight ? "auto" : 0,
                             right: alignTooltipRight ? 0 : "auto",
                             zIndex: 1600,
-                            width: isMobile ? "min(240px, calc(100vw - 24px))" : "260px",
+                            width: isMobile ? "min(248px, calc(100vw - 20px))" : "min(280px, calc(100vw - 40px))",
                             maxWidth: "calc(100vw - 24px)",
-                            padding: "10px 11px",
+                            padding: isMobile ? "8px 9px" : "10px 11px",
                             borderRadius: UI_TOKENS.radius.sm,
                             border: "1px solid #cbd5e1",
                             background: "rgba(255,255,255,0.98)",
                             boxShadow: UI_TOKENS.shadow.raised,
                             color: "#334155",
-                            fontSize: "0.78rem",
-                            lineHeight: 1.45,
-                            whiteSpace: "pre-line",
+                            fontSize: isMobile ? "0.74rem" : "0.78rem",
+                            lineHeight: isMobile ? 1.35 : 1.45,
                         }}
                     >
-                        {tooltipLines.map((line) => (
-                            <div
-                                key={`${id}-${line}`}
-                                style={{ fontWeight: line.endsWith(":") ? 700 : 500, marginBottom: line.endsWith(":") ? "4px" : "0" }}
-                            >
-                                {line}
-                            </div>
-                        ))}
+                        {tooltipContent}
                     </div>
                 ) : null}
             </button>
@@ -3765,29 +4217,131 @@ function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impact
         impactStats.estimatedRecoveredKg >= 1000
             ? `${(impactStats.estimatedRecoveredKg / 1000).toFixed(2)} t`
             : `${Math.round(impactStats.estimatedRecoveredKg)} kg`;
+    const statTiles = [
+        { id: "total-items", label: "Total Items", mobileLabel: "Total", valueNode: totals.total, tooltipContent: totalTooltipContent },
+        { id: "historic-items", label: "Historic Finds", mobileLabel: "Historic", valueNode: totalHistoric, tooltipContent: historicTooltipContent, valueColor: "#92400e" },
+        { id: "recovered-items", label: "Recovered", mobileLabel: "Recovered", valueNode: totals.recovered, tooltipContent: recoveredTooltipContent, valueColor: "green" },
+        { id: "remaining-items", label: "Remaining", mobileLabel: "Remaining", valueNode: totals.remaining, tooltipContent: remainingTooltipContent, valueColor: "red" },
+        { id: "locations", label: "Locations", mobileLabel: "Places", valueNode: locationCount, tooltipContent: locationsTooltipContent, valueColor: "#2c3e50" },
+        { id: "remaining-weight", label: "Est. Weight Remaining", mobileLabel: "Weight Left", valueNode: remainingKgLabel, tooltipContent: remainingWeightTooltipContent, valueColor: "#b45309" },
+        { id: "removed-weight", label: "Est. Weight Removed", mobileLabel: "Weight Out", valueNode: recoveredKgLabel, tooltipContent: removedWeightTooltipContent, valueColor: "#0f766e" },
+    ];
+    const activeStatTile = statTiles.find((tile) => tile.id === activeTooltip) || null;
 
     return (
-        <div ref={statsRef}>
-            <SurfaceCard
+        <div
+            ref={statsRef}
             style={{
                 display: "grid",
-                gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(6, minmax(0, 1fr))",
-                gap: "8px",
-                marginTop: "0px",
-                marginBottom: "4px",
-                padding: isMobile ? "6px 8px" : "6px 10px",
-                background: "linear-gradient(180deg, #ffffff, #f8fafc)",
-                border: "1px solid #e2e8f0",
+                gridTemplateColumns: isMobile
+                    ? "repeat(2, minmax(0, 1fr))"
+                    : "repeat(auto-fit, minmax(112px, 1fr))",
+                gap: isMobile ? "5px" : "7px",
+                marginTop: isMobile ? "1px" : "2px",
                 fontSize: controlFontSize,
             }}
-            >
-                {renderStatTile("total-items", "Total Items", totals.total, totalTooltipLines)}
-                {renderStatTile("recovered-items", "Recovered", totals.recovered, recoveredTooltipLines, "green")}
-                {renderStatTile("remaining-items", "Remaining", totals.remaining, remainingTooltipLines, "red")}
-                {renderStatTile("locations", "Locations", locationCount, locationsTooltipLines, "#2c3e50")}
-                {renderStatTile("remaining-weight", "Est. Weight Remaining", remainingKgLabel, remainingWeightTooltipLines, "#b45309")}
-                {renderStatTile("removed-weight", "Est. Weight Removed", recoveredKgLabel, removedWeightTooltipLines, "#0f766e")}
-            </SurfaceCard>
+        >
+                {statTiles.map((tile) => renderStatTile(
+                    tile.id,
+                    tile.label,
+                    tile.valueNode,
+                    tile.tooltipContent,
+                    tile.valueColor,
+                    tile.mobileLabel,
+                ))}
+                {isMobile && activeStatTile && typeof document !== "undefined"
+                    ? createPortal(
+                        <>
+                            <div
+                                onClick={() => setActiveTooltip(null)}
+                                style={{
+                                    position: "fixed",
+                                    inset: 0,
+                                    background: "rgba(15,23,42,0.18)",
+                                    zIndex: 1690,
+                                }}
+                            />
+                            <div
+                                role="dialog"
+                                aria-modal="true"
+                                aria-label={activeStatTile.label}
+                                style={{
+                                    position: "fixed",
+                                    left: "50%",
+                                    top: "50%",
+                                    transform: "translate(-50%, -50%)",
+                                    zIndex: 1700,
+                                    width: "min(320px, calc(100vw - 20px))",
+                                    maxWidth: "calc(100vw - 20px)",
+                                    maxHeight: "calc(100dvh - 24px)",
+                                    overflowY: "auto",
+                                    padding: "12px 12px 14px",
+                                    borderRadius: "16px",
+                                    border: "1px solid #cbd5e1",
+                                    background: "rgba(255,255,255,0.99)",
+                                    boxShadow: "0 24px 60px rgba(15,23,42,0.24)",
+                                    color: "#334155",
+                                }}
+                            >
+                                <div
+                                    style={{
+                                        display: "flex",
+                                        alignItems: "flex-start",
+                                        justifyContent: "space-between",
+                                        gap: "10px",
+                                        marginBottom: "10px",
+                                    }}
+                                >
+                                    <div>
+                                        <div
+                                            style={{
+                                                fontSize: "0.7rem",
+                                                fontWeight: 800,
+                                                letterSpacing: "0.06em",
+                                                textTransform: "uppercase",
+                                                color: "#0369a1",
+                                            }}
+                                        >
+                                            River stats
+                                        </div>
+                                        <div
+                                            style={{
+                                                marginTop: "3px",
+                                                fontSize: "0.98rem",
+                                                fontWeight: 800,
+                                                lineHeight: 1.15,
+                                                color: "#0f172a",
+                                            }}
+                                        >
+                                            {activeStatTile.label}
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveTooltip(null)}
+                                        style={{
+                                            border: "1px solid #cbd5e1",
+                                            background: "#f8fafc",
+                                            color: "#334155",
+                                            borderRadius: "999px",
+                                            minWidth: "30px",
+                                            minHeight: "30px",
+                                            fontSize: "0.92rem",
+                                            fontWeight: 700,
+                                            cursor: "pointer",
+                                            flex: "0 0 auto",
+                                        }}
+                                        aria-label="Close stat details"
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                                {activeStatTile.tooltipContent}
+                            </div>
+                        </>,
+                        document.body,
+                    )
+                    : null}
         </div>
     );
 }
@@ -3839,18 +4393,19 @@ function ControlToggles({
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "stretch",
-                gap: "10px",
-                marginTop: "4px",
+                gap: isMobile ? "6px" : "10px",
+                marginTop: 0,
                 marginBottom: isTidePlannerCollapsed ? "2px" : "8px",
             }}
         >
             <div
                 style={{
                     display: "flex",
-                    alignItems: "center",
+                    alignItems: isMobile ? "stretch" : "center",
                     justifyContent: "space-between",
                     gap: controlsGap,
-                    flexWrap: "wrap",
+                    flexWrap: isMobile ? "nowrap" : "wrap",
+                    flexDirection: isMobile ? "column" : "row",
                 }}
             >
                 <div
@@ -3869,10 +4424,14 @@ function ControlToggles({
                         display: "flex",
                         alignItems: "center",
                         gap: controlsGap,
-                        flexWrap: "wrap",
+                        flexWrap: isMobile ? "nowrap" : "wrap",
                         rowGap: controlsGap,
                         justifyContent: isMobile ? "flex-start" : "flex-end",
+                        minWidth: 0,
+                        overflowX: isMobile ? "auto" : "visible",
+                        paddingBottom: isMobile ? "2px" : 0,
                     }}
+                    className={isMobile ? "app-horizontal-chip-row" : undefined}
                 >
                 <button
                     onClick={onToggleTidePlanner}
@@ -3882,6 +4441,7 @@ function ControlToggles({
                         background: "linear-gradient(135deg, #eff6ff, #f8fafc)",
                         color: "#0f172a",
                         cursor: "pointer",
+                        flex: "0 0 auto",
                     }}
                     aria-expanded={!isTidePlannerCollapsed}
                     aria-label={
@@ -3912,6 +4472,7 @@ function ControlToggles({
                         color: isHistoricOverlayEnabled ? "#3f6212" : "#0f172a",
                         cursor: hasHistoricOverlayAccess ? "pointer" : "not-allowed",
                         opacity: hasHistoricOverlayAccess ? 1 : 0.55,
+                        flex: "0 0 auto",
                     }}
                     aria-pressed={isHistoricOverlayEnabled}
                     aria-label={
@@ -3946,6 +4507,7 @@ function ControlToggles({
                             : "linear-gradient(135deg, #eff6ff, #f8fafc)",
                         color: isHistoricalPoisVisible ? "#9a3412" : "#0f172a",
                         cursor: "pointer",
+                        flex: "0 0 auto",
                     }}
                     aria-pressed={isHistoricalPoisVisible}
                     aria-label={
@@ -3975,6 +4537,7 @@ function ControlToggles({
                         padding: isMobile ? "5px 9px" : "6px 12px",
                         gap: isMobile ? "7px" : "10px",
                         cursor: "pointer",
+                        flex: "0 0 auto",
                     }}
                     aria-pressed={isWeatherOverlayEnabled}
                     aria-label={
@@ -4392,6 +4955,7 @@ function FilterControls({
     const typeOptions = [
         { value: "all", label: "All" },
         { value: "bike", label: "Bike" },
+        { value: "historic", label: "Historic finds" },
         { value: "motorbike", label: "Moto" },
         { value: "trolley", label: "Trolley" },
         { value: "misc", label: "Misc" },
@@ -4683,6 +5247,7 @@ function FilterControls({
                             >
                                 <option value="all">All</option>
                                 <option value="bike">Bikes</option>
+                                <option value="historic">Historic finds</option>
                                 <option value="motorbike">Motorbikes</option>
                                 <option value="trolley">Trolleys</option>
                                 <option value="misc">Misc</option>
@@ -6131,7 +6696,8 @@ function SelectedItemDrawer({
     const compactNoScroll = false;
     const statGridColumns = useCompactLayout ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))";
     const imagePanelHeight = useCompactLayout ? "min(23svh, 180px)" : "208px";
-    const itemTypeLabel = TYPE_LABELS[normalizeType(selectedItem.type)];
+    const selectedItemType = normalizeType(selectedItem.type);
+    const itemTypeLabel = TYPE_LABELS[selectedItemType];
     const itemStatusLabel = selectedCounts.isRecovered ? "Recovered" : "In Water";
     const shareButtonLabel = copiedShareItemId === selectedItem.id && shareCopyStatus ? "Copied" : "Share";
     const useDenseDesktopCard = !useBottomSheet && !isEditingThisItem;
@@ -6139,6 +6705,28 @@ function SelectedItemDrawer({
         selectedStory?.knownSinceDate,
         selectedStory?.recoveredOnDate,
     );
+    const itemTypeBadgeLabel = selectedItemType === "historic" ? "Historic find" : "Cleanup item";
+    const itemTypeBadgeStyles = selectedItemType === "historic"
+        ? {
+            background: "#fffbeb",
+            border: "1px solid #fcd34d",
+            color: "#92400e",
+            dotColor: selectedCounts.isRecovered ? "#22c55e" : "#b45309",
+            dotShadow: selectedCounts.isRecovered
+                ? "0 0 0 4px rgba(34,197,94,0.14)"
+                : "0 0 0 4px rgba(180,83,9,0.18)",
+            icon: "🏺",
+        }
+        : {
+            background: "#eff6ff",
+            border: "1px solid #dbeafe",
+            color: "#1d4ed8",
+            dotColor: selectedCounts.isRecovered ? "#22c55e" : "#f59e0b",
+            dotShadow: selectedCounts.isRecovered
+                ? "0 0 0 4px rgba(34,197,94,0.14)"
+                : "0 0 0 4px rgba(245,158,11,0.14)",
+            icon: "•",
+        };
 
     const drawerNode = (
         <>
@@ -6222,28 +6810,29 @@ function SelectedItemDrawer({
                                 width: "fit-content",
                                 padding: "4px 9px",
                                 borderRadius: "999px",
-                                background: "#eff6ff",
-                                border: "1px solid #dbeafe",
-                                color: "#1d4ed8",
+                                background: itemTypeBadgeStyles.background,
+                                border: itemTypeBadgeStyles.border,
+                                color: itemTypeBadgeStyles.color,
                                 fontSize: "0.68rem",
                                 fontWeight: 700,
                                 letterSpacing: "0.06em",
                                 textTransform: "uppercase",
                             }}
                         >
+                            <span aria-hidden="true" style={{ fontSize: "0.85rem", lineHeight: 1 }}>
+                                {itemTypeBadgeStyles.icon}
+                            </span>
                             <span
                                 aria-hidden="true"
                                 style={{
                                     width: "7px",
                                     height: "7px",
                                     borderRadius: "999px",
-                                    background: selectedCounts.isRecovered ? "#22c55e" : "#f59e0b",
-                                    boxShadow: selectedCounts.isRecovered
-                                        ? "0 0 0 4px rgba(34,197,94,0.14)"
-                                        : "0 0 0 4px rgba(245,158,11,0.14)",
+                                    background: itemTypeBadgeStyles.dotColor,
+                                    boxShadow: itemTypeBadgeStyles.dotShadow,
                                 }}
                             />
-                            Cleanup Item
+                            {itemTypeBadgeLabel}
                         </div>
                         <strong
                             style={{
@@ -6567,6 +7156,7 @@ function SelectedItemDrawer({
                                         }}
                                     >
                                         <option value="bike">Bike</option>
+                                        <option value="historic">Historic find</option>
                                         <option value="motorbike">Motorbike</option>
                                         <option value="trolley">Trolley</option>
                                         <option value="misc">Misc</option>
@@ -7821,6 +8411,7 @@ function App() {
     const [reportCooldownUntil, setReportCooldownUntil] = useState(0);
     const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
     const [isMapToolsOpen, setIsMapToolsOpen] = useState(false);
+    const [isMobileStatsExpanded, setIsMobileStatsExpanded] = useState(false);
     const [mapInstance, setMapInstance] = useState(null);
     const [isLiveLocationPaneReady, setIsLiveLocationPaneReady] = useState(false);
     const [copiedShareItemId, setCopiedShareItemId] = useState(null);
@@ -7834,6 +8425,8 @@ function App() {
     const shareCopyTimeoutRef = useRef(null);
     const reportStatusTimeoutRef = useRef(null);
     const historicOverlayRemoteSnapshotsRef = useRef(new Map());
+    const stickyTopStackRef = useRef(null);
+    const [mobileStickyStackHeight, setMobileStickyStackHeight] = useState(0);
     const [isHistoricOverlayEditorModeRequested] = useState(readHistoricOverlayEditorModeFromQuery);
     const canManageItems = useMemo(() => canUserManageItems(currentUser), [currentUser]);
     const isHistoricOverlayEditorModeEnabled =
@@ -10114,14 +10707,14 @@ function App() {
             return acc;
         },
         {
-            totalByType: { trolley: 0, bike: 0, motorbike: 0, misc: 0 },
+            totalByType: { trolley: 0, bike: 0, historic: 0, motorbike: 0, misc: 0 },
             estimatedRecoveredKg: 0,
             estimatedRemainingKg: 0,
-            recoveredByType: { trolley: 0, bike: 0, motorbike: 0, misc: 0 },
-            remainingByType: { trolley: 0, bike: 0, motorbike: 0, misc: 0 },
-            totalWeightByType: { trolley: 0, bike: 0, motorbike: 0, misc: 0 },
-            recoveredWeightByType: { trolley: 0, bike: 0, motorbike: 0, misc: 0 },
-            remainingWeightByType: { trolley: 0, bike: 0, motorbike: 0, misc: 0 },
+            recoveredByType: { trolley: 0, bike: 0, historic: 0, motorbike: 0, misc: 0 },
+            remainingByType: { trolley: 0, bike: 0, historic: 0, motorbike: 0, misc: 0 },
+            totalWeightByType: { trolley: 0, bike: 0, historic: 0, motorbike: 0, misc: 0 },
+            recoveredWeightByType: { trolley: 0, bike: 0, historic: 0, motorbike: 0, misc: 0 },
+            remainingWeightByType: { trolley: 0, bike: 0, historic: 0, motorbike: 0, misc: 0 },
         },
     );
 
@@ -10133,12 +10726,54 @@ function App() {
         [lancasterTideRows, lancasterTideUpdatedAt],
     );
 
+    const mobileStatsSummary = useMemo(
+        () => `${totals.total} total • ${totals.recovered} out • ${totals.remaining} left • ${filteredItems.length} places`,
+        [filteredItems.length, totals.recovered, totals.remaining, totals.total],
+    );
+
+    useEffect(() => {
+        if (!isMobile && isMobileStatsExpanded) {
+            setIsMobileStatsExpanded(false);
+        }
+    }, [isMobile, isMobileStatsExpanded]);
+
+    useLayoutEffect(() => {
+        if (!isMobile) {
+            setMobileStickyStackHeight(0);
+            return undefined;
+        }
+
+        const node = stickyTopStackRef.current;
+        if (!node) return undefined;
+
+        const updateHeight = () => {
+            setMobileStickyStackHeight(Math.ceil(node.getBoundingClientRect().height));
+        };
+
+        updateHeight();
+
+        if (typeof ResizeObserver === "undefined") {
+            window.addEventListener("resize", updateHeight);
+            return () => window.removeEventListener("resize", updateHeight);
+        }
+
+        const observer = new ResizeObserver(() => {
+            updateHeight();
+        });
+        observer.observe(node);
+
+        return () => observer.disconnect();
+    }, [isMobile, isMobileStatsExpanded]);
+
+    const mobileStickyOffset = mobileStickyStackHeight > 0
+        ? mobileStickyStackHeight + 18
+        : (isMobileStatsExpanded ? 228 : 132);
     const mapHeight = isTidePlannerCollapsed
         ? isMobile
-            ? "calc(100dvh - 198px)"
+            ? `clamp(360px, calc(100dvh - ${mobileStickyOffset}px), 860px)`
             : "calc(100dvh - 242px)"
         : isMobile
-          ? "calc(100svh - 150px)"
+          ? `clamp(320px, calc(100dvh - ${mobileStickyOffset + 230}px), 520px)`
           : "calc(100vh - 250px)";
     const controlFontSize = isMobile ? "0.95rem" : "0.85rem";
     const touchButtonSize = isMobile ? "38px" : "30px";
@@ -10628,83 +11263,104 @@ function App() {
                 flexDirection: "column",
             }}
         >
-            <AppTopBar
-                isMobile={isMobile}
-                authReady={authReady}
-                currentUser={currentUser}
-                canManageItems={canManageItems}
-                isAuthActionLoading={isAuthActionLoading}
-                onSignIn={signInWithGitHub}
-                onSignOut={signOut}
-                isLoadingItems={isLoadingItems}
-                onOpenContributorPanel={() => setIsContributorPanelOpen(true)}
-                onOpenPoiPanel={openPoiCreatePanel}
-            />
-
-            {isMobile && authError ? (
-                <div
-                    style={{
-                        marginBottom: "8px",
-                        color: "#b91c1c",
-                        fontSize: "0.82rem",
-                        background: "rgba(254,242,242,0.92)",
-                        border: "1px solid #fecaca",
-                        borderRadius: UI_TOKENS.radius.sm,
-                        padding: "8px 10px",
-                    }}
+            <div
+                ref={stickyTopStackRef}
+                style={{
+                    position: isMobile ? "sticky" : "relative",
+                    top: isMobile ? "calc(env(safe-area-inset-top, 0px) + 6px)" : undefined,
+                    zIndex: isMobile ? 1050 : "auto",
+                    display: "grid",
+                    gap: isMobile ? "8px" : "10px",
+                    marginBottom: isMobile ? "10px" : UI_TOKENS.spacing.sm,
+                }}
+            >
+                <AppTopBar
+                    isMobile={isMobile}
+                    isSticky={!isMobile}
+                    authReady={authReady}
+                    currentUser={currentUser}
+                    canManageItems={canManageItems}
+                    isAuthActionLoading={isAuthActionLoading}
+                    onSignIn={signInWithGitHub}
+                    onSignOut={signOut}
+                    isLoadingItems={isLoadingItems}
+                    onOpenContributorPanel={() => setIsContributorPanelOpen(true)}
+                    onOpenPoiPanel={openPoiCreatePanel}
+                    isStatsExpanded={isMobileStatsExpanded}
+                    onToggleStats={isMobile ? () => setIsMobileStatsExpanded((prev) => !prev) : undefined}
+                    mobileStatsSummary={mobileStatsSummary}
                 >
-                    {authError}
-                </div>
-            ) : null}
+                    <SummaryStats
+                        totals={totals}
+                        locationCount={filteredItems.length}
+                        controlFontSize={controlFontSize}
+                        isMobile={isMobile}
+                        impactStats={impactStats}
+                    />
+                </AppTopBar>
 
-            <SummaryStats
-                totals={totals}
-                locationCount={filteredItems.length}
-                controlFontSize={controlFontSize}
-                isMobile={isMobile}
-                impactStats={impactStats}
-            />
+                {isMobile && authError ? (
+                    <div
+                        style={{
+                            color: "#b91c1c",
+                            fontSize: "0.82rem",
+                            background: "rgba(254,242,242,0.92)",
+                            border: "1px solid #fecaca",
+                            borderRadius: UI_TOKENS.radius.sm,
+                            padding: "8px 10px",
+                        }}
+                    >
+                        {authError}
+                    </div>
+                ) : null}
+            </div>
 
-            <ControlToggles
-                isMobile={isMobile}
-                isTidePlannerCollapsed={isTidePlannerCollapsed}
-                hasHistoricOverlayAccess={hasHistoricOverlayAccess}
-                isHistoricOverlayEnabled={isHistoricOverlayEnabled}
-                isWeatherOverlayEnabled={isWeatherOverlayEnabled}
-                isContributorsVisible={isContributorsVisible}
-                isHistoricalPoisVisible={isHistoricalPoisVisible}
-                historicOverlayLayers={historicOverlayLayers}
-                selectedHistoricOverlayId={selectedHistoricOverlayId}
-                historicOverlayOpacityPercent={historicOverlayOpacityPercent}
-                weatherOverlayUpdatedLabel={weatherOverlayUpdatedLabel}
-                onToggleTidePlanner={() =>
-                    setIsTidePlannerCollapsed((prev) => !prev)
-                }
-                onToggleHistoricOverlay={() => {
-                    if (!hasHistoricOverlayAccess) return;
-                    setHistoricOverlayError("");
-                    setIsHistoricOverlayEnabled((prev) => !prev);
+            <div
+                style={{
+                    marginBottom: isMobile ? "10px" : UI_TOKENS.spacing.sm,
                 }}
-                onHistoricOverlaySelect={(nextLayerId) => {
-                    setHistoricOverlayError("");
-                    setSelectedHistoricOverlayId(nextLayerId);
-                }}
-                onHistoricOverlayOpacityChange={(nextValue) => {
-                    const parsed = Number.parseInt(nextValue, 10);
-                    if (!Number.isFinite(parsed)) return;
-                    const clamped = Math.min(Math.max(parsed, 20), 100);
-                    setHistoricOverlayOpacity(clamped / 100);
-                }}
-                onToggleWeatherOverlay={() =>
-                    setIsWeatherOverlayEnabled((prev) => !prev)
-                }
-                onToggleContributors={() =>
-                    setIsContributorsVisible((prev) => !prev)
-                }
-                onToggleHistoricalPois={() =>
-                    setIsHistoricalPoisVisible((prev) => !prev)
-                }
-            />
+            >
+                <ControlToggles
+                    isMobile={isMobile}
+                    isTidePlannerCollapsed={isTidePlannerCollapsed}
+                    hasHistoricOverlayAccess={hasHistoricOverlayAccess}
+                    isHistoricOverlayEnabled={isHistoricOverlayEnabled}
+                    isWeatherOverlayEnabled={isWeatherOverlayEnabled}
+                    isContributorsVisible={isContributorsVisible}
+                    isHistoricalPoisVisible={isHistoricalPoisVisible}
+                    historicOverlayLayers={historicOverlayLayers}
+                    selectedHistoricOverlayId={selectedHistoricOverlayId}
+                    historicOverlayOpacityPercent={historicOverlayOpacityPercent}
+                    weatherOverlayUpdatedLabel={weatherOverlayUpdatedLabel}
+                    onToggleTidePlanner={() =>
+                        setIsTidePlannerCollapsed((prev) => !prev)
+                    }
+                    onToggleHistoricOverlay={() => {
+                        if (!hasHistoricOverlayAccess) return;
+                        setHistoricOverlayError("");
+                        setIsHistoricOverlayEnabled((prev) => !prev);
+                    }}
+                    onHistoricOverlaySelect={(nextLayerId) => {
+                        setHistoricOverlayError("");
+                        setSelectedHistoricOverlayId(nextLayerId);
+                    }}
+                    onHistoricOverlayOpacityChange={(nextValue) => {
+                        const parsed = Number.parseInt(nextValue, 10);
+                        if (!Number.isFinite(parsed)) return;
+                        const clamped = Math.min(Math.max(parsed, 20), 100);
+                        setHistoricOverlayOpacity(clamped / 100);
+                    }}
+                    onToggleWeatherOverlay={() =>
+                        setIsWeatherOverlayEnabled((prev) => !prev)
+                    }
+                    onToggleContributors={() =>
+                        setIsContributorsVisible((prev) => !prev)
+                    }
+                    onToggleHistoricalPois={() =>
+                        setIsHistoricalPoisVisible((prev) => !prev)
+                    }
+                />
+            </div>
 
             {isHistoricOverlayEditorModeEnabled ? (
                 <div

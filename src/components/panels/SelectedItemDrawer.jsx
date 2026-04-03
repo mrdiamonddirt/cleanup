@@ -484,6 +484,7 @@ export default function SelectedItemDrawer({
                                         }}
                                     >
                                         <option value="bike">Bike</option>
+                                        <option value="historic">Historic find</option>
                                         <option value="motorbike">Motorbike</option>
                                         <option value="trolley">Trolley</option>
                                         <option value="misc">Misc</option>

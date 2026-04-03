@@ -14,6 +14,7 @@ const fallbackImage = "/river-photo.jpg";
 
 const TYPE_LABELS = {
     bike: "Bike",
+    historic: "Historic find",
     motorbike: "Motorbike",
     trolley: "Trolley",
     misc: "Misc",
@@ -22,6 +23,19 @@ const TYPE_LABELS = {
 const normalizeType = (value) => {
     if (typeof value !== "string") return "misc";
     const normalized = value.trim().toLowerCase();
+    if (
+        normalized === "historic" ||
+        normalized === "historic find" ||
+        normalized === "historic value" ||
+        normalized === "historically significant" ||
+        normalized === "artifact" ||
+        normalized === "artefact" ||
+        normalized.includes("historic") ||
+        normalized.includes("artifact") ||
+        normalized.includes("artefact")
+    ) {
+        return "historic";
+    }
     return Object.prototype.hasOwnProperty.call(TYPE_LABELS, normalized) ? normalized : "misc";
 };
 
