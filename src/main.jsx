@@ -3737,6 +3737,9 @@ function SurfaceCard({ as = "div", style = {}, children, ...props }) {
 function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impactStats }) {
     const [activeTooltip, setActiveTooltip] = useState(null);
     const statsRef = useRef(null);
+    const mobileTooltipDialogRef = useRef(null);
+    const suppressNextStatToggleRef = useRef(false);
+    const suppressNextStatToggleTimeoutRef = useRef(null);
     const trolleyWeight = ASSUMED_ITEM_WEIGHTS_KG.trolley;
     const bikeWeight = ASSUMED_ITEM_WEIGHTS_KG.bike;
     const historicWeight = ASSUMED_ITEM_WEIGHTS_KG.historic;
@@ -3766,14 +3769,43 @@ function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impact
         if (!activeTooltip) return undefined;
 
         const handlePointerDown = (event) => {
-            if (!statsRef.current?.contains(event.target)) {
-                setActiveTooltip(null);
-            }
+            if (statsRef.current?.contains(event.target)) return;
+            if (mobileTooltipDialogRef.current?.contains(event.target)) return;
+            setActiveTooltip(null);
         };
 
         document.addEventListener("pointerdown", handlePointerDown);
         return () => document.removeEventListener("pointerdown", handlePointerDown);
     }, [activeTooltip]);
+
+    useEffect(() => () => {
+        if (suppressNextStatToggleTimeoutRef.current) {
+            clearTimeout(suppressNextStatToggleTimeoutRef.current);
+        }
+    }, []);
+
+    const suppressNextStatToggle = () => {
+        suppressNextStatToggleRef.current = true;
+        if (suppressNextStatToggleTimeoutRef.current) {
+            clearTimeout(suppressNextStatToggleTimeoutRef.current);
+        }
+
+        suppressNextStatToggleTimeoutRef.current = setTimeout(() => {
+            suppressNextStatToggleRef.current = false;
+            suppressNextStatToggleTimeoutRef.current = null;
+        }, 320);
+    };
+
+    const closeActiveTooltip = (event) => {
+        event?.preventDefault?.();
+        event?.stopPropagation?.();
+        suppressNextStatToggle();
+        setActiveTooltip(null);
+    };
+
+    const stopTooltipEvent = (event) => {
+        event?.stopPropagation?.();
+    };
 
     const tooltipMetricLabelStyle = {
         fontSize: isMobile ? "0.62rem" : "0.66rem",
@@ -4118,11 +4150,23 @@ function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impact
     const renderStatTile = (id, label, valueNode, tooltipContent, valueColor, mobileLabel = label) => {
         const alignTooltipRight = desktopRightAlignedTooltipIds.has(id);
         const visibleLabel = isMobile ? mobileLabel : label;
+        const handleStatTileClick = () => {
+            if (suppressNextStatToggleRef.current) {
+                suppressNextStatToggleRef.current = false;
+                if (suppressNextStatToggleTimeoutRef.current) {
+                    clearTimeout(suppressNextStatToggleTimeoutRef.current);
+                    suppressNextStatToggleTimeoutRef.current = null;
+                }
+                return;
+            }
+
+            setActiveTooltip((prev) => (prev === id ? null : id));
+        };
 
         return (
             <button
                 type="button"
-                onClick={() => setActiveTooltip((prev) => (prev === id ? null : id))}
+                onClick={handleStatTileClick}
                 onMouseEnter={() => {
                     if (!isMobile) setActiveTooltip(id);
                 }}
@@ -4253,7 +4297,8 @@ function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impact
                     ? createPortal(
                         <>
                             <div
-                                onClick={() => setActiveTooltip(null)}
+                                onPointerDown={closeActiveTooltip}
+                                onClick={closeActiveTooltip}
                                 style={{
                                     position: "fixed",
                                     inset: 0,
@@ -4262,9 +4307,12 @@ function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impact
                                 }}
                             />
                             <div
+                                ref={mobileTooltipDialogRef}
                                 role="dialog"
                                 aria-modal="true"
                                 aria-label={activeStatTile.label}
+                                onPointerDown={stopTooltipEvent}
+                                onClick={stopTooltipEvent}
                                 style={{
                                     position: "fixed",
                                     left: "50%",
@@ -4318,7 +4366,8 @@ function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impact
                                     </div>
                                     <button
                                         type="button"
-                                        onClick={() => setActiveTooltip(null)}
+                                        onPointerDown={closeActiveTooltip}
+                                        onClick={closeActiveTooltip}
                                         style={{
                                             border: "1px solid #cbd5e1",
                                             background: "#f8fafc",
