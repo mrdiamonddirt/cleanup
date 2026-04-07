@@ -689,8 +689,27 @@ const EA_STATIONS_URL =
 const EA_REGIONAL_FLOW_STATIONS_URL =
     `https://environment.data.gov.uk/flood-monitoring/id/stations?parameter=flow&lat=${RIVER_LUNE_CENTER[0]}&long=${RIVER_LUNE_CENTER[1]}&dist=100`;
 const EA_TARGET_RIVER_NAME = "River Lune";
+const EA_TARGET_LUNE_STATION_REFERENCES = new Set([
+    "724839", // Glasson Dock
+    "724735", // Lancaster Quay
+    "724647", // Skerton Weir
+    "724629", // Caton
+    "722421", // Killington
+    "722242", // Lunes Bridge
+]);
+const EA_TARGET_LUNE_STATION_LABELS = new Set([
+    "glasson dock",
+    "lancaster quay",
+    "skerton weir",
+    "caton",
+    "killington",
+    "lunes bridge",
+]);
 const EA_READINGS_REFRESH_MS = 15 * 60 * 1000;
 const EA_FLOODS_URL = `https://environment.data.gov.uk/flood-monitoring/id/floods?lat=${RIVER_LUNE_CENTER[0]}&long=${RIVER_LUNE_CENTER[1]}&dist=15`;
+const CLEANUP_FORECAST_URL = `https://api.open-meteo.com/v1/forecast?latitude=${RIVER_LUNE_CENTER[0]}&longitude=${RIVER_LUNE_CENTER[1]}&hourly=temperature_2m,precipitation_probability,wind_speed_10m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max&forecast_days=3&timezone=auto`;
+const CLEANUP_FORECAST_REFRESH_MS = 30 * 60 * 1000;
+const CLEANUP_FORECAST_RETRY_DELAYS_MS = [1500, 4000];
 const RAINVIEWER_MAPS_URL = "https://api.rainviewer.com/public/weather-maps.json";
 const RAINVIEWER_REFRESH_MS = 10 * 60 * 1000;
 const RAINVIEWER_MIN_SUPPORTED_ZOOM = 0;
@@ -769,6 +788,20 @@ const extractEaMeasureId = (value) => {
 
 const getEaStationKey = (station) =>
     station?.stationReference || station?.notation || station?.["@id"] || "";
+
+const normalizeEaStationLabel = (value) =>
+    String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/['’]/g, "")
+        .replace(/\s+/g, " ");
+
+const isTrackedLuneStation = (station) => {
+    const stationReference = String(station?.stationReference || station?.notation || "").trim();
+    if (stationReference && EA_TARGET_LUNE_STATION_REFERENCES.has(stationReference)) return true;
+
+    return EA_TARGET_LUNE_STATION_LABELS.has(normalizeEaStationLabel(station?.label));
+};
 
 const getEaMeasures = (station) =>
     Array.isArray(station?.measures) ? station.measures.filter(Boolean) : [];
@@ -894,7 +927,7 @@ const parseEaMeasureReadings = (items) => {
     const deltaDirection = getEaDeltaDirection(deltaValue);
     const recentReadings = sortedReadings
         .filter((item) => Number.isFinite(Number(item?.value)))
-        .slice(0, 3)
+        .slice(0, 24)
         .map((item) => ({
             value: Number(item?.value),
             dateTime: item?.dateTime || "",
@@ -967,6 +1000,172 @@ const formatEaRelativeAge = (value) => {
 
     const days = Math.round(hours / 24);
     return `${days}d ago`;
+};
+
+const CLEANUP_WEATHER_CODE_LABELS = {
+    0: "Clear",
+    1: "Mostly clear",
+    2: "Partly cloudy",
+    3: "Overcast",
+    45: "Fog",
+    48: "Freezing fog",
+    51: "Light drizzle",
+    53: "Drizzle",
+    55: "Dense drizzle",
+    56: "Freezing drizzle",
+    57: "Heavy freezing drizzle",
+    61: "Light rain",
+    63: "Rain",
+    65: "Heavy rain",
+    66: "Freezing rain",
+    67: "Heavy freezing rain",
+    71: "Light snow",
+    73: "Snow",
+    75: "Heavy snow",
+    77: "Snow grains",
+    80: "Rain showers",
+    81: "Heavy showers",
+    82: "Violent showers",
+    85: "Snow showers",
+    86: "Heavy snow showers",
+    95: "Thunderstorm",
+    96: "Thunderstorm and hail",
+    99: "Severe thunderstorm",
+};
+
+const formatCleanupWeatherCode = (value) => {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) return "Conditions unavailable";
+    return CLEANUP_WEATHER_CODE_LABELS[numericValue] || "Mixed conditions";
+};
+
+const formatCleanupForecastHour = (value) => {
+    if (typeof value !== "string" || !value.trim()) return "";
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return "";
+
+    return parsed.toLocaleTimeString("en-GB", {
+        hour: "numeric",
+        minute: "2-digit",
+    });
+};
+
+const formatCleanupForecastDay = (value) => {
+    if (typeof value !== "string" || !value.trim()) return "";
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return "";
+
+    return parsed.toLocaleDateString("en-GB", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+    });
+};
+
+const formatCleanupForecastTemperature = (value) => {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) return "--";
+    return `${Math.round(numericValue)}°C`;
+};
+
+const formatCleanupForecastWind = (value) => {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) return "--";
+    return `${Math.round(numericValue)} km/h`;
+};
+
+const formatCleanupForecastRainChance = (value) => {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) return "--";
+    return `${Math.round(numericValue)}%`;
+};
+
+const buildCleanupForecast = (payload) => {
+    const hourly = payload?.hourly || {};
+    const daily = payload?.daily || {};
+    const nowMs = Date.now();
+
+    const hourlyRows = Array.isArray(hourly?.time)
+        ? hourly.time.map((timeValue, index) => {
+            const parsedTime = new Date(timeValue).getTime();
+            return {
+                time: timeValue,
+                timeMs: parsedTime,
+                label: formatCleanupForecastHour(timeValue),
+                temperature: hourly?.temperature_2m?.[index] ?? null,
+                rainChance: hourly?.precipitation_probability?.[index] ?? null,
+                windSpeed: hourly?.wind_speed_10m?.[index] ?? null,
+                weatherCode: hourly?.weather_code?.[index] ?? null,
+                summary: formatCleanupWeatherCode(hourly?.weather_code?.[index]),
+            };
+        }).filter((row) => Number.isFinite(row.timeMs))
+        : [];
+    const upcomingHours = hourlyRows.filter((row) => row.timeMs >= nowMs).slice(0, 6);
+
+    const dailyRows = Array.isArray(daily?.time)
+        ? daily.time.map((timeValue, index) => ({
+            date: timeValue,
+            label: formatCleanupForecastDay(timeValue),
+            summary: formatCleanupWeatherCode(daily?.weather_code?.[index]),
+            minTemperature: daily?.temperature_2m_min?.[index] ?? null,
+            maxTemperature: daily?.temperature_2m_max?.[index] ?? null,
+            rainChance: daily?.precipitation_probability_max?.[index] ?? null,
+            windSpeed: daily?.wind_speed_10m_max?.[index] ?? null,
+        }))
+        : [];
+
+    if (!hourlyRows.length && !dailyRows.length) {
+        throw new Error("Forecast payload did not contain any hourly or daily rows.");
+    }
+
+    const nextHour = upcomingHours[0] || null;
+    const rainiestHour = [...upcomingHours]
+        .sort((left, right) => Number(right?.rainChance || -1) - Number(left?.rainChance || -1))[0] || null;
+    const windiestHour = [...upcomingHours]
+        .sort((left, right) => Number(right?.windSpeed || -1) - Number(left?.windSpeed || -1))[0] || null;
+
+    return {
+        headline: nextHour
+            ? `${nextHour.summary} around ${nextHour.label}`
+            : "Forecast unavailable",
+        nextHour: nextHour
+            ? {
+                ...nextHour,
+                temperatureLabel: formatCleanupForecastTemperature(nextHour.temperature),
+                rainChanceLabel: formatCleanupForecastRainChance(nextHour.rainChance),
+                windSpeedLabel: formatCleanupForecastWind(nextHour.windSpeed),
+            }
+            : null,
+        highlights: [
+            rainiestHour
+                ? {
+                    label: "Rain risk",
+                    value: `${formatCleanupForecastRainChance(rainiestHour.rainChance)} at ${rainiestHour.label}`,
+                }
+                : null,
+            windiestHour
+                ? {
+                    label: "Wind",
+                    value: `${formatCleanupForecastWind(windiestHour.windSpeed)} at ${windiestHour.label}`,
+                }
+                : null,
+        ].filter(Boolean),
+        upcomingHours: upcomingHours.map((hour) => ({
+            ...hour,
+            temperatureLabel: formatCleanupForecastTemperature(hour.temperature),
+            rainChanceLabel: formatCleanupForecastRainChance(hour.rainChance),
+            windSpeedLabel: formatCleanupForecastWind(hour.windSpeed),
+        })),
+        daily: dailyRows.map((day) => ({
+            ...day,
+            minTemperatureLabel: formatCleanupForecastTemperature(day.minTemperature),
+            maxTemperatureLabel: formatCleanupForecastTemperature(day.maxTemperature),
+            rainChanceLabel: formatCleanupForecastRainChance(day.rainChance),
+            windSpeedLabel: formatCleanupForecastWind(day.windSpeed),
+        })),
+    };
 };
 
 const formatEaElapsedSpan = (deltaMs) => {
@@ -4495,12 +4694,12 @@ function ControlToggles({
                     aria-expanded={!isTidePlannerCollapsed}
                     aria-label={
                         isTidePlannerCollapsed
-                            ? "Show tide planner"
-                            : "Hide tide planner"
+                            ? "Show cleanup planner"
+                            : "Hide cleanup planner"
                     }
                 >
                     <span>
-                        Tide Planner
+                        Cleanup Planner
                     </span>
                     <span style={{ fontSize: "0.9em" }}>
                         {isTidePlannerCollapsed ? "▾" : "▴"}
@@ -8448,6 +8647,10 @@ function App() {
     const [weatherOverlayTileUrl, setWeatherOverlayTileUrl] = useState("");
     const [weatherOverlayUpdatedAt, setWeatherOverlayUpdatedAt] = useState("");
     const [weatherOverlayError, setWeatherOverlayError] = useState("");
+    const [cleanupForecast, setCleanupForecast] = useState(null);
+    const [isLoadingCleanupForecast, setIsLoadingCleanupForecast] = useState(false);
+    const [cleanupForecastUpdatedAt, setCleanupForecastUpdatedAt] = useState("");
+    const [cleanupForecastError, setCleanupForecastError] = useState("");
     const [pendingEstimatedWeight, setPendingEstimatedWeight] = useState("");
     const [reportLocation, setReportLocation] = useState(null);
     const [pendingReportLocation, setPendingReportLocation] = useState(null);
@@ -8711,7 +8914,7 @@ function App() {
                         expectedRiverName: EA_TARGET_RIVER_NAME,
                         requirePrimaryMeasure: true,
                         preferredParameter: "level",
-                    }),
+                    }) && isTrackedLuneStation(station),
                 ),
             );
 
@@ -9365,6 +9568,45 @@ function App() {
             setLancasterTideError(error.message || "Could not load saved Lancaster tide times.");
         } finally {
             setIsLoadingLancasterTides(false);
+        }
+    }
+
+    async function fetchCleanupForecast() {
+        setIsLoadingCleanupForecast(true);
+        setCleanupForecastError("");
+
+        try {
+            let response = null;
+
+            for (let attemptIndex = 0; attemptIndex <= CLEANUP_FORECAST_RETRY_DELAYS_MS.length; attemptIndex += 1) {
+                try {
+                    response = await fetch(CLEANUP_FORECAST_URL, { cache: "no-store" });
+                    if (!response.ok) {
+                        throw new Error(`Forecast request failed with status ${response.status}`);
+                    }
+                    break;
+                } catch (error) {
+                    if (attemptIndex === CLEANUP_FORECAST_RETRY_DELAYS_MS.length) {
+                        throw error;
+                    }
+
+                    await new Promise((resolve) => {
+                        window.setTimeout(resolve, CLEANUP_FORECAST_RETRY_DELAYS_MS[attemptIndex]);
+                    });
+                }
+            }
+
+            const payload = await response.json();
+            const nextForecast = buildCleanupForecast(payload);
+
+            setCleanupForecast(nextForecast);
+            setCleanupForecastUpdatedAt(new Date().toISOString());
+            setCleanupForecastError("");
+        } catch (error) {
+            console.error("Cleanup forecast request failed", error);
+            setCleanupForecastError("Weather forecast is temporarily unavailable.");
+        } finally {
+            setIsLoadingCleanupForecast(false);
         }
     }
 
@@ -10774,6 +11016,89 @@ function App() {
         () => buildTideChartData(lancasterTideRows, lancasterTideUpdatedAt),
         [lancasterTideRows, lancasterTideUpdatedAt],
     );
+    const luneStationKeySet = useMemo(
+        () => new Set(luneStations.map((station) => getEaStationKey(station)).filter(Boolean)),
+        [luneStations],
+    );
+    const cleanupPlannerSensors = useMemo(() => {
+        const toPlannerRow = (station, reading, kind) => {
+            const stationKey = getEaStationKey(station);
+            if (!stationKey) return null;
+
+            const numericValue = Number(reading?.value);
+            const hasValue = Number.isFinite(numericValue);
+            const parameterName = reading?.parameterName
+                || getEaPrimaryMeasure(station, kind === "regional-flow" ? "flow" : "level")?.parameterName
+                || "Latest reading";
+            const flowValue = Number(reading?.flowValue);
+            const hasFlowValue = Number.isFinite(flowValue);
+
+            return {
+                id: `${kind}:${stationKey}`,
+                stationKey,
+                name: station?.label || stationKey,
+                riverName: station?.riverName || "River Lune",
+                kind,
+                kindLabel: kind === "regional-flow" ? "Regional flow" : "River sensor",
+                parameterName,
+                loading: Boolean(reading?.loading),
+                error: reading?.error || "",
+                valueLabel: hasValue
+                    ? `${numericValue.toLocaleString(undefined, { maximumFractionDigits: 3 })}${reading?.unitName ? ` ${reading.unitName}` : ""}`
+                    : "Reading unavailable",
+                timestampLabel: formatEaReadingDateTime(reading?.dateTime) || "",
+                ageLabel: formatEaRelativeAge(reading?.dateTime || "") || "",
+                trendLabel: reading?.trendLabel || "Trend unavailable",
+                trendDirection: reading?.trendDirection || "flat",
+                flowLabel: hasFlowValue
+                    ? `${flowValue.toLocaleString(undefined, { maximumFractionDigits: 3 })}${reading?.flowUnitName ? ` ${reading.flowUnitName}` : ""}`
+                    : "",
+                flowTimestampLabel: formatEaReadingDateTime(reading?.flowDateTime) || "",
+                history: Array.isArray(reading?.recentReadings)
+                    ? reading.recentReadings.slice(0, 24).map((entry, index) => ({
+                        id: `${stationKey}-${entry?.dateTime || index}`,
+                        valueLabel: Number(entry?.value).toLocaleString(undefined, { maximumFractionDigits: 3 })
+                            + (reading?.unitName ? ` ${reading.unitName}` : ""),
+                        ageLabel: entry?.ageLabel || formatEaRelativeAge(entry?.dateTime || "") || "",
+                        timestampLabel: formatEaReadingDateTime(entry?.dateTime || "") || "",
+                    }))
+                    : [],
+            };
+        };
+
+        const luneRows = luneStations.map((station) =>
+            toPlannerRow(station, luneStationReadings[getEaStationKey(station)], "lune"),
+        );
+        const regionalRows = regionalFlowStations
+            .filter((station) => {
+                const stationKey = getEaStationKey(station);
+                return stationKey && !luneStationKeySet.has(stationKey);
+            })
+            .map((station) =>
+                toPlannerRow(station, regionalFlowReadings[getEaStationKey(station)], "regional-flow"),
+            );
+
+        return [...luneRows, ...regionalRows]
+            .filter(Boolean)
+            .sort((left, right) => left.name.localeCompare(right.name));
+    }, [
+        luneStationKeySet,
+        luneStationReadings,
+        luneStations,
+        regionalFlowReadings,
+        regionalFlowStations,
+    ]);
+    const cleanupForecastUpdatedLabel = useMemo(() => {
+        if (!cleanupForecastUpdatedAt) return "";
+
+        const parsed = new Date(cleanupForecastUpdatedAt);
+        if (Number.isNaN(parsed.getTime())) return "";
+
+        return parsed.toLocaleTimeString("en-GB", {
+            hour: "2-digit",
+            minute: "2-digit",
+        });
+    }, [cleanupForecastUpdatedAt]);
 
     const mobileStatsSummary = useMemo(
         () => `${totals.total} total • ${totals.recovered} out • ${totals.remaining} left • ${filteredItems.length} places`,
@@ -10833,10 +11158,6 @@ function App() {
         + Number(!isRegionalFlowStationsVisible)
         + Number(!isContributorsVisible)
         + Number(!isHistoricalPoisVisible);
-    const luneStationKeySet = useMemo(
-        () => new Set(luneStations.map((station) => getEaStationKey(station)).filter(Boolean)),
-        [luneStations],
-    );
     const selectedItem = useMemo(
         () => (selectedItemId ? items.find((item) => item.id === selectedItemId) || null : null),
         [items, selectedItemId],
@@ -11071,6 +11392,18 @@ function App() {
             minute: "2-digit",
         });
     }, [weatherOverlayUpdatedAt]);
+
+    useEffect(() => {
+        void fetchCleanupForecast();
+
+        const intervalId = window.setInterval(() => {
+            void fetchCleanupForecast();
+        }, CLEANUP_FORECAST_REFRESH_MS);
+
+        return () => {
+            window.clearInterval(intervalId);
+        };
+    }, []);
 
     useEffect(() => {
         if (hasHistoricOverlayAccess) return;
@@ -11854,6 +12187,11 @@ function App() {
                         formatTideTime={formatTideTime}
                         formatTideClockTime={formatTideClockTime}
                         formatTideDay={formatTideDay}
+                        cleanupPlannerSensors={cleanupPlannerSensors}
+                        cleanupForecast={cleanupForecast}
+                        cleanupForecastError={cleanupForecastError}
+                        cleanupForecastUpdatedLabel={cleanupForecastUpdatedLabel}
+                        isLoadingCleanupForecast={isLoadingCleanupForecast}
                     />
                 </Suspense>
             ) : null}
