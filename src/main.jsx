@@ -11039,6 +11039,7 @@ function App() {
                 name: station?.label || stationKey,
                 riverName: station?.riverName || "River Lune",
                 kind,
+                sensorType: kind,
                 kindLabel: kind === "regional-flow" ? "Regional flow" : "River sensor",
                 parameterName,
                 loading: Boolean(reading?.loading),
@@ -11080,6 +11081,7 @@ function App() {
 
         return [...luneRows, ...regionalRows]
             .filter(Boolean)
+            .filter((row) => Array.isArray(row.history) && row.history.length > 0)
             .sort((left, right) => left.name.localeCompare(right.name));
     }, [
         luneStationKeySet,

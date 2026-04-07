@@ -222,6 +222,44 @@ function CleanupSensorTable({ isMobile, rows, expandedSensorId, onToggleSensor }
     );
 }
 
+function SensorFilterSelect({ label, value, options, onChange }) {
+    return (
+        <label style={{ display: "grid", gap: "4px", minWidth: "140px" }}>
+            <span
+                style={{
+                    fontSize: "0.68rem",
+                    fontWeight: 800,
+                    color: "#475569",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.06em",
+                }}
+            >
+                {label}
+            </span>
+            <select
+                value={value}
+                onChange={(event) => onChange(event.target.value)}
+                style={{
+                    minHeight: "36px",
+                    borderRadius: "10px",
+                    border: "1px solid #cbd5e1",
+                    background: "#fff",
+                    color: "#0f172a",
+                    padding: "7px 10px",
+                    fontSize: "0.8rem",
+                    fontWeight: 700,
+                }}
+            >
+                {options.map((option) => (
+                    <option key={option.value} value={option.value}>
+                        {option.label}
+                    </option>
+                ))}
+            </select>
+        </label>
+    );
+}
+
 export default function TidePlanner({
     isTidePlannerCollapsed,
     isMobile,
@@ -245,6 +283,8 @@ export default function TidePlanner({
     const [liveTideTimeMs, setLiveTideTimeMs] = useState(() => Date.now());
     const [activeCleanupWindowIndex, setActiveCleanupWindowIndex] = useState(null);
     const [expandedSensorId, setExpandedSensorId] = useState(null);
+    const [sensorRiverFilter, setSensorRiverFilter] = useState("River Lune");
+    const [sensorTypeFilter, setSensorTypeFilter] = useState("all");
     const tideChartViewportRef = useRef(null);
     const autoCenteredTideChartSignatureRef = useRef(null);
 
@@ -416,10 +456,65 @@ export default function TidePlanner({
         ? formatTideTime(new Date(activeCleanupWindow.endTime))
         : "";
     const visibleSensorRows = Array.isArray(cleanupPlannerSensors) ? cleanupPlannerSensors : [];
+    const sensorRiverOptions = useMemo(() => {
+        const rivers = [...new Set(visibleSensorRows.map((row) => row.riverName).filter(Boolean))]
+            .sort((left, right) => {
+                if (left === "River Lune") return -1;
+                if (right === "River Lune") return 1;
+                return left.localeCompare(right);
+            });
+
+        return [
+            { value: "all", label: "All rivers" },
+            ...rivers.map((riverName) => ({ value: riverName, label: riverName })),
+        ];
+    }, [visibleSensorRows]);
+    const sensorTypeOptions = useMemo(() => {
+        const byValue = new Map();
+
+        visibleSensorRows.forEach((row) => {
+            if (!row?.sensorType || byValue.has(row.sensorType)) return;
+            byValue.set(row.sensorType, row.kindLabel || row.sensorType);
+        });
+
+        return [
+            { value: "all", label: "All sensor types" },
+            ...[...byValue.entries()]
+                .sort((left, right) => left[1].localeCompare(right[1]))
+                .map(([value, label]) => ({ value, label })),
+        ];
+    }, [visibleSensorRows]);
+    const filteredSensorRows = useMemo(
+        () => visibleSensorRows.filter((row) => {
+            const matchesRiver = sensorRiverFilter === "all" ? true : row.riverName === sensorRiverFilter;
+            const matchesType = sensorTypeFilter === "all" ? true : row.sensorType === sensorTypeFilter;
+            return matchesRiver && matchesType;
+        }),
+        [sensorRiverFilter, sensorTypeFilter, visibleSensorRows],
+    );
     const sensorLoadingCount = visibleSensorRows.filter((row) => row.loading).length;
     const tideSectionSubtitle = nextTide
         ? `Next planning pivot is ${nextTide.type.toLowerCase()} at ${formatTideTime(nextTide.date)}.`
         : "Use the tide curve to time safer shoreline access windows.";
+
+    useEffect(() => {
+        if (sensorRiverOptions.some((option) => option.value === sensorRiverFilter)) return;
+        if (sensorRiverOptions.length <= 1) return;
+
+        setSensorRiverFilter(sensorRiverOptions.some((option) => option.value === "River Lune") ? "River Lune" : "all");
+    }, [sensorRiverFilter, sensorRiverOptions]);
+
+    useEffect(() => {
+        if (!sensorTypeOptions.some((option) => option.value === sensorTypeFilter)) {
+            setSensorTypeFilter("all");
+        }
+    }, [sensorTypeFilter, sensorTypeOptions]);
+
+    useEffect(() => {
+        if (!filteredSensorRows.some((row) => row.id === expandedSensorId)) {
+            setExpandedSensorId(null);
+        }
+    }, [expandedSensorId, filteredSensorRows]);
 
     return (
         <div
@@ -1166,14 +1261,45 @@ export default function TidePlanner({
                                 gap: "8px",
                             }}
                         >
-                            <SectionTitle
-                                eyebrow="River sensors"
-                                title="Live river readings"
-                                subtitle="A compact station table for the latest level and flow context, with expandable history up to the last 24 readings per station."
-                            />
+                            <div
+                                style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "flex-start",
+                                    gap: "10px",
+                                    flexWrap: "wrap",
+                                }}
+                            >
+                                <SectionTitle
+                                    eyebrow="River sensors"
+                                    title="Live river readings"
+                                    subtitle="A compact station table for the latest level and flow context, with expandable history up to the last 24 readings per station."
+                                />
+                                <div
+                                    style={{
+                                        display: "flex",
+                                        gap: "8px",
+                                        flexWrap: "wrap",
+                                        justifyContent: isMobile ? "stretch" : "flex-end",
+                                    }}
+                                >
+                                    <SensorFilterSelect
+                                        label="River"
+                                        value={sensorRiverFilter}
+                                        options={sensorRiverOptions}
+                                        onChange={setSensorRiverFilter}
+                                    />
+                                    <SensorFilterSelect
+                                        label="Sensor type"
+                                        value={sensorTypeFilter}
+                                        options={sensorTypeOptions}
+                                        onChange={setSensorTypeFilter}
+                                    />
+                                </div>
+                            </div>
                             <CleanupSensorTable
                                 isMobile={isMobile}
-                                rows={visibleSensorRows}
+                                rows={filteredSensorRows}
                                 expandedSensorId={expandedSensorId}
                                 onToggleSensor={(sensorId) => setExpandedSensorId((currentId) => currentId === sensorId ? null : sensorId)}
                             />
