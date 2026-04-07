@@ -68,6 +68,33 @@ textarea {
   font-family: var(--sans);
 }
 
+.sensor-history-shell {
+  box-sizing: border-box;
+}
+
+.sensor-history-scroll {
+  box-sizing: border-box;
+}
+
+.sensor-history-scroll::-webkit-scrollbar {
+  height: 10px;
+}
+
+.sensor-history-scroll::-webkit-scrollbar-track {
+  background: linear-gradient(90deg, rgba(219, 234, 254, 0.45), rgba(186, 230, 253, 0.45));
+  border-radius: 999px;
+}
+
+.sensor-history-scroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(90deg, #38bdf8, #0ea5e9);
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+}
+
+.sensor-history-scroll::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(90deg, #0ea5e9, #0284c7);
+}
+
 #root {
   min-height: 100svh;
   padding: 10px;

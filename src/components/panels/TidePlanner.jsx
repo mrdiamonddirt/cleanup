@@ -51,6 +51,157 @@ function TrendPill({ direction, label }) {
     );
 }
 
+function SensorHistoryRail({ isMobile, history }) {
+    const cardWidth = isMobile ? "min(176px, 62vw)" : "188px";
+    const isSingleReading = history.length === 1;
+
+    return (
+        <div style={{ display: "grid", gap: "10px", width: 0, minWidth: "100%", maxWidth: "100%" }}>
+            <div
+                style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: "10px",
+                    flexWrap: "wrap",
+                }}
+            >
+                <div style={{ display: "grid", gap: "2px" }}>
+                    <div style={{ fontSize: "0.78rem", color: "#0f172a", fontWeight: 800 }}>
+                        Last {history.length} {isSingleReading ? "reading" : "readings"}
+                    </div>
+                    <div style={{ fontSize: "0.68rem", color: "#64748b" }}>
+                        Newest first. Scroll sideways for the full station history.
+                    </div>
+                </div>
+                <div
+                    style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        borderRadius: "999px",
+                        border: "1px solid #bfdbfe",
+                        background: "#eff6ff",
+                        color: "#1d4ed8",
+                        padding: "4px 9px",
+                        fontSize: "0.67rem",
+                        fontWeight: 800,
+                        letterSpacing: "0.04em",
+                        textTransform: "uppercase",
+                        whiteSpace: "nowrap",
+                    }}
+                >
+                    {isMobile ? "Swipe history" : "Scroll history"}
+                </div>
+            </div>
+            <div
+                className="sensor-history-shell"
+                style={{
+                    position: "relative",
+                    width: "100%",
+                    maxWidth: "100%",
+                    overflow: "hidden",
+                    borderRadius: "16px",
+                    border: "1px solid #dbeafe",
+                    background: "linear-gradient(135deg, rgba(239,246,255,0.95) 0%, rgba(255,255,255,0.98) 55%, rgba(204,251,241,0.72) 100%)",
+                    padding: isMobile ? "10px" : "12px",
+                    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.75)",
+                }}
+            >
+                <div
+                    className="sensor-history-scroll"
+                    aria-label="Sensor reading history"
+                    style={{
+                        display: "flex",
+                        width: "100%",
+                        maxWidth: "100%",
+                        gap: "10px",
+                        overflowX: "auto",
+                        paddingBottom: "4px",
+                        scrollSnapType: "x proximity",
+                        scrollbarWidth: "thin",
+                        scrollbarColor: "#7dd3fc rgba(219,234,254,0.7)",
+                    }}
+                >
+                    {history.map((entry, index) => {
+                        const isNewest = index === 0;
+
+                        return (
+                            <div
+                                key={entry.id}
+                                style={{
+                                    flex: `0 0 ${cardWidth}`,
+                                    minWidth: cardWidth,
+                                    maxWidth: cardWidth,
+                                    scrollSnapAlign: "start",
+                                    border: isNewest ? "1px solid #67e8f9" : "1px solid #dbeafe",
+                                    borderRadius: "14px",
+                                    background: isNewest
+                                        ? "linear-gradient(180deg, #ecfeff 0%, #ffffff 100%)"
+                                        : "rgba(255,255,255,0.94)",
+                                    padding: isMobile ? "10px 11px" : "11px 12px",
+                                    display: "grid",
+                                    gap: "7px",
+                                    boxShadow: isNewest
+                                        ? "0 10px 24px rgba(8,145,178,0.10)"
+                                        : "0 8px 18px rgba(15,23,42,0.05)",
+                                }}
+                            >
+                                <div
+                                    style={{
+                                        display: "flex",
+                                        justifyContent: "space-between",
+                                        alignItems: "center",
+                                        gap: "8px",
+                                    }}
+                                >
+                                    <div
+                                        style={{
+                                            fontSize: "0.66rem",
+                                            fontWeight: 800,
+                                            letterSpacing: "0.05em",
+                                            textTransform: "uppercase",
+                                            color: isNewest ? "#0f766e" : "#64748b",
+                                        }}
+                                    >
+                                        {isNewest ? "Latest" : `Reading ${index + 1}`}
+                                    </div>
+                                    {isNewest ? (
+                                        <span
+                                            style={{
+                                                borderRadius: "999px",
+                                                background: "#ccfbf1",
+                                                color: "#115e59",
+                                                padding: "3px 7px",
+                                                fontSize: "0.64rem",
+                                                fontWeight: 800,
+                                                whiteSpace: "nowrap",
+                                            }}
+                                        >
+                                            Newest
+                                        </span>
+                                    ) : null}
+                                </div>
+                                <div style={{ fontSize: "0.98rem", color: "#0f172a", fontWeight: 800, lineHeight: 1.2, textWrap: "balance" }}>
+                                    {entry.valueLabel}
+                                </div>
+                                <div style={{ display: "grid", gap: "2px" }}>
+                                    <div style={{ fontSize: "0.73rem", color: "#334155", fontWeight: 700 }}>
+                                        {entry.ageLabel || "Time unavailable"}
+                                    </div>
+                                    <div style={{ fontSize: "0.68rem", color: "#64748b", lineHeight: 1.4 }}>
+                                        {entry.timestampLabel || "Timestamp unavailable"}
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        </div>
+    );
+}
+
 function CleanupSensorTable({ isMobile, rows, expandedSensorId, onToggleSensor }) {
     const hasRows = rows.length > 0;
 
@@ -178,37 +329,8 @@ function CleanupSensorTable({ isMobile, rows, expandedSensorId, onToggleSensor }
                                     </tr>
                                     {isExpanded ? (
                                         <tr>
-                                            <td colSpan={5} style={{ padding: isMobile ? "10px" : "12px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
-                                                <div style={{ display: "grid", gap: "8px" }}>
-                                                    <div style={{ fontSize: "0.72rem", color: "#334155", fontWeight: 700 }}>
-                                                        Last {row.history.length} readings from this station
-                                                    </div>
-                                                    <div
-                                                        style={{
-                                                            display: "grid",
-                                                            gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
-                                                            gap: "8px",
-                                                        }}
-                                                    >
-                                                        {row.history.map((entry) => (
-                                                            <div
-                                                                key={entry.id}
-                                                                style={{
-                                                                    border: "1px solid #e2e8f0",
-                                                                    borderRadius: "10px",
-                                                                    background: "#fff",
-                                                                    padding: "8px 10px",
-                                                                    display: "grid",
-                                                                    gap: "3px",
-                                                                }}
-                                                            >
-                                                                <div style={{ fontSize: "0.8rem", color: "#0f172a", fontWeight: 800 }}>{entry.valueLabel}</div>
-                                                                <div style={{ fontSize: "0.72rem", color: "#475569" }}>{entry.ageLabel || "Time unavailable"}</div>
-                                                                <div style={{ fontSize: "0.68rem", color: "#94a3b8" }}>{entry.timestampLabel || ""}</div>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
+                                            <td colSpan={5} style={{ padding: isMobile ? "10px" : "12px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0", maxWidth: 0 }}>
+                                                <SensorHistoryRail isMobile={isMobile} history={row.history} />
                                             </td>
                                         </tr>
                                     ) : null}
