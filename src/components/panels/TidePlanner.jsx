@@ -260,6 +260,381 @@ function SensorFilterSelect({ label, value, options, onChange }) {
     );
 }
 
+function getForecastOutlook(nextHour) {
+    const rainChance = Number(nextHour?.rainChance);
+    const windSpeed = Number(nextHour?.windSpeed);
+
+    if (rainChance >= 60 || windSpeed >= 28) {
+        return {
+            label: "Rougher conditions",
+            description: "Expect wetter or windier working conditions around the next cleanup slot.",
+            badgeBackground: "#fee2e2",
+            badgeColor: "#991b1b",
+            surface: "linear-gradient(145deg, rgba(254,226,226,0.9), rgba(255,255,255,0.98))",
+            border: "1px solid #fecaca",
+        };
+    }
+
+    if (rainChance >= 30 || windSpeed >= 18) {
+        return {
+            label: "Use caution",
+            description: "Conditions are still workable, but keep an eye on rain bursts and exposed banks.",
+            badgeBackground: "#fef3c7",
+            badgeColor: "#92400e",
+            surface: "linear-gradient(145deg, rgba(254,243,199,0.92), rgba(255,255,255,0.98))",
+            border: "1px solid #fcd34d",
+        };
+    }
+
+    return {
+        label: "More workable",
+        description: "Short-range weather looks steadier for a bank-side cleanup session.",
+        badgeBackground: "#ccfbf1",
+        badgeColor: "#115e59",
+        surface: "linear-gradient(145deg, rgba(204,251,241,0.9), rgba(255,255,255,0.98))",
+        border: "1px solid #99f6e4",
+    };
+}
+
+function ForecastMetricChip({ label, value, tone = "default" }) {
+    const palette = {
+        default: {
+            background: "#f8fafc",
+            border: "1px solid #e2e8f0",
+            color: "#334155",
+        },
+        temperature: {
+            background: "#eef2ff",
+            border: "1px solid #c7d2fe",
+            color: "#4338ca",
+        },
+        rain: {
+            background: "#ecfeff",
+            border: "1px solid #a5f3fc",
+            color: "#155e75",
+        },
+        wind: {
+            background: "#f8fafc",
+            border: "1px solid #cbd5e1",
+            color: "#334155",
+        },
+    };
+    const current = palette[tone] || palette.default;
+
+    return (
+        <div
+            style={{
+                borderRadius: "999px",
+                padding: "6px 10px",
+                background: current.background,
+                border: current.border,
+                display: "inline-flex",
+                alignItems: "baseline",
+                gap: "6px",
+                flexWrap: "wrap",
+            }}
+        >
+            <span
+                style={{
+                    fontSize: "0.65rem",
+                    fontWeight: 800,
+                    letterSpacing: "0.05em",
+                    textTransform: "uppercase",
+                    color: "#64748b",
+                }}
+            >
+                {label}
+            </span>
+            <span style={{ fontSize: "0.76rem", fontWeight: 800, color: current.color }}>{value}</span>
+        </div>
+    );
+}
+
+function ForecastStatCard({ label, value, accentColor, background }) {
+    return (
+        <div
+            style={{
+                borderRadius: "12px",
+                border: "1px solid #dbeafe",
+                background: background || "#fff",
+                padding: "10px 12px",
+                display: "grid",
+                gap: "4px",
+            }}
+        >
+            <div
+                style={{
+                    fontSize: "0.67rem",
+                    color: accentColor,
+                    fontWeight: 800,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.06em",
+                }}
+            >
+                {label}
+            </div>
+            <div style={{ fontSize: "0.82rem", color: "#0f172a", fontWeight: 800, lineHeight: 1.35 }}>{value}</div>
+        </div>
+    );
+}
+
+function getWeatherVisual(summary, rainChance, windSpeed) {
+    const normalized = String(summary || "").toLowerCase();
+    const rainValue = Number(rainChance);
+    const windValue = Number(windSpeed);
+
+    if (normalized.includes("thunder")) {
+        return {
+            family: "storm",
+            label: "Storm",
+            skyTop: "#312e81",
+            skyBottom: "#475569",
+            glow: "rgba(251, 191, 36, 0.45)",
+            cloud: "#cbd5e1",
+            detail: "#fde68a",
+            ground: "rgba(15, 23, 42, 0.24)",
+        };
+    }
+
+    if (normalized.includes("snow")) {
+        return {
+            family: "snow",
+            label: "Snow",
+            skyTop: "#dbeafe",
+            skyBottom: "#eff6ff",
+            glow: "rgba(191, 219, 254, 0.55)",
+            cloud: "#f8fafc",
+            detail: "#ffffff",
+            ground: "rgba(191, 219, 254, 0.32)",
+        };
+    }
+
+    if (normalized.includes("fog")) {
+        return {
+            family: "fog",
+            label: "Fog",
+            skyTop: "#e2e8f0",
+            skyBottom: "#f8fafc",
+            glow: "rgba(226, 232, 240, 0.8)",
+            cloud: "#f8fafc",
+            detail: "#cbd5e1",
+            ground: "rgba(148, 163, 184, 0.22)",
+        };
+    }
+
+    if (normalized.includes("rain") || normalized.includes("drizzle") || normalized.includes("shower") || rainValue >= 45) {
+        return {
+            family: windValue >= 28 ? "storm" : "rain",
+            label: windValue >= 28 ? "Wind and rain" : "Rain",
+            skyTop: windValue >= 28 ? "#334155" : "#0f766e",
+            skyBottom: windValue >= 28 ? "#64748b" : "#67e8f9",
+            glow: windValue >= 28 ? "rgba(148, 163, 184, 0.35)" : "rgba(103, 232, 249, 0.4)",
+            cloud: "#e2e8f0",
+            detail: windValue >= 28 ? "#fde68a" : "#67e8f9",
+            ground: "rgba(15, 118, 110, 0.26)",
+        };
+    }
+
+    if (normalized.includes("overcast") || normalized.includes("cloud")) {
+        return {
+            family: windValue >= 24 ? "wind" : "cloud",
+            label: windValue >= 24 ? "Breezy cloud" : "Cloud",
+            skyTop: windValue >= 24 ? "#bfdbfe" : "#cbd5e1",
+            skyBottom: windValue >= 24 ? "#e0f2fe" : "#f8fafc",
+            glow: windValue >= 24 ? "rgba(125, 211, 252, 0.45)" : "rgba(226, 232, 240, 0.7)",
+            cloud: "#f8fafc",
+            detail: windValue >= 24 ? "#0ea5e9" : "#94a3b8",
+            ground: "rgba(148, 163, 184, 0.18)",
+        };
+    }
+
+    return {
+        family: "clear",
+        label: windValue >= 22 ? "Clear and breezy" : "Clear",
+        skyTop: "#1d4ed8",
+        skyBottom: "#93c5fd",
+        glow: "rgba(253, 224, 71, 0.45)",
+        cloud: "#ffffff",
+        detail: "#fde047",
+        ground: "rgba(147, 197, 253, 0.24)",
+    };
+}
+
+function WeatherArtwork({ summary, rainChance, windSpeed, compact = false }) {
+    const visual = getWeatherVisual(summary, rainChance, windSpeed);
+    const width = compact ? 84 : 118;
+    const height = compact ? 60 : 82;
+
+    return (
+        <div
+            aria-hidden="true"
+            style={{
+                width: `${width}px`,
+                minWidth: `${width}px`,
+                height: `${height}px`,
+                borderRadius: compact ? "14px" : "18px",
+                overflow: "hidden",
+                position: "relative",
+                background: `linear-gradient(180deg, ${visual.skyTop} 0%, ${visual.skyBottom} 100%)`,
+                boxShadow: compact
+                    ? `inset 0 1px 0 rgba(255,255,255,0.35), 0 8px 18px ${visual.glow}`
+                    : `inset 0 1px 0 rgba(255,255,255,0.35), 0 12px 28px ${visual.glow}`,
+            }}
+        >
+            <svg viewBox="0 0 120 82" style={{ width: "100%", height: "100%", display: "block" }}>
+                <defs>
+                    <radialGradient id={`forecastGlow-${visual.family}`} cx="50%" cy="20%" r="60%">
+                        <stop offset="0%" stopColor="rgba(255,255,255,0.78)" />
+                        <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+                    </radialGradient>
+                </defs>
+                <rect x="0" y="0" width="120" height="82" fill={`url(#forecastGlow-${visual.family})`} />
+                <ellipse cx="92" cy="18" rx="15" ry="15" fill={visual.detail} opacity={visual.family === "cloud" || visual.family === "fog" ? "0.38" : "0.9"} />
+                <ellipse cx="64" cy="58" rx="60" ry="18" fill={visual.ground} />
+
+                {visual.family === "clear" ? (
+                    <>
+                        <circle cx="90" cy="20" r="13" fill={visual.detail} />
+                        <path d="M26 46c3-9 10-14 19-14 7 0 13 3 17 9 2-1 5-2 8-2 8 0 14 5 16 12H26c-1-1-1-3 0-5Z" fill={visual.cloud} opacity="0.96" />
+                    </>
+                ) : null}
+
+                {visual.family === "cloud" || visual.family === "wind" ? (
+                    <>
+                        <path d="M20 48c2-10 10-15 20-15 7 0 13 3 17 9 3-2 5-2 8-2 8 0 15 5 17 13H20c-1-2-1-3 0-5Z" fill={visual.cloud} opacity="0.97" />
+                        <path d="M70 31c2-6 7-10 13-10 5 0 9 2 11 6 2-1 3-1 5-1 6 0 10 3 11 9H70c-1-1-1-2 0-4Z" fill={visual.cloud} opacity="0.82" />
+                    </>
+                ) : null}
+
+                {visual.family === "rain" ? (
+                    <>
+                        <path d="M18 41c2-11 10-17 21-17 7 0 14 4 18 10 2-1 5-2 8-2 9 0 16 6 18 15H18c-1-2-1-4 0-6Z" fill={visual.cloud} opacity="0.96" />
+                        {[26, 44, 62, 80].map((x) => (
+                            <path key={x} d={`M${x} 52c4 7 4 10 0 15`} stroke={visual.detail} strokeWidth="3.5" strokeLinecap="round" opacity="0.9" />
+                        ))}
+                    </>
+                ) : null}
+
+                {visual.family === "storm" ? (
+                    <>
+                        <path d="M18 39c2-11 10-17 21-17 7 0 14 4 18 10 2-1 5-2 8-2 9 0 16 6 18 15H18c-1-2-1-4 0-6Z" fill={visual.cloud} opacity="0.92" />
+                        <path d="M59 47h10l-8 11h8L53 72l6-12h-8Z" fill={visual.detail} />
+                        {[28, 82].map((x) => (
+                            <path key={x} d={`M${x} 54c4 7 4 10 0 15`} stroke="#93c5fd" strokeWidth="3" strokeLinecap="round" opacity="0.85" />
+                        ))}
+                    </>
+                ) : null}
+
+                {visual.family === "fog" ? (
+                    <>
+                        <path d="M18 36c2-10 10-15 20-15 7 0 13 3 17 9 3-2 5-2 8-2 8 0 15 5 17 13H18c-1-2-1-3 0-5Z" fill={visual.cloud} opacity="0.92" />
+                        {[50, 58, 66].map((y) => (
+                            <path key={y} d={`M20 ${y}h80`} stroke={visual.detail} strokeWidth="4" strokeLinecap="round" opacity="0.78" />
+                        ))}
+                    </>
+                ) : null}
+
+                {visual.family === "snow" ? (
+                    <>
+                        <path d="M18 38c2-10 10-15 20-15 7 0 13 3 17 9 3-2 5-2 8-2 8 0 15 5 17 13H18c-1-2-1-3 0-5Z" fill={visual.cloud} opacity="0.94" />
+                        {[
+                            [28, 57],
+                            [48, 61],
+                            [69, 57],
+                            [86, 61],
+                        ].map(([x, y]) => (
+                            <g key={`${x}-${y}`} stroke={visual.detail} strokeWidth="2" strokeLinecap="round">
+                                <path d={`M${x - 4} ${y}h8`} />
+                                <path d={`M${x} ${y - 4}v8`} />
+                            </g>
+                        ))}
+                    </>
+                ) : null}
+            </svg>
+            <div
+                style={{
+                    position: "absolute",
+                    left: compact ? "8px" : "10px",
+                    bottom: compact ? "7px" : "9px",
+                    padding: compact ? "3px 7px" : "4px 8px",
+                    borderRadius: "999px",
+                    background: "rgba(255,255,255,0.86)",
+                    color: "#0f172a",
+                    fontSize: compact ? "0.63rem" : "0.66rem",
+                    fontWeight: 800,
+                    letterSpacing: "0.04em",
+                    textTransform: "uppercase",
+                    backdropFilter: "blur(4px)",
+                }}
+            >
+                {visual.label}
+            </div>
+        </div>
+    );
+}
+
+function HourForecastCard({ hour }) {
+    return (
+        <div
+            style={{
+                width: "124px",
+                minWidth: "124px",
+                borderRadius: "16px",
+                border: "1px solid #dbeafe",
+                background: "linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(248,250,252,0.98) 100%)",
+                padding: "8px",
+                display: "grid",
+                gap: "7px",
+                boxShadow: "0 10px 20px rgba(15,23,42,0.05)",
+            }}
+        >
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "6px", alignItems: "center" }}>
+                <div style={{ fontSize: "0.72rem", color: "#0f172a", fontWeight: 800 }}>{hour.label}</div>
+                <div style={{ fontSize: "0.64rem", color: "#64748b", fontWeight: 800 }}>{hour.windSpeedLabel}</div>
+            </div>
+            <WeatherArtwork summary={hour.summary} rainChance={hour.rainChance} windSpeed={hour.windSpeed} compact />
+            <div style={{ fontSize: "0.72rem", color: "#334155", fontWeight: 700, lineHeight: 1.3, minHeight: "30px" }}>
+                {hour.summary}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
+                <ForecastMetricChip label="Temp" value={hour.temperatureLabel} tone="temperature" />
+                <ForecastMetricChip label="Rain" value={hour.rainChanceLabel} tone="rain" />
+            </div>
+        </div>
+    );
+}
+
+function DailyForecastCard({ day }) {
+    return (
+        <div
+            style={{
+                borderRadius: "16px",
+                border: "1px solid #dbeafe",
+                background: "linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(248,250,252,0.98) 100%)",
+                padding: "9px",
+                display: "grid",
+                gap: "8px",
+                boxShadow: "0 10px 20px rgba(15,23,42,0.05)",
+            }}
+        >
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "flex-start" }}>
+                <div style={{ display: "grid", gap: "3px" }}>
+                    <div style={{ fontSize: "0.74rem", color: "#0f172a", fontWeight: 800 }}>{day.label}</div>
+                    <div style={{ fontSize: "0.68rem", color: "#475569", fontWeight: 700, lineHeight: 1.25 }}>{day.summary}</div>
+                </div>
+                <div style={{ fontSize: "0.64rem", color: "#64748b", fontWeight: 800, whiteSpace: "nowrap" }}>Wind {day.windSpeedLabel}</div>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center" }}>
+                <WeatherArtwork summary={day.summary} rainChance={day.rainChance} windSpeed={day.windSpeed} compact />
+                <div style={{ display: "grid", gap: "6px", flex: "1 1 auto" }}>
+                    <ForecastMetricChip label="Range" value={`${day.minTemperatureLabel} to ${day.maxTemperatureLabel}`} tone="temperature" />
+                    <ForecastMetricChip label="Rain" value={day.rainChanceLabel} tone="rain" />
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function TidePlanner({
     isTidePlannerCollapsed,
     isMobile,
@@ -515,6 +890,13 @@ export default function TidePlanner({
             setExpandedSensorId(null);
         }
     }, [expandedSensorId, filteredSensorRows]);
+
+    const forecastOutlook = useMemo(
+        () => getForecastOutlook(cleanupForecast?.nextHour),
+        [cleanupForecast],
+    );
+    const hourlyForecast = cleanupForecast?.upcomingHours || [];
+    const dailyForecast = cleanupForecast?.daily || [];
 
     return (
         <div
@@ -1307,18 +1689,18 @@ export default function TidePlanner({
 
                         <div
                             style={{
-                                padding: isMobile ? "10px" : "11px 12px",
-                                borderRadius: "12px",
+                                padding: isMobile ? "9px" : "10px 11px",
+                                borderRadius: "14px",
                                 border: "1px solid #c7d2fe",
-                                background: "linear-gradient(180deg, rgba(238,242,255,0.7), rgba(255,255,255,0.98))",
+                                background: "linear-gradient(180deg, rgba(238,242,255,0.68), rgba(255,255,255,0.98))",
                                 display: "grid",
-                                gap: "8px",
+                                gap: "7px",
                             }}
                         >
                             <SectionTitle
                                 eyebrow="Weather forecast"
                                 title="Near-term cleanup conditions"
-                                subtitle="Short-range weather is summarised for rain, wind, and temperature so you can compare the next tide window against likely working conditions."
+                                subtitle="Short-range conditions are condensed into illustrated forecast cards so you can scan the next working window quickly."
                             />
 
                             {isLoadingCleanupForecast && !cleanupForecast ? (
@@ -1345,62 +1727,97 @@ export default function TidePlanner({
                                     <div
                                         style={{
                                             display: "grid",
-                                            gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1fr) minmax(260px, 0.9fr)",
-                                            gap: "8px",
+                                            gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1.2fr) minmax(250px, 0.8fr)",
+                                            gap: "7px",
                                         }}
                                     >
                                         <div
                                             style={{
-                                                borderRadius: "12px",
-                                                border: "1px solid #c7d2fe",
-                                                background: "#fff",
-                                                padding: "10px 12px",
+                                                borderRadius: "16px",
+                                                border: forecastOutlook.border,
+                                                background: forecastOutlook.surface,
+                                                padding: isMobile ? "10px" : "11px 12px",
                                                 display: "grid",
-                                                gap: "5px",
+                                                gridTemplateColumns: isMobile ? "1fr" : "118px minmax(0, 1fr)",
+                                                gap: "10px",
+                                                alignItems: "center",
                                             }}
                                         >
-                                            <div style={{ fontSize: "0.7rem", color: "#4f46e5", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                                                Next hour
+                                            <WeatherArtwork
+                                                summary={cleanupForecast.nextHour?.summary || cleanupForecast.headline}
+                                                rainChance={cleanupForecast.nextHour?.rainChance}
+                                                windSpeed={cleanupForecast.nextHour?.windSpeed}
+                                            />
+                                            <div style={{ display: "grid", gap: "8px", minWidth: 0 }}>
+                                                <div
+                                                    style={{
+                                                        display: "flex",
+                                                        justifyContent: "space-between",
+                                                        gap: "8px",
+                                                        alignItems: "flex-start",
+                                                        flexWrap: "wrap",
+                                                    }}
+                                                >
+                                                    <div style={{ display: "grid", gap: "4px", minWidth: 0 }}>
+                                                        <div style={{ fontSize: "0.69rem", color: "#4f46e5", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                                                            Next hour outlook
+                                                        </div>
+                                                        <div style={{ fontSize: "0.98rem", color: "#0f172a", fontWeight: 800, lineHeight: 1.25 }}>
+                                                            {cleanupForecast.headline}
+                                                        </div>
+                                                    </div>
+                                                    <span
+                                                        style={{
+                                                            display: "inline-flex",
+                                                            alignItems: "center",
+                                                            borderRadius: "999px",
+                                                            background: forecastOutlook.badgeBackground,
+                                                            color: forecastOutlook.badgeColor,
+                                                            padding: "5px 10px",
+                                                            fontSize: "0.67rem",
+                                                            fontWeight: 800,
+                                                            letterSpacing: "0.05em",
+                                                            textTransform: "uppercase",
+                                                        }}
+                                                    >
+                                                        {forecastOutlook.label}
+                                                    </span>
+                                                </div>
+                                                <div style={{ fontSize: "0.74rem", color: "#475569", lineHeight: 1.4 }}>
+                                                    {forecastOutlook.description}
+                                                </div>
+                                                {cleanupForecast.nextHour ? (
+                                                    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                                                        <ForecastMetricChip label="Temp" value={cleanupForecast.nextHour.temperatureLabel} tone="temperature" />
+                                                        <ForecastMetricChip label="Rain" value={cleanupForecast.nextHour.rainChanceLabel} tone="rain" />
+                                                        <ForecastMetricChip label="Wind" value={cleanupForecast.nextHour.windSpeedLabel} tone="wind" />
+                                                    </div>
+                                                ) : null}
+                                                {cleanupForecastUpdatedLabel ? (
+                                                    <div style={{ fontSize: "0.67rem", color: "#64748b" }}>
+                                                        Forecast updated {cleanupForecastUpdatedLabel}
+                                                    </div>
+                                                ) : null}
                                             </div>
-                                            <div style={{ fontSize: "0.92rem", color: "#0f172a", fontWeight: 800 }}>{cleanupForecast.headline}</div>
-                                            {cleanupForecast.nextHour ? (
-                                                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "2px" }}>
-                                                    <span style={{ borderRadius: "999px", background: "#eef2ff", color: "#4338ca", padding: "4px 8px", fontSize: "0.72rem", fontWeight: 700 }}>
-                                                        Temp {cleanupForecast.nextHour.temperatureLabel}
-                                                    </span>
-                                                    <span style={{ borderRadius: "999px", background: "#ecfeff", color: "#155e75", padding: "4px 8px", fontSize: "0.72rem", fontWeight: 700 }}>
-                                                        Rain {cleanupForecast.nextHour.rainChanceLabel}
-                                                    </span>
-                                                    <span style={{ borderRadius: "999px", background: "#f8fafc", color: "#334155", padding: "4px 8px", fontSize: "0.72rem", fontWeight: 700 }}>
-                                                        Wind {cleanupForecast.nextHour.windSpeedLabel}
-                                                    </span>
-                                                </div>
-                                            ) : null}
-                                            {cleanupForecastUpdatedLabel ? (
-                                                <div style={{ fontSize: "0.69rem", color: "#94a3b8" }}>
-                                                    Forecast updated {cleanupForecastUpdatedLabel}
-                                                </div>
-                                            ) : null}
                                         </div>
 
                                         <div
                                             style={{
-                                                borderRadius: "12px",
-                                                border: "1px solid #dbeafe",
-                                                background: "#fff",
-                                                padding: "10px 12px",
                                                 display: "grid",
-                                                gap: "6px",
+                                                gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr",
+                                                gap: "7px",
                                             }}
                                         >
-                                            <div style={{ fontSize: "0.7rem", color: "#1d4ed8", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                                                Key signals
-                                            </div>
                                             {cleanupForecast.highlights.map((highlight) => (
-                                                <div key={highlight.label} style={{ display: "flex", justifyContent: "space-between", gap: "8px", fontSize: "0.76rem" }}>
-                                                    <span style={{ color: "#475569", fontWeight: 700 }}>{highlight.label}</span>
-                                                    <span style={{ color: "#0f172a", fontWeight: 800, textAlign: "right" }}>{highlight.value}</span>
-                                                </div>
+                                                <ForecastStatCard
+                                                    key={highlight.label}
+                                                    label={highlight.label}
+                                                    value={highlight.value}
+                                                    accentColor={highlight.label === "Rain risk" ? "#0f766e" : "#1d4ed8"}
+                                                    background={highlight.label === "Rain risk"
+                                                        ? "linear-gradient(180deg, rgba(236,254,255,0.96), rgba(255,255,255,1))"
+                                                        : "linear-gradient(180deg, rgba(239,246,255,0.96), rgba(255,255,255,1))"}
+                                                />
                                             ))}
                                         </div>
                                     </div>
@@ -1408,56 +1825,67 @@ export default function TidePlanner({
                                     <div
                                         style={{
                                             display: "grid",
-                                            gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
-                                            gap: "8px",
+                                            gridTemplateColumns: "1fr",
+                                            gap: "7px",
                                         }}
                                     >
                                         <div
                                             style={{
-                                                borderRadius: "12px",
+                                                borderRadius: "16px",
                                                 border: "1px solid #dbeafe",
-                                                background: "#fff",
-                                                padding: "10px 12px",
+                                                background: "linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(248,250,252,0.98) 100%)",
+                                                padding: "9px 10px",
                                                 display: "grid",
                                                 gap: "7px",
                                             }}
                                         >
-                                            <div style={{ fontSize: "0.7rem", color: "#1d4ed8", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                                                Next 6 hours
-                                            </div>
-                                            {cleanupForecast.upcomingHours.map((hour) => (
-                                                <div key={hour.time} style={{ display: "grid", gridTemplateColumns: "72px 1fr auto", gap: "8px", alignItems: "center" }}>
-                                                    <div style={{ fontSize: "0.74rem", color: "#0f172a", fontWeight: 800 }}>{hour.label}</div>
-                                                    <div style={{ fontSize: "0.74rem", color: "#475569" }}>{hour.summary}</div>
-                                                    <div style={{ fontSize: "0.72rem", color: "#334155", fontWeight: 700, textAlign: "right" }}>
-                                                        {hour.temperatureLabel} · {hour.rainChanceLabel}
-                                                    </div>
+                                            <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                                                <div style={{ fontSize: "0.7rem", color: "#1d4ed8", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                                                    Next 6 hours
                                                 </div>
-                                            ))}
+                                                <div style={{ fontSize: "0.68rem", color: "#64748b", fontWeight: 700 }}>
+                                                    Scroll for the full strip
+                                                </div>
+                                            </div>
+                                            <div
+                                                style={{
+                                                    display: "flex",
+                                                    gap: "8px",
+                                                    overflowX: "auto",
+                                                    paddingBottom: "2px",
+                                                    scrollbarWidth: "thin",
+                                                }}
+                                            >
+                                                {hourlyForecast.map((hour) => (
+                                                    <HourForecastCard key={hour.time} hour={hour} />
+                                                ))}
+                                            </div>
                                         </div>
 
                                         <div
                                             style={{
-                                                borderRadius: "12px",
+                                                borderRadius: "16px",
                                                 border: "1px solid #dbeafe",
-                                                background: "#fff",
-                                                padding: "10px 12px",
+                                                background: "linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(248,250,252,0.98) 100%)",
+                                                padding: "9px 10px",
                                                 display: "grid",
-                                                gap: "7px",
+                                                gap: "8px",
                                             }}
                                         >
                                             <div style={{ fontSize: "0.7rem", color: "#1d4ed8", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                                                 Next 3 days
                                             </div>
-                                            {cleanupForecast.daily.map((day) => (
-                                                <div key={day.date} style={{ display: "grid", gridTemplateColumns: "92px 1fr auto", gap: "8px", alignItems: "center" }}>
-                                                    <div style={{ fontSize: "0.74rem", color: "#0f172a", fontWeight: 800 }}>{day.label}</div>
-                                                    <div style={{ fontSize: "0.74rem", color: "#475569" }}>{day.summary}</div>
-                                                    <div style={{ fontSize: "0.72rem", color: "#334155", fontWeight: 700, textAlign: "right" }}>
-                                                        {day.minTemperatureLabel} to {day.maxTemperatureLabel}
-                                                    </div>
-                                                </div>
-                                            ))}
+                                            <div
+                                                style={{
+                                                    display: "grid",
+                                                    gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))",
+                                                    gap: "8px",
+                                                }}
+                                            >
+                                                {dailyForecast.map((day) => (
+                                                    <DailyForecastCard key={day.date} day={day} />
+                                                ))}
+                                            </div>
                                         </div>
                                     </div>
                                 </>
