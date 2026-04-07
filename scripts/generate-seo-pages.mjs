@@ -11,6 +11,7 @@ const shareRoot = path.join(publicDir, "share");
 const poiRoot = path.join(publicDir, "poi");
 const legacyHistoryRoot = path.join(publicDir, "history");
 const fallbackImage = "/river-photo.jpg";
+const PAGE_SIZE = 500;
 
 const TYPE_LABELS = {
     bike: "Bike",
@@ -95,6 +96,23 @@ const ensureAbsoluteUrl = (siteUrl, maybeUrl) => {
     if (/^https?:\/\//i.test(candidate)) return candidate;
     if (candidate.startsWith("/")) return `${siteUrl}${candidate}`;
     return `${siteUrl}/${candidate}`;
+};
+
+const fetchAllRows = async (fetchPage) => {
+    const rows = [];
+    let offset = 0;
+
+    while (true) {
+        const page = await fetchPage(offset, PAGE_SIZE);
+        if (!Array.isArray(page) || page.length === 0) break;
+
+        rows.push(...page);
+
+        if (page.length < PAGE_SIZE) break;
+        offset += page.length;
+    }
+
+    return rows;
 };
 
 const toItemDescription = (item, typeLabel) => {
@@ -323,46 +341,58 @@ const main = async () => {
         },
     });
 
-    const { data, error } = await supabase
-        .from("items")
-        .select("id,type,image_url,created_at,total_count,recovered_count,x,y,geocode_label")
-        .order("created_at", { ascending: false })
-        .limit(500);
+    const items = (await fetchAllRows(async (offset, limit) => {
+        const { data, error } = await supabase
+            .from("items")
+            .select("id,type,image_url,created_at,total_count,recovered_count,x,y,geocode_label")
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: false })
+            .range(offset, offset + limit - 1);
 
-    if (error) {
-        throw new Error(`Failed to fetch items for SEO prerender: ${error.message}`);
-    }
+        if (error) {
+            throw new Error(`Failed to fetch items for SEO prerender: ${error.message}`);
+        }
 
-    const items = Array.isArray(data) ? data.filter((item) => item && item.id !== null && item.id !== undefined) : [];
-
-    const { data: historicalData, error: historicalError } = await supabase
-        .from("pois")
-        .select(`
-            id,
-            slug,
-            title,
-            summary,
-            description,
-            latitude,
-            longitude,
-            is_historic,
-            updated_at,
-            poi_images (
-                image_url,
-                alt_text,
-                caption,
-                display_order,
-                is_featured
-            )
-        `)
-        .eq("status", "published")
-        .eq("is_public", true)
-        .order("updated_at", { ascending: false })
-        .limit(500);
+        return data;
+    })).filter((item) => item && item.id !== null && item.id !== undefined);
 
     let historicalPois = [];
-    if (historicalError) {
-        const message = String(historicalError.message || "").toLowerCase();
+    try {
+        historicalPois = (await fetchAllRows(async (offset, limit) => {
+            const { data, error } = await supabase
+                .from("pois")
+                .select(`
+                    id,
+                    slug,
+                    title,
+                    summary,
+                    description,
+                    latitude,
+                    longitude,
+                    is_historic,
+                    updated_at,
+                    poi_images (
+                        image_url,
+                        alt_text,
+                        caption,
+                        display_order,
+                        is_featured
+                    )
+                `)
+                .eq("status", "published")
+                .eq("is_public", true)
+                .order("updated_at", { ascending: false })
+                .order("slug", { ascending: true })
+                .range(offset, offset + limit - 1);
+
+            if (error) {
+                throw error;
+            }
+
+            return data;
+        })).filter((poi) => poi && typeof poi.slug === "string" && poi.slug.trim());
+    } catch (error) {
+        const message = String(error?.message || "").toLowerCase();
         const missingHistoricalTable =
             message.includes("pois") &&
             (message.includes("could not find") || message.includes("does not exist"));
@@ -370,12 +400,8 @@ const main = async () => {
         if (missingHistoricalTable) {
             console.warn("POI SEO generation skipped: pois table is missing.");
         } else {
-            throw new Error(`Failed to fetch historical POIs for SEO prerender: ${historicalError.message}`);
+            throw new Error(`Failed to fetch historical POIs for SEO prerender: ${error?.message || error}`);
         }
-    } else {
-        historicalPois = Array.isArray(historicalData)
-            ? historicalData.filter((poi) => poi && typeof poi.slug === "string" && poi.slug.trim())
-            : [];
     }
 
     for (const item of items) {

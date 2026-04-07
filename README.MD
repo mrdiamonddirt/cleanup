@@ -29,10 +29,12 @@ To maintain the aspect ratio of the aerial imagery, I implemented a custom `CRS.
 
 ## 🔎 SEO Share Pages (Supabase Prerender)
 - Build-time SEO page generation runs with `npm run generate:seo`.
+- The generator now paginates through all eligible items and published POIs instead of stopping at the first 500 rows.
 - Generated files are written to `public/share/<item-id>/index.html`.
 - Published POIs are generated to `public/poi/<slug>/index.html`.
 - Each share page contains crawler-friendly Open Graph/Twitter metadata from Supabase item data.
 - Human visitors can open the app directly with `?item=<id>` deep links.
+- GitHub Pages uses `public/404.html` to redirect any missing `/share/<id>/` or `/poi/<slug>/` request back into the SPA as `/?item=<id>` or `/?poi=<slug>`.
 
 ### POI Schema (Phase 1)
 - Initial SQL migration is in [supabase/migrations/20260401_create_pois.sql](supabase/migrations/20260401_create_pois.sql).
