@@ -1733,6 +1733,21 @@ const canUserManageItems = (user) => {
     return false;
 };
 
+const getSupabaseAuthErrorMessage = (error) => {
+    const message = String(error?.message || "").trim();
+    const normalizedMessage = message.toLowerCase();
+
+    if (
+        normalizedMessage.includes("issued in the future")
+        || normalizedMessage.includes("clock skew")
+        || normalizedMessage.includes("device clock")
+    ) {
+        return "Your sign-in session looks invalid because this device clock is out of sync. Correct the clock, then sign out and sign back in.";
+    }
+
+    return "Unable to verify sign-in state right now.";
+};
+
 const parseLancasterTideDate = (timeText, fallbackYear = new Date().getFullYear()) => {
     if (!timeText) return null;
 
@@ -3595,6 +3610,83 @@ function AppTopBar({
     const syncLabel = isLoadingItems ? "Syncing" : "Up to date";
     const showMobileStatsToggle = isMobile && typeof onToggleStats === "function";
     const showStatsInline = !showMobileStatsToggle || isStatsExpanded;
+    const mobileMenuRef = useRef(null);
+    const mobileMenuTriggerRef = useRef(null);
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+    useEffect(() => {
+        if (!isMobile) {
+            setIsMobileMenuOpen(false);
+        }
+    }, [isMobile]);
+
+    useEffect(() => {
+        if (!isMobileMenuOpen) return undefined;
+
+        const handlePointerDown = (event) => {
+            if (!mobileMenuRef.current?.contains(event.target)) {
+                setIsMobileMenuOpen(false);
+            }
+        };
+
+        const handleKeyDown = (event) => {
+            if (event.key !== "Escape") return;
+            setIsMobileMenuOpen(false);
+            mobileMenuTriggerRef.current?.focus();
+        };
+
+        document.addEventListener("pointerdown", handlePointerDown);
+        window.addEventListener("keydown", handleKeyDown);
+
+        return () => {
+            document.removeEventListener("pointerdown", handlePointerDown);
+            window.removeEventListener("keydown", handleKeyDown);
+        };
+    }, [isMobileMenuOpen]);
+
+    const desktopActionButtonStyle = {
+        borderRadius: UI_TOKENS.radius.pill,
+        minHeight: "34px",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        whiteSpace: "nowrap",
+        flex: "0 0 auto",
+    };
+    const mobileMenuItemBaseStyle = {
+        width: "100%",
+        minHeight: "52px",
+        borderRadius: "16px",
+        padding: "10px 12px",
+        textDecoration: "none",
+        display: "grid",
+        gridTemplateColumns: "26px minmax(0, 1fr) 12px",
+        alignItems: "center",
+        gap: "10px",
+        boxSizing: "border-box",
+        border: "1px solid rgba(203,213,225,0.9)",
+        background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.96))",
+        color: "#0f172a",
+        textAlign: "left",
+        boxShadow: "0 1px 0 rgba(255,255,255,0.8) inset",
+    };
+    const closeMobileMenu = () => setIsMobileMenuOpen(false);
+    const handleContributorMenuAction = () => {
+        closeMobileMenu();
+        onOpenContributorPanel();
+    };
+    const handlePoiMenuAction = () => {
+        closeMobileMenu();
+        onOpenPoiPanel();
+    };
+    const handleAuthMenuAction = () => {
+        closeMobileMenu();
+        if (signedIn) {
+            onSignOut();
+            return;
+        }
+        onSignIn();
+    };
 
     return (
         <div
@@ -3639,15 +3731,47 @@ function AppTopBar({
                     .app-horizontal-chip-row::-webkit-scrollbar {
                         display: none;
                     }
+
+                    .app-topbar-menu-trigger,
+                    .app-topbar-menu-item {
+                        transition: transform 140ms ease, box-shadow 180ms ease, background 180ms ease, border-color 180ms ease;
+                    }
+
+                    .app-topbar-menu-trigger:hover,
+                    .app-topbar-menu-trigger:focus-visible {
+                        transform: translateY(-1px);
+                        box-shadow: 0 10px 24px rgba(15,23,42,0.14);
+                    }
+
+                    .app-topbar-menu-trigger:focus-visible,
+                    .app-topbar-menu-item:focus-visible {
+                        outline: 2px solid #0f172a;
+                        outline-offset: 2px;
+                    }
+
+                    .app-topbar-menu-item:hover,
+                    .app-topbar-menu-item:focus-visible {
+                        border-color: rgba(96,165,250,0.9);
+                        background: linear-gradient(180deg, rgba(239,246,255,0.98), rgba(224,242,254,0.96));
+                        transform: translateY(-1px);
+                    }
+
+                    .app-topbar-menu-chevron {
+                        transition: transform 180ms ease;
+                    }
+
+                    .app-topbar-menu-trigger[aria-expanded="true"] .app-topbar-menu-chevron {
+                        transform: rotate(180deg);
+                    }
                 `}
             </style>
             <div
                 style={{
                     display: "flex",
-                    alignItems: isMobile ? "stretch" : "center",
+                    alignItems: isMobile ? "flex-start" : "center",
                     justifyContent: "space-between",
                     gap: isMobile ? "8px" : "10px",
-                    flexWrap: isMobile ? "wrap" : "nowrap",
+                    flexWrap: "nowrap",
                 }}
             >
                 <div style={{ minWidth: 0, flex: "1 1 280px" }}>
@@ -3716,136 +3840,316 @@ function AppTopBar({
                     </div>
                 </div>
 
-                <div
-                    style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: isMobile ? "flex-start" : "flex-end",
-                        flexWrap: isMobile ? "nowrap" : "wrap",
-                        gap: "6px",
-                        flex: isMobile ? "1 1 100%" : "0 1 auto",
-                        minWidth: 0,
-                        overflowX: isMobile ? "auto" : "visible",
-                        paddingBottom: isMobile ? "2px" : 0,
-                    }}
-                    className={isMobile ? "app-horizontal-chip-row" : undefined}
-                >
-                    <a
-                        href="https://buymeacoffee.com/rivercleanv"
-                        target="_blank"
-                        rel="noreferrer"
+                {isMobile ? (
+                    <div
+                        ref={mobileMenuRef}
                         style={{
-                            border: "1px solid #bfdbfe",
-                            background: "#eff6ff",
-                            color: "#1d4ed8",
-                            borderRadius: UI_TOKENS.radius.pill,
-                            minHeight: "34px",
-                            padding: isMobile ? "0 10px" : "0 11px",
-                            fontSize: "0.74rem",
-                            fontWeight: 700,
-                            textDecoration: "none",
-                            display: "inline-flex",
+                            position: "relative",
+                            flex: "0 0 auto",
+                            alignSelf: "flex-start",
+                        }}
+                    >
+                        <button
+                            ref={mobileMenuTriggerRef}
+                            type="button"
+                            className="app-topbar-menu-trigger"
+                            onClick={() => setIsMobileMenuOpen((prev) => !prev)}
+                            aria-haspopup="dialog"
+                            aria-expanded={isMobileMenuOpen}
+                            aria-label="Open quick actions menu"
+                            style={{
+                                border: "1px solid rgba(148,163,184,0.5)",
+                                background: isMobileMenuOpen
+                                    ? "linear-gradient(135deg, rgba(224,242,254,0.96), rgba(239,246,255,0.98))"
+                                    : "linear-gradient(135deg, rgba(255,255,255,0.96), rgba(241,245,249,0.94))",
+                                color: "#0f172a",
+                                borderRadius: "999px",
+                                minHeight: "38px",
+                                padding: "0 12px",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                gap: "8px",
+                                boxShadow: isMobileMenuOpen
+                                    ? "0 12px 28px rgba(14,165,233,0.16)"
+                                    : "0 8px 22px rgba(15,23,42,0.08)",
+                                fontSize: "0.78rem",
+                                fontWeight: 800,
+                                letterSpacing: "0.01em",
+                                cursor: "pointer",
+                            }}
+                        >
+                            <span
+                                aria-hidden="true"
+                                style={{
+                                    display: "inline-flex",
+                                    flexDirection: "column",
+                                    gap: "3px",
+                                }}
+                            >
+                                <span style={{ width: "12px", height: "2px", borderRadius: "999px", background: "currentColor" }} />
+                                <span style={{ width: "12px", height: "2px", borderRadius: "999px", background: "currentColor" }} />
+                                <span style={{ width: "12px", height: "2px", borderRadius: "999px", background: "currentColor" }} />
+                            </span>
+                            <span>Menu</span>
+                            <span className="app-topbar-menu-chevron" aria-hidden="true">▾</span>
+                        </button>
+
+                        {isMobileMenuOpen ? (
+                            <div
+                                role="dialog"
+                                aria-modal="false"
+                                aria-label="Quick actions"
+                                style={{
+                                    position: "absolute",
+                                    top: "calc(100% + 10px)",
+                                    right: 0,
+                                    width: "min(86vw, 320px)",
+                                    padding: "12px",
+                                    borderRadius: "22px",
+                                    border: "1px solid rgba(191,219,254,0.72)",
+                                    background: "linear-gradient(180deg, rgba(255,255,255,0.99), rgba(248,250,252,0.98))",
+                                    boxShadow: "0 24px 44px rgba(15,23,42,0.18)",
+                                    backdropFilter: "blur(18px)",
+                                    display: "grid",
+                                    gap: "8px",
+                                    zIndex: 1105,
+                                }}
+                            >
+                                <div style={{ display: "grid", gap: "2px", padding: "0 2px 4px" }}>
+                                    <span style={{ fontSize: "0.68rem", fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "#0369a1" }}>
+                                        Quick actions
+                                    </span>
+                                    <span style={{ fontSize: "0.8rem", color: "#475569", lineHeight: 1.35 }}>
+                                        Full labels on mobile without crowding the title bar.
+                                    </span>
+                                </div>
+
+                                <a
+                                    href="https://buymeacoffee.com/rivercleanv"
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="app-topbar-menu-item"
+                                    onClick={closeMobileMenu}
+                                    style={{
+                                        ...mobileMenuItemBaseStyle,
+                                        borderColor: "#bfdbfe",
+                                        background: "linear-gradient(180deg, #eff6ff, #f8fbff)",
+                                        color: "#1d4ed8",
+                                    }}
+                                >
+                                    <span aria-hidden="true" style={{ fontSize: "1rem", textAlign: "center" }}>❤</span>
+                                    <span style={{ display: "grid", gap: "2px", minWidth: 0 }}>
+                                        <span style={{ fontSize: "0.84rem", fontWeight: 800, color: "#0f172a" }}>Support The Cleanup</span>
+                                        <span style={{ fontSize: "0.74rem", color: "#475569" }}>Help cover map, hosting, and cleanup costs.</span>
+                                    </span>
+                                    <span aria-hidden="true" style={{ color: "#94a3b8", fontSize: "0.9rem" }}>↗</span>
+                                </a>
+
+                                <a
+                                    href="https://www.facebook.com/profile.php?id=61577489848878"
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="app-topbar-menu-item"
+                                    onClick={closeMobileMenu}
+                                    style={{
+                                        ...mobileMenuItemBaseStyle,
+                                        borderColor: "rgba(24,119,242,0.28)",
+                                        background: "linear-gradient(180deg, rgba(239,246,255,0.98), rgba(248,250,252,0.96))",
+                                    }}
+                                >
+                                    <span aria-hidden="true" style={{ color: "#1877f2", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                                            <path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.97h-1.514c-1.491 0-1.956.93-1.956 1.886v2.268h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/>
+                                        </svg>
+                                    </span>
+                                    <span style={{ display: "grid", gap: "2px", minWidth: 0 }}>
+                                        <span style={{ fontSize: "0.84rem", fontWeight: 800, color: "#0f172a" }}>Facebook Page</span>
+                                        <span style={{ fontSize: "0.74rem", color: "#475569" }}>Updates, photos, and community posts.</span>
+                                    </span>
+                                    <span aria-hidden="true" style={{ color: "#94a3b8", fontSize: "0.9rem" }}>↗</span>
+                                </a>
+
+                                <button
+                                    type="button"
+                                    className="app-topbar-menu-item"
+                                    onClick={handleContributorMenuAction}
+                                    style={{
+                                        ...mobileMenuItemBaseStyle,
+                                        borderColor: "rgba(245,158,11,0.4)",
+                                        background: "linear-gradient(180deg, #fef3c7, #fffaf0)",
+                                        cursor: "pointer",
+                                    }}
+                                >
+                                    <span aria-hidden="true" style={{ fontSize: "1rem", textAlign: "center", color: "#92400e" }}>★</span>
+                                    <span style={{ display: "grid", gap: "2px", minWidth: 0 }}>
+                                        <span style={{ fontSize: "0.84rem", fontWeight: 800, color: "#0f172a" }}>Contributors</span>
+                                        <span style={{ fontSize: "0.74rem", color: "#475569" }}>
+                                            {canManageItems ? "Open the contributor manager." : "Browse the current supporter list."}
+                                        </span>
+                                    </span>
+                                    <span aria-hidden="true" style={{ color: "#94a3b8", fontSize: "0.9rem" }}>›</span>
+                                </button>
+
+                                {canManageItems ? (
+                                    <button
+                                        type="button"
+                                        className="app-topbar-menu-item"
+                                        onClick={handlePoiMenuAction}
+                                        style={{
+                                            ...mobileMenuItemBaseStyle,
+                                            borderColor: "rgba(154,52,18,0.22)",
+                                            background: "linear-gradient(180deg, #ffedd5, #fff7ed)",
+                                            cursor: "pointer",
+                                        }}
+                                    >
+                                        <span aria-hidden="true" style={{ fontSize: "1rem", textAlign: "center", color: "#9a3412" }}>📍</span>
+                                        <span style={{ display: "grid", gap: "2px", minWidth: 0 }}>
+                                            <span style={{ fontSize: "0.84rem", fontWeight: 800, color: "#0f172a" }}>POIs</span>
+                                            <span style={{ fontSize: "0.74rem", color: "#475569" }}>Manage points of interest and history markers.</span>
+                                        </span>
+                                        <span aria-hidden="true" style={{ color: "#94a3b8", fontSize: "0.9rem" }}>›</span>
+                                    </button>
+                                ) : null}
+
+                                <button
+                                    type="button"
+                                    className="app-topbar-menu-item"
+                                    disabled={!authReady || isAuthActionLoading}
+                                    onClick={handleAuthMenuAction}
+                                    style={{
+                                        ...mobileMenuItemBaseStyle,
+                                        borderColor: signedIn ? "rgba(203,213,225,0.95)" : "rgba(15,23,42,0.9)",
+                                        background: signedIn
+                                            ? "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.96))"
+                                            : "linear-gradient(180deg, rgba(15,23,42,0.98), rgba(30,41,59,0.96))",
+                                        color: signedIn ? "#0f172a" : "#fff",
+                                        cursor: !authReady || isAuthActionLoading ? "not-allowed" : "pointer",
+                                        opacity: !authReady || isAuthActionLoading ? 0.65 : 1,
+                                    }}
+                                >
+                                    <span aria-hidden="true" style={{ fontSize: "0.95rem", textAlign: "center" }}>{signedIn ? "✓" : "↗"}</span>
+                                    <span style={{ display: "grid", gap: "2px", minWidth: 0 }}>
+                                        <span style={{ fontSize: "0.84rem", fontWeight: 800, color: signedIn ? "#0f172a" : "#fff" }}>
+                                            {signedIn ? "Sign Out" : "Sign In With GitHub"}
+                                        </span>
+                                        <span style={{ fontSize: "0.74rem", color: signedIn ? "#475569" : "rgba(226,232,240,0.9)" }}>
+                                            {signedIn ? "Leave edit or view mode on this device." : "Sign in to access editing tools if you have permission."}
+                                        </span>
+                                    </span>
+                                    <span aria-hidden="true" style={{ color: signedIn ? "#94a3b8" : "rgba(226,232,240,0.9)", fontSize: "0.9rem" }}>›</span>
+                                </button>
+                            </div>
+                        ) : null}
+                    </div>
+                ) : (
+                    <div
+                        style={{
+                            display: "flex",
                             alignItems: "center",
-                            justifyContent: "center",
-                            whiteSpace: "nowrap",
-                            flex: "0 0 auto",
+                            justifyContent: "flex-end",
+                            flexWrap: "wrap",
+                            gap: "6px",
+                            flex: "0 1 auto",
+                            minWidth: 0,
                         }}
-                        aria-label="Support cleanup costs on Ko-fi"
                     >
-                        {isMobile ? "❤" : "❤ Support"}
-                    </a>
+                        <a
+                            href="https://buymeacoffee.com/rivercleanv"
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{
+                                ...desktopActionButtonStyle,
+                                border: "1px solid #bfdbfe",
+                                background: "#eff6ff",
+                                color: "#1d4ed8",
+                                padding: "0 11px",
+                                fontSize: "0.74rem",
+                                fontWeight: 700,
+                                textDecoration: "none",
+                            }}
+                            aria-label="Support cleanup costs on Ko-fi"
+                        >
+                            ❤ Support
+                        </a>
 
-                    <a
-                        href="https://www.facebook.com/profile.php?id=61577489848878"
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{
-                            border: "1px solid #1877f2",
-                            background: "#1877f2",
-                            color: "#fff",
-                            borderRadius: UI_TOKENS.radius.pill,
-                            minHeight: "34px",
-                            padding: isMobile ? "0 10px" : "0 11px",
-                            textDecoration: "none",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            whiteSpace: "nowrap",
-                            flex: "0 0 auto",
-                        }}
-                        aria-label="Facebook page"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                            <path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.97h-1.514c-1.491 0-1.956.93-1.956 1.886v2.268h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/>
-                        </svg>
-                    </a>
+                        <a
+                            href="https://www.facebook.com/profile.php?id=61577489848878"
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{
+                                ...desktopActionButtonStyle,
+                                border: "1px solid #1877f2",
+                                background: "#1877f2",
+                                color: "#fff",
+                                padding: "0 11px",
+                                textDecoration: "none",
+                            }}
+                            aria-label="Facebook page"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.97h-1.514c-1.491 0-1.956.93-1.956 1.886v2.268h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/>
+                            </svg>
+                        </a>
 
-                    <button
-                        type="button"
-                        onClick={onOpenContributorPanel}
-                        style={{
-                            border: "1px solid #f59e0b",
-                            background: "#fef3c7",
-                            color: "#92400e",
-                            borderRadius: UI_TOKENS.radius.pill,
-                            minHeight: "34px",
-                            padding: isMobile ? "0 10px" : "0 11px",
-                            fontSize: "0.76rem",
-                            fontWeight: 700,
-                            whiteSpace: "nowrap",
-                            cursor: "pointer",
-                            flex: "0 0 auto",
-                        }}
-                        aria-label={canManageItems ? "Open contributor manager" : "Open contributors list"}
-                    >
-                        {isMobile ? "★" : "★ Contributors"}
-                    </button>
-
-                    {canManageItems ? (
                         <button
                             type="button"
-                            onClick={onOpenPoiPanel}
+                            onClick={onOpenContributorPanel}
                             style={{
-                                border: "1px solid #9a3412",
-                                background: "#ffedd5",
-                                color: "#9a3412",
-                                borderRadius: UI_TOKENS.radius.pill,
-                                minHeight: "34px",
-                                padding: isMobile ? "0 10px" : "0 11px",
+                                ...desktopActionButtonStyle,
+                                border: "1px solid #f59e0b",
+                                background: "#fef3c7",
+                                color: "#92400e",
+                                padding: "0 11px",
                                 fontSize: "0.76rem",
                                 fontWeight: 700,
-                                whiteSpace: "nowrap",
                                 cursor: "pointer",
-                                flex: "0 0 auto",
                             }}
-                            aria-label="Open POI manager"
+                            aria-label={canManageItems ? "Open contributor manager" : "Open contributors list"}
                         >
-                            {isMobile ? "📍" : "📍 POIs"}
+                            ★ Contributors
                         </button>
-                    ) : null}
 
-                    <button
-                        type="button"
-                        onClick={signedIn ? onSignOut : onSignIn}
-                        disabled={!authReady || isAuthActionLoading}
-                        style={{
-                            border: `1px solid ${signedIn ? "#cbd5e1" : "#0f172a"}`,
-                            background: signedIn ? "#fff" : "#0f172a",
-                            color: signedIn ? "#0f172a" : "#fff",
-                            borderRadius: UI_TOKENS.radius.pill,
-                            minHeight: "34px",
-                            padding: isMobile ? "0 11px" : "0 12px",
-                            fontSize: "0.76rem",
-                            fontWeight: 700,
-                            whiteSpace: "nowrap",
-                            opacity: !authReady || isAuthActionLoading ? 0.65 : 1,
-                            cursor: !authReady || isAuthActionLoading ? "not-allowed" : "pointer",
-                            flex: "0 0 auto",
-                        }}
-                    >
-                        {signedIn ? "Sign Out" : "Sign In"}
-                    </button>
-                </div>
+                        {canManageItems ? (
+                            <button
+                                type="button"
+                                onClick={onOpenPoiPanel}
+                                style={{
+                                    ...desktopActionButtonStyle,
+                                    border: "1px solid #9a3412",
+                                    background: "#ffedd5",
+                                    color: "#9a3412",
+                                    padding: "0 11px",
+                                    fontSize: "0.76rem",
+                                    fontWeight: 700,
+                                    cursor: "pointer",
+                                }}
+                                aria-label="Open POI manager"
+                            >
+                                📍 POIs
+                            </button>
+                        ) : null}
+
+                        <button
+                            type="button"
+                            onClick={signedIn ? onSignOut : onSignIn}
+                            disabled={!authReady || isAuthActionLoading}
+                            style={{
+                                ...desktopActionButtonStyle,
+                                border: `1px solid ${signedIn ? "#cbd5e1" : "#0f172a"}`,
+                                background: signedIn ? "#fff" : "#0f172a",
+                                color: signedIn ? "#0f172a" : "#fff",
+                                padding: "0 12px",
+                                fontSize: "0.76rem",
+                                fontWeight: 700,
+                                opacity: !authReady || isAuthActionLoading ? 0.65 : 1,
+                                cursor: !authReady || isAuthActionLoading ? "not-allowed" : "pointer",
+                            }}
+                        >
+                            {signedIn ? "Sign Out" : "Sign In"}
+                        </button>
+                    </div>
+                )}
             </div>
 
             {showMobileStatsToggle ? (
@@ -9322,7 +9626,7 @@ function App() {
             if (!isMounted) return;
 
             if (error) {
-                setAuthError("Unable to check sign-in state right now.");
+                setAuthError(getSupabaseAuthErrorMessage(error));
             }
 
             setCurrentUser(data?.user || null);
@@ -10584,6 +10888,8 @@ function App() {
                     is_recovered: false,
                 };
 
+                if (currentUser?.id) insertPayload.created_by = currentUser.id;
+
                 if (dbCountFieldSupport.total) insertPayload.total_count = pendingCount;
                 if (dbCountFieldSupport.recovered) insertPayload.recovered_count = 0;
                 if (dbWeightFieldSupport !== false) insertPayload.estimated_weight_kg = estimatedWeightKg;
@@ -10607,8 +10913,10 @@ function App() {
                         error.message?.toLowerCase().includes("gps_longitude"));
                 const weightColumnMissing =
                     error && error.message?.toLowerCase().includes("estimated_weight_kg");
+                const createdByColumnMissing =
+                    error && error.message?.toLowerCase().includes("created_by");
 
-                if (gpsColumnMissing || weightColumnMissing) {
+                if (gpsColumnMissing || weightColumnMissing || createdByColumnMissing) {
                     const retryPayload = { ...insertPayload };
                     if (gpsColumnMissing) {
                         delete retryPayload.gps_latitude;
@@ -10618,6 +10926,9 @@ function App() {
                     if (weightColumnMissing) {
                         delete retryPayload.estimated_weight_kg;
                         setDbWeightFieldSupport(false);
+                    }
+                    if (createdByColumnMissing) {
+                        delete retryPayload.created_by;
                     }
 
                     const retryResult = await supabase
@@ -10895,18 +11206,91 @@ function App() {
             return;
         }
 
+        if (!hasSupabaseConfig) {
+            alert("Supabase is not configured for this deployment.");
+            return;
+        }
+
         const confirmed = window.confirm("Remove this location and all its item data?");
         if (!confirmed) return;
 
         setIsUpdatingItemId(itemId);
 
-        const { error } = await supabase.from("items").delete().eq("id", itemId);
+        const itemToDelete = items.find((item) => String(item?.id) === String(itemId)) || null;
+        const { data: authData, error: authError } = await supabase.auth.getUser();
+        const authUser = authData?.user || null;
 
-        if (error) {
-            alert("Could not delete this location.");
+        if (authError || !authUser) {
+            console.error("Could not verify Supabase user before delete", {
+                itemId,
+                authError,
+                currentUserId: currentUser?.id || null,
+            });
+            alert(authError ? getSupabaseAuthErrorMessage(authError) : "Please sign in again before deleting this location.");
             setIsUpdatingItemId(null);
             return;
         }
+
+        const { data, error } = await supabase
+            .from("items")
+            .delete()
+            .eq("id", itemId)
+            .select("id");
+
+        const deletedItem = Array.isArray(data)
+            ? data.find((row) => String(row?.id) === String(itemId))
+            : null;
+        let deleteConfirmed = Boolean(deletedItem);
+        let postDeleteLookupError = null;
+        let postDeleteRowStillExists = false;
+
+        if (!error && !deleteConfirmed) {
+            const { data: existingRow, error: lookupError } = await supabase
+                .from("items")
+                .select("id")
+                .eq("id", itemId)
+                .maybeSingle();
+
+            postDeleteLookupError = lookupError;
+            postDeleteRowStillExists = Boolean(existingRow?.id);
+            deleteConfirmed = !postDeleteRowStillExists && !lookupError;
+        }
+
+        if (error || !deleteConfirmed) {
+            const itemOwnerId = typeof itemToDelete?.created_by === "string"
+                ? itemToDelete.created_by.trim()
+                : "";
+            const hasCreatedByField = Boolean(itemToDelete) && Object.prototype.hasOwnProperty.call(itemToDelete, "created_by");
+            const isLegacyOwnerlessItem = hasCreatedByField && !itemOwnerId;
+            const belongsToDifferentUser = Boolean(itemOwnerId && itemOwnerId !== authUser.id);
+            const sessionMismatch = Boolean(currentUser?.id && currentUser.id !== authUser.id);
+
+            console.error("Could not delete cleanup item", {
+                itemId,
+                error,
+                deletedRowCount: Array.isArray(data) ? data.length : 0,
+                currentUserId: currentUser?.id || null,
+                authUserId: authUser.id,
+                itemCreatedBy: itemOwnerId || null,
+                postDeleteLookupError,
+                postDeleteRowStillExists,
+            });
+
+            if (sessionMismatch) {
+                alert("Your local sign-in state does not match the active Supabase session. Sign out and sign back in, then try again.");
+            } else if (belongsToDifferentUser) {
+                alert("This location belongs to a different Supabase account and cannot be deleted from this sign-in.");
+            } else if (isLegacyOwnerlessItem) {
+                alert("This location has no owner stored in Supabase, so the current delete policy blocks it. It needs a database backfill or policy change.");
+            } else {
+                alert("Could not delete this location.");
+            }
+
+            setIsUpdatingItemId(null);
+            return;
+        }
+
+        setItems((prev) => prev.filter((item) => item.id !== itemId));
 
         setLocalCounts((prev) => {
             if (!prev[itemId]) return prev;
@@ -10949,8 +11333,8 @@ function App() {
             setIsImageViewerOpen(false);
         }
 
+        await fetchItems();
         setIsUpdatingItemId(null);
-        fetchItems();
     }
 
     const filteredItems = useMemo(() => items.filter((item) => {

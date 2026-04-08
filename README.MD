@@ -82,6 +82,22 @@ Historic Lancaster overlays use a small curated set of NLS layers through MapTil
 - Use the editor's Publish action to make a ready overlay visible to everyone immediately without waiting for a site redeploy.
 - The app still keeps overlay identity, labels, years, and image asset URLs in [src/main.jsx](src/main.jsx); Supabase stores only mutable calibration and publish state.
 
+### Cleanup Item Owner Write Access
+- Cleanup item owner-write support and legacy delete compatibility now live in [supabase/migrations/20260409_fix_items_owner_rls.sql](supabase/migrations/20260409_fix_items_owner_rls.sql).
+- Apply this migration if owner accounts can view items but cannot delete older cleanup pins.
+- The migration adds `items.created_by` when missing and ensures cleanup item insert, update, and delete actions are granted to Supabase accounts listed in `app_owner_accounts`.
+- After applying the migration, add each owner's Supabase Auth user id to `public.app_owner_accounts`. Example:
+
+```sql
+insert into public.app_owner_accounts (user_id, github_login, email)
+values ('your-owner-user-id', 'your-github-login', 'you@example.com')
+on conflict (user_id) do update
+set github_login = excluded.github_login,
+	email = excluded.email;
+```
+
+- If your live Supabase project already has conflicting `items` policies and you want a clean reset instead of an incremental fix, run [supabase/migrations/20260409_reset_items_rls_clean.sql](supabase/migrations/20260409_reset_items_rls_clean.sql). This script drops every existing policy on `public.items`, reapplies grants, recreates the owner helper, and seeds the current owner account used in this repo.
+
 ## 🔐 Auth (GitHub + Owner Write Access)
 - Sign-in uses Supabase Auth with the GitHub provider.
 - Everyone can view the map data.
