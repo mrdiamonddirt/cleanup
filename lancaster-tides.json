@@ -1,118 +1,143 @@
 {
   "location": "Lancaster, UK",
   "sourceUrl": "https://www.tide-forecast.com/locations/Lancaster/tides/latest",
-  "updatedAt": "2026-04-08T01:53:57.138Z",
+  "updatedAt": "2026-04-08T23:33:23.705Z",
   "metadata": {
-    "mergedFromExistingRows": 0,
+    "mergedFromExistingRows": 25,
     "mergedFromFetchedRows": 20,
-    "retainedRows": 20,
+    "retainedRows": 25,
     "retentionHours": {
       "past": 30,
       "future": 132
     },
-    "coverageStart": "2026-04-08T03:30:00.000Z",
-    "coverageEnd": "2026-04-13T03:10:00.000Z"
+    "coverageStart": "2026-04-07T20:38:00.000Z",
+    "coverageEnd": "2026-04-14T03:06:00.000Z"
   },
   "rows": [
     {
+      "type": "Low Tide",
+      "time": "9:38 PM (Tue 07 April)",
+      "height": "2.09 m (6.86 ft)"
+    },
+    {
       "type": "High Tide",
       "time": "3:30 AM (Wed 08 April)",
-      "height": "24.79 ft (7.56 m)"
+      "height": "7.56 m (24.79 ft)"
     },
     {
       "type": "Low Tide",
       "time": "10:01 AM (Wed 08 April)",
-      "height": "7.19 ft (2.19 m)"
+      "height": "2.19 m (7.19 ft)"
     },
     {
       "type": "High Tide",
       "time": "3:53 PM (Wed 08 April)",
-      "height": "23.46 ft (7.15 m)"
+      "height": "7.15 m (23.46 ft)"
     },
     {
       "type": "Low Tide",
       "time": "10:19 PM (Wed 08 April)",
-      "height": "8.5 ft (2.59 m)"
+      "height": "2.59 m (8.5 ft)"
     },
     {
       "type": "High Tide",
       "time": "4:13 AM (Thu 09 April)",
-      "height": "23.03 ft (7.02 m)"
+      "height": "7.02 m (23.03 ft)"
     },
     {
       "type": "Low Tide",
       "time": "10:50 AM (Thu 09 April)",
-      "height": "8.82 ft (2.69 m)"
+      "height": "2.69 m (8.82 ft)"
     },
     {
       "type": "High Tide",
       "time": "4:42 PM (Thu 09 April)",
-      "height": "21.52 ft (6.56 m)"
+      "height": "6.56 m (21.52 ft)"
     },
     {
       "type": "Low Tide",
       "time": "11:13 PM (Thu 09 April)",
-      "height": "9.91 ft (3.02 m)"
+      "height": "3.02 m (9.91 ft)"
     },
     {
       "type": "High Tide",
       "time": "5:10 AM (Fri 10 April)",
-      "height": "21.47 ft (6.54 m)"
+      "height": "6.54 m (21.47 ft)"
     },
     {
       "type": "Low Tide",
       "time": "11:58 AM (Fri 10 April)",
-      "height": "10.07 ft (3.07 m)"
+      "height": "3.07 m (10.07 ft)"
     },
     {
       "type": "High Tide",
       "time": "5:49 PM (Fri 10 April)",
-      "height": "20.08 ft (6.12 m)"
+      "height": "6.12 m (20.08 ft)"
     },
     {
       "type": "Low Tide",
       "time": "00:28 AM (Sat 11 April)",
-      "height": "10.76 ft (3.28 m)"
+      "height": "3.28 m (10.76 ft)"
     },
     {
       "type": "High Tide",
       "time": "6:28 AM (Sat 11 April)",
-      "height": "20.67 ft (6.3 m)"
+      "height": "6.3 m (20.67 ft)"
     },
     {
       "type": "Low Tide",
       "time": "1:24 PM (Sat 11 April)",
-      "height": "10.27 ft (3.13 m)"
+      "height": "3.13 m (10.27 ft)"
     },
     {
       "type": "High Tide",
       "time": "7:17 PM (Sat 11 April)",
-      "height": "19.82 ft (6.04 m)"
+      "height": "6.04 m (19.82 ft)"
     },
     {
       "type": "Low Tide",
       "time": "1:55 AM (Sun 12 April)",
-      "height": "10.5 ft (3.2 m)"
+      "height": "3.2 m (10.5 ft)"
     },
     {
       "type": "High Tide",
       "time": "7:53 AM (Sun 12 April)",
-      "height": "21.26 ft (6.48 m)"
+      "height": "6.48 m (21.26 ft)"
     },
     {
       "type": "Low Tide",
       "time": "2:46 PM (Sun 12 April)",
-      "height": "9.19 ft (2.8 m)"
+      "height": "2.8 m (9.19 ft)"
     },
     {
       "type": "High Tide",
       "time": "8:35 PM (Sun 12 April)",
-      "height": "21.0 ft (6.4 m)"
+      "height": "6.4 m (21.0 ft)"
     },
     {
       "type": "Low Tide",
       "time": "3:10 AM (Mon 13 April)",
-      "height": "9.18 ft (2.8 m)"
+      "height": "2.8 m (9.18 ft)"
+    },
+    {
+      "type": "High Tide",
+      "time": "8:58 AM (Mon 13 April)",
+      "height": "7.0 m (22.97 ft)"
+    },
+    {
+      "type": "Low Tide",
+      "time": "3:47 PM (Mon 13 April)",
+      "height": "2.2 m (7.22 ft)"
+    },
+    {
+      "type": "High Tide",
+      "time": "9:31 PM (Mon 13 April)",
+      "height": "7.02 m (23.03 ft)"
+    },
+    {
+      "type": "Low Tide",
+      "time": "4:06 AM (Tue 14 April)",
+      "height": "2.22 m (7.28 ft)"
     }
   ]
 }
