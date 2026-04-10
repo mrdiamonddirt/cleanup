@@ -1,7 +1,7 @@
 {
   "location": "Lancaster, UK",
   "sourceUrl": "https://www.tide-forecast.com/locations/Lancaster/tides/latest",
-  "updatedAt": "2026-04-09T01:53:38.097Z",
+  "updatedAt": "2026-04-10T01:54:07.415Z",
   "metadata": {
     "mergedFromExistingRows": 0,
     "mergedFromFetchedRows": 20,
@@ -10,30 +10,10 @@
       "past": 30,
       "future": 132
     },
-    "coverageStart": "2026-04-09T04:13:00.000Z",
-    "coverageEnd": "2026-04-14T04:06:00.000Z"
+    "coverageStart": "2026-04-10T05:10:00.000Z",
+    "coverageEnd": "2026-04-15T04:52:00.000Z"
   },
   "rows": [
-    {
-      "type": "High Tide",
-      "time": "4:13 AM (Thu 09 April)",
-      "height": "23.03 ft (7.02 m)"
-    },
-    {
-      "type": "Low Tide",
-      "time": "10:50 AM (Thu 09 April)",
-      "height": "8.82 ft (2.69 m)"
-    },
-    {
-      "type": "High Tide",
-      "time": "4:42 PM (Thu 09 April)",
-      "height": "21.52 ft (6.56 m)"
-    },
-    {
-      "type": "Low Tide",
-      "time": "11:13 PM (Thu 09 April)",
-      "height": "9.91 ft (3.02 m)"
-    },
     {
       "type": "High Tide",
       "time": "5:10 AM (Fri 10 April)",
@@ -113,6 +93,26 @@
       "type": "Low Tide",
       "time": "4:06 AM (Tue 14 April)",
       "height": "7.28 ft (2.22 m)"
+    },
+    {
+      "type": "High Tide",
+      "time": "9:48 AM (Tue 14 April)",
+      "height": "25.17 ft (7.67 m)"
+    },
+    {
+      "type": "Low Tide",
+      "time": "4:36 PM (Tue 14 April)",
+      "height": "4.95 ft (1.51 m)"
+    },
+    {
+      "type": "High Tide",
+      "time": "10:16 PM (Tue 14 April)",
+      "height": "25.39 ft (7.74 m)"
+    },
+    {
+      "type": "Low Tide",
+      "time": "4:52 AM (Wed 15 April)",
+      "height": "5.25 ft (1.6 m)"
     }
   ]
 }
