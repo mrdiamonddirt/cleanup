@@ -1,0 +1,17 @@
+{
+  "name": "River Bank Cleanup Tracker",
+  "short_name": "River Cleanup",
+  "description": "Track and coordinate River Lune cleanup efforts in real time.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
