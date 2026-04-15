@@ -1,7 +1,7 @@
 import React, { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { createPortal } from "react-dom";
-import { useW3W } from "./useW3W";
+import w3wLogo from "./assets/w3w_logo.png";
 import {
     MapContainer,
     TileLayer,
@@ -2695,6 +2695,7 @@ function PendingPlacementOverlay({
     overlayPortalElement,
     w3wWords,
     w3wLoading,
+    onFetchW3W,
 }) {
     const map = useMap();
     const panelRef = useRef(null);
@@ -2859,10 +2860,11 @@ function PendingPlacementOverlay({
                     : "Choose item type for this location"}
             </div>
             {(w3wLoading || w3wWords) ? (
-                <div style={{ fontSize: "0.77rem", color: "#475569", marginBottom: "6px", lineHeight: 1.4 }}>
-                    <span style={{ color: "#64748b" }}>///</span>
+                <div style={{ fontSize: "0.77rem", marginBottom: "6px", lineHeight: 1.4 }}>
                     {w3wLoading ? (
-                        <span style={{ color: "#94a3b8" }}> resolving…</span>
+                        <span style={{ color: "#94a3b8" }}>
+                            <span style={{ color: "#E11D1C", fontWeight: 700 }}>///</span> resolving…
+                        </span>
                     ) : (
                         <a
                             href={`https://what3words.com/${w3wWords}`}
@@ -2874,7 +2876,28 @@ function PendingPlacementOverlay({
                         </a>
                     )}
                 </div>
-            ) : null}
+            ) : (
+                <button
+                    type="button"
+                    onClick={onFetchW3W}
+                    disabled={isBusy}
+                    style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "5px",
+                        marginBottom: "6px",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: "6px",
+                        background: "#fff",
+                        padding: "3px 8px 3px 4px",
+                        cursor: isBusy ? "not-allowed" : "pointer",
+                        opacity: isBusy ? 0.5 : 1,
+                    }}
+                >
+                    <img src={w3wLogo} alt="what3words" style={{ height: "18px", width: "auto", display: "block" }} />
+                    <span style={{ fontSize: "0.73rem", color: "#475569", fontWeight: 600 }}>Get address</span>
+                </button>
+            )}
             <div
                 style={{
                     fontSize: "0.8rem",
@@ -9055,11 +9078,9 @@ function App() {
     const [mobileStickyStackHeight, setMobileStickyStackHeight] = useState(0);
     const [isHistoricOverlayEditorModeRequested] = useState(readHistoricOverlayEditorModeFromQuery);
     const canManageItems = useMemo(() => canUserManageItems(currentUser), [currentUser]);
-    // Admin-only W3W for pending pin-drop — only calls the API when an admin has a pin placed.
-    const { words: pendingItemW3WWords, loading: pendingItemW3WLoading } = useW3W(
-        canManageItems && pendingLocation ? pendingLocation.y : null,
-        canManageItems && pendingLocation ? pendingLocation.x : null,
-    );
+    // Admin-only W3W for pending pin-drop — fetched on demand via the button in PendingPlacementOverlay.
+    const [pendingItemW3WWords, setPendingItemW3WWords] = useState(null);
+    const [pendingItemW3WLoading, setPendingItemW3WLoading] = useState(false);
     const pendingItemW3WWordsRef = useRef(null);
     pendingItemW3WWordsRef.current = pendingItemW3WWords;
     const isHistoricOverlayEditorModeEnabled =
@@ -10853,6 +10874,36 @@ function App() {
         }, [map, liveLocation]);
 
         return null;
+    }
+
+    // Reset W3W words whenever the admin moves the pin.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    useEffect(() => {
+        setPendingItemW3WWords(null);
+        setPendingItemW3WLoading(false);
+    }, [pendingLocation?.y, pendingLocation?.x]);
+
+    async function handleFetchPendingW3W() {
+        if (!pendingLocation || pendingItemW3WLoading || pendingItemW3WWords) return;
+        const apiKey = (import.meta.env.VITE_W3W_API_KEY || "").trim();
+        if (!apiKey) return;
+        setPendingItemW3WLoading(true);
+        try {
+            const url =
+                `https://api.what3words.com/v3/convert-to-3wa` +
+                `?coordinates=${encodeURIComponent(`${pendingLocation.y},${pendingLocation.x}`)}` +
+                `&language=en&format=json` +
+                `&key=${encodeURIComponent(apiKey)}`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`W3W ${res.status}`);
+            const data = await res.json();
+            const words = data?.words ?? null;
+            setPendingItemW3WWords(words);
+        } catch {
+            // silently fail — W3W is optional
+        } finally {
+            setPendingItemW3WLoading(false);
+        }
     }
 
     async function handleTypePick(selectedType, imageSource = "gallery") {
@@ -12900,6 +12951,7 @@ function App() {
                         overlayPortalElement={mapOverlayRootRef.current}
                         w3wWords={pendingItemW3WWords}
                         w3wLoading={pendingItemW3WLoading}
+                        onFetchW3W={handleFetchPendingW3W}
                     />
 
                     <PublicReportOverlay
