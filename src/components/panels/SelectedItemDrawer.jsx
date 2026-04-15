@@ -427,6 +427,7 @@ export default function SelectedItemDrawer({
                                 isResolving={isResolvingGeoLookup}
                                 mapsUrl={selectedMapsUrl}
                                 compact={compactNoScroll || useDenseDesktopCard}
+                                w3wAddress={selectedItem.w3w_address ?? null}
                             />
 
                             {copiedShareItemId === selectedItem.id && shareCopyStatus ? (

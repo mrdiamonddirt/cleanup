@@ -391,6 +391,7 @@ export default function FullscreenImageViewer({
                             mapPoint={{ latitude: selectedItem.y, longitude: selectedItem.x }}
                             compact
                             inverted
+                            w3wAddress={selectedItem.w3w_address ?? null}
                         />
                     </div>
                 </div>

@@ -1,6 +1,7 @@
 import React, { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { createPortal } from "react-dom";
+import { useW3W } from "./useW3W";
 import {
     MapContainer,
     TileLayer,
@@ -1374,7 +1375,7 @@ const sanitizeReportNote = (value) =>
         .trim()
         .slice(0, REPORT_NOTE_MAX_LENGTH);
 
-const buildPublicReportMessage = ({ latitude, longitude, note, reporterLabel, sourceUrl }) => {
+const buildPublicReportMessage = ({ latitude, longitude, note, reporterLabel, sourceUrl, w3wAddress }) => {
     const latText = formatCoordinate(latitude, 6) || String(latitude);
     const lngText = formatCoordinate(longitude, 6) || String(longitude);
     const mapsUrl = createMapsUrl(latitude, longitude);
@@ -1385,9 +1386,16 @@ const buildPublicReportMessage = ({ latitude, longitude, note, reporterLabel, so
         "",
         "I am sending a report from the cleanup map.",
         `GPS: ${latText}, ${lngText}`,
+    ];
+
+    if (w3wAddress) {
+        lines.push(`What3Words: ///${w3wAddress} (https://what3words.com/${w3wAddress})`);
+    }
+
+    lines.push(
         `Google Maps: ${mapsUrl}`,
         `Reporter: ${reporterLabel || "Anonymous website visitor"}`,
-    ];
+    );
 
     if (cleanedNote) {
         lines.push(`Details: ${cleanedNote}`);
@@ -1629,6 +1637,12 @@ const inferDbWeightFieldSupport = (items) => {
     const first = Array.isArray(items) ? items[0] : null;
 
     return first ? Object.prototype.hasOwnProperty.call(first, "estimated_weight_kg") : null;
+};
+
+const inferDbW3wFieldSupport = (items) => {
+    const first = Array.isArray(items) ? items[0] : null;
+
+    return first ? Object.prototype.hasOwnProperty.call(first, "w3w_address") : null;
 };
 
 const inferDbGeoFieldSupport = (items) => {
@@ -2412,6 +2426,7 @@ function LocationDetailsBlock({
     mapPoint,
     compact = false,
     inverted = false,
+    w3wAddress = null,
 }) {
     const colors = inverted
         ? {
@@ -2593,6 +2608,35 @@ function LocationDetailsBlock({
                     </div>
                 ) : null}
 
+                {gpsText && w3wAddress ? (
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "baseline" }}>
+                        <span
+                            style={{
+                                minWidth: compact ? "34px" : "40px",
+                                fontSize: compact ? "0.72rem" : "0.75rem",
+                                fontWeight: 700,
+                                letterSpacing: "0.04em",
+                                textTransform: "uppercase",
+                                color: colors.rowLabel,
+                            }}
+                        >
+                            W3W
+                        </span>
+                        <a
+                            href={`https://what3words.com/${w3wAddress}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{
+                                fontSize: compact ? "0.8rem" : "0.83rem",
+                                textDecoration: "none",
+                                color: colors.rowValue,
+                            }}
+                        >
+                            <span style={{ color: "#E11D1C", fontWeight: 700 }}>///</span>{w3wAddress}
+                        </a>
+                    </div>
+                ) : null}
+
                 {mapPointText ? (
                     <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "baseline" }}>
                         <span
@@ -2649,6 +2693,8 @@ function PendingPlacementOverlay({
     handleTypePick,
     markOverlayInteraction,
     overlayPortalElement,
+    w3wWords,
+    w3wLoading,
 }) {
     const map = useMap();
     const panelRef = useRef(null);
@@ -2812,6 +2858,23 @@ function PendingPlacementOverlay({
                     ? `Add a photo for this ${TYPE_LABELS[pendingItemType] || "item"}`
                     : "Choose item type for this location"}
             </div>
+            {(w3wLoading || w3wWords) ? (
+                <div style={{ fontSize: "0.77rem", color: "#475569", marginBottom: "6px", lineHeight: 1.4 }}>
+                    <span style={{ color: "#64748b" }}>///</span>
+                    {w3wLoading ? (
+                        <span style={{ color: "#94a3b8" }}> resolving…</span>
+                    ) : (
+                        <a
+                            href={`https://what3words.com/${w3wWords}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{ textDecoration: "none", color: "#0f172a" }}
+                        >
+                            <span style={{ color: "#E11D1C", fontWeight: 700 }}>///</span>{w3wWords}
+                        </a>
+                    )}
+                </div>
+            ) : null}
             <div
                 style={{
                     fontSize: "0.8rem",
@@ -3231,8 +3294,10 @@ function PublicReportOverlay({
                     ×
                 </button>
             </div>
-            <div style={{ fontSize: "0.8rem", color: "#334155", marginBottom: "8px", lineHeight: 1.4 }}>
-                GPS to share: {latText}, {lngText}
+            <div style={{ marginBottom: "8px" }}>
+                <div style={{ fontSize: "0.8rem", color: "#334155", lineHeight: 1.4 }}>
+                    GPS to share: {latText}, {lngText}
+                </div>
             </div>
 
             <div
@@ -7203,6 +7268,7 @@ function FullscreenImageViewer({
                             mapPoint={{ latitude: selectedItem.y, longitude: selectedItem.x }}
                             compact
                             inverted
+                            w3wAddress={selectedItem.w3w_address ?? null}
                         />
                     </div>
                 </div>
@@ -7651,6 +7717,7 @@ function SelectedItemDrawer({
                                 isResolving={isResolvingGeoLookup}
                                 mapsUrl={selectedMapsUrl}
                                 compact={compactNoScroll || useDenseDesktopCard}
+                                w3wAddress={selectedItem.w3w_address ?? null}
                             />
 
                             {copiedShareItemId === selectedItem.id && shareCopyStatus ? (
@@ -8897,6 +8964,9 @@ function App() {
     const [dbWeightFieldSupport, setDbWeightFieldSupport] = useState(() =>
         inferDbWeightFieldSupport(startupStoredState.items),
     );
+    const [dbW3wFieldSupport, setDbW3wFieldSupport] = useState(() =>
+        inferDbW3wFieldSupport(startupStoredState.items),
+    );
     const [dbGeoFieldSupport, setDbGeoFieldSupport] = useState(() =>
         inferDbGeoFieldSupport(startupStoredState.items),
     );
@@ -8985,6 +9055,13 @@ function App() {
     const [mobileStickyStackHeight, setMobileStickyStackHeight] = useState(0);
     const [isHistoricOverlayEditorModeRequested] = useState(readHistoricOverlayEditorModeFromQuery);
     const canManageItems = useMemo(() => canUserManageItems(currentUser), [currentUser]);
+    // Admin-only W3W for pending pin-drop — only calls the API when an admin has a pin placed.
+    const { words: pendingItemW3WWords, loading: pendingItemW3WLoading } = useW3W(
+        canManageItems && pendingLocation ? pendingLocation.y : null,
+        canManageItems && pendingLocation ? pendingLocation.x : null,
+    );
+    const pendingItemW3WWordsRef = useRef(null);
+    pendingItemW3WWordsRef.current = pendingItemW3WWords;
     const isHistoricOverlayEditorModeEnabled =
         canManageItems && isHistoricOverlayEditorModeRequested;
     const canUsePublicReports = ENABLE_PUBLIC_REPORTS && !canManageItems;
@@ -9133,6 +9210,7 @@ function App() {
             note: reportNote,
             reporterLabel,
             sourceUrl: reportSourceUrl,
+            w3wAddress: reportW3WWords ?? undefined,
         });
     };
 
@@ -10100,6 +10178,7 @@ function App() {
         setDbCountFieldSupport(inferDbCountFieldSupport(nextItems));
         setDbGpsFieldSupport(inferDbGpsFieldSupport(nextItems));
         setDbWeightFieldSupport(inferDbWeightFieldSupport(nextItems));
+        setDbW3wFieldSupport(inferDbW3wFieldSupport(nextItems));
         setDbGeoFieldSupport(inferDbGeoFieldSupport(nextItems));
         setDbStoryFieldSupport(inferDbStoryFieldSupport(nextItems));
         setItems(nextItems);
@@ -10900,6 +10979,9 @@ function App() {
                     insertPayload.gps_latitude = gpsSource.latitude;
                     insertPayload.gps_longitude = gpsSource.longitude;
                 }
+                if (dbW3wFieldSupport !== false && pendingItemW3WWordsRef.current) {
+                    insertPayload.w3w_address = pendingItemW3WWordsRef.current;
+                }
 
                 let { data, error } = await supabase
                     .from("items")
@@ -10915,8 +10997,10 @@ function App() {
                     error && error.message?.toLowerCase().includes("estimated_weight_kg");
                 const createdByColumnMissing =
                     error && error.message?.toLowerCase().includes("created_by");
+                const w3wColumnMissing =
+                    error && error.message?.toLowerCase().includes("w3w_address");
 
-                if (gpsColumnMissing || weightColumnMissing || createdByColumnMissing) {
+                if (gpsColumnMissing || weightColumnMissing || createdByColumnMissing || w3wColumnMissing) {
                     const retryPayload = { ...insertPayload };
                     if (gpsColumnMissing) {
                         delete retryPayload.gps_latitude;
@@ -10929,6 +11013,10 @@ function App() {
                     }
                     if (createdByColumnMissing) {
                         delete retryPayload.created_by;
+                    }
+                    if (w3wColumnMissing) {
+                        delete retryPayload.w3w_address;
+                        setDbW3wFieldSupport(false);
                     }
 
                     const retryResult = await supabase
@@ -12810,6 +12898,8 @@ function App() {
                         handleTypePick={handleTypePick}
                         markOverlayInteraction={markOverlayInteraction}
                         overlayPortalElement={mapOverlayRootRef.current}
+                        w3wWords={pendingItemW3WWords}
+                        w3wLoading={pendingItemW3WLoading}
                     />
 
                     <PublicReportOverlay

@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from "react";
 import ImageCarousel from "./ImageCarousel";
+import { useW3W } from "../useW3W";
 
 export default function PoiCard({
     poi,
@@ -13,6 +14,10 @@ export default function PoiCard({
     const cardRef = useRef(null);
     const shareStatusTimeoutRef = useRef(null);
     const [shareStatus, setShareStatus] = useState("");
+    const { words: w3wWords, loading: w3wLoading } = useW3W(
+        poi ? Number(poi.latitude) : null,
+        poi ? Number(poi.longitude) : null,
+    );
 
     if (!poi) return null;
 
@@ -438,6 +443,23 @@ export default function PoiCard({
                             <strong style={{ color: "#334155" }}>Coordinates:</strong>{" "}
                             {Number(poi.latitude).toFixed(4)}, {Number(poi.longitude).toFixed(4)}
                         </div>
+                        {(w3wLoading || w3wWords) ? (
+                            <div style={{ marginTop: "4px" }}>
+                                <strong style={{ color: "#334155" }}>What3Words:</strong>{" "}
+                                {w3wLoading ? (
+                                    <span style={{ opacity: 0.4 }}>···</span>
+                                ) : (
+                                    <a
+                                        href={`https://what3words.com/${w3wWords}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        style={{ textDecoration: "none", color: "#334155" }}
+                                    >
+                                        <span style={{ color: "#E11D1C", fontWeight: 700 }}>///</span>{w3wWords}
+                                    </a>
+                                )}
+                            </div>
+                        ) : null}
                     </div>
 
                     {/* External Links */}
