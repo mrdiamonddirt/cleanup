@@ -9258,11 +9258,10 @@ function App() {
             note: reportNote,
             reporterLabel,
             sourceUrl: reportSourceUrl,
-            w3wAddress: reportW3WWords ?? undefined,
         });
     };
 
-    const handleOpenMessengerForReport = async () => {
+    const handleOpenMessengerForReport = () => {
         if (!reportLocation) return;
         if (!hasMessengerTarget || !messengerThreadUrl) {
             setReportStatusMessage("Messenger target is not configured yet.");
@@ -9278,23 +9277,25 @@ function App() {
         const message = buildCurrentReportMessage();
         const messengerUrl = `${messengerThreadUrl}?text=${encodeURIComponent(message)}`;
 
-        // Open synchronously within the user gesture before any await, otherwise
-        // browsers treat the window.open call as a popup and block it.
+        // Must be synchronous (no async/await) so mobile browsers preserve the
+        // user-gesture token and do not block window.open as a popup.
         window.open(messengerUrl, "_blank", "noopener,noreferrer");
-
         setReportCooldownUntil(Date.now() + REPORT_ACTION_COOLDOWN_MS);
 
-        const copied = await copyTextToClipboard(message);
-
-        setReportStatusMessage(
-            copied
-                ? "Messenger opened. Report text copied to your clipboard."
-                : "Messenger opened. Clipboard blocked, so paste manually.",
-            3600,
-        );
+        // Clipboard copy is fire-and-forget; update status once settled.
+        copyTextToClipboard(message).then((copied) => {
+            setReportStatusMessage(
+                copied
+                    ? "Messenger opened. Report text copied to your clipboard."
+                    : "Messenger opened. Clipboard blocked, so paste manually.",
+                3600,
+            );
+        }).catch(() => {
+            setReportStatusMessage("Messenger opened.", 3600);
+        });
     };
 
-    const handleOpenEmailForReport = async () => {
+    const handleOpenEmailForReport = () => {
         if (!reportLocation) return;
         if (!hasCommunityEmailTarget) {
             setReportStatusMessage("Community email is not configured yet.");
@@ -9311,20 +9312,22 @@ function App() {
         const subject = "River Lune report from cleanup map";
         const mailtoUrl = `mailto:${encodeURIComponent(COMMUNITY_EMAIL_ACCOUNT)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`;
 
-        // Navigate synchronously within the user gesture before any await, otherwise
-        // some browsers may suppress the mailto: navigation.
+        // Must be synchronous (no async/await) so mobile browsers preserve the
+        // user-gesture token and do not suppress the mailto: navigation.
         window.location.href = mailtoUrl;
-
         setReportCooldownUntil(Date.now() + REPORT_ACTION_COOLDOWN_MS);
 
-        const copied = await copyTextToClipboard(message);
-
-        setReportStatusMessage(
-            copied
-                ? "Email draft opened with report details."
-                : "Email draft opened. If body is empty, paste details manually.",
-            3600,
-        );
+        // Clipboard copy is fire-and-forget; update status once settled.
+        copyTextToClipboard(message).then((copied) => {
+            setReportStatusMessage(
+                copied
+                    ? "Email draft opened with report details."
+                    : "Email draft opened. If body is empty, paste details manually.",
+                3600,
+            );
+        }).catch(() => {
+            setReportStatusMessage("Email draft opened.", 3600);
+        });
     };
 
     const markOverlayInteraction = () => {
