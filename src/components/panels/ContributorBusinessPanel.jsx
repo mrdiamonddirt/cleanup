@@ -432,6 +432,7 @@ export default function ContributorBusinessPanel({
                                                     <img
                                                         src={contributor.logo_url}
                                                         alt=""
+                                                        loading="lazy"
                                                         style={{
                                                             width: "100%",
                                                             height: "100%",
@@ -781,6 +782,7 @@ export default function ContributorBusinessPanel({
                                 <img
                                     src={form.logoUrl}
                                     alt="Business logo preview"
+                                    loading="lazy"
                                     style={{
                                         width: "38px",
                                         height: "38px",

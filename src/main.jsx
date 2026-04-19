@@ -673,12 +673,37 @@ const CONSERVATIVE_SCRAP_VALUE_GBP_PER_KG = {
 
 const formatGbp = (value) => `£${value.toFixed(2)}`;
 
+// Returns a resized Supabase Storage image URL for thumbnails. Falls back to the
+// original URL unchanged for any non-Supabase or already-transformed URL.
+const getStorageThumbnailUrl = (url, width = 400, quality = 75) => {
+    if (!url) return url;
+    try {
+        const u = new URL(url);
+        if (!u.pathname.includes("/storage/v1/object/public/")) return url;
+        u.pathname = u.pathname.replace(
+            "/storage/v1/object/public/",
+            "/storage/v1/render/image/public/",
+        );
+        u.searchParams.set("width", String(width));
+        u.searchParams.set("quality", String(quality));
+        return u.toString();
+    } catch {
+        return url;
+    }
+};
+
 const ITEMS_STORAGE_KEY = "cleanup-items-v1";
+const ITEMS_FETCH_TS_KEY = "cleanup-items-v1_ts";
 const COUNT_STORAGE_KEY = "cleanup-item-counts-v1";
 const GPS_STORAGE_KEY = "cleanup-item-gps-v1";
 const WEIGHT_STORAGE_KEY = "cleanup-item-weights-v1";
 const GEOLOOKUP_STORAGE_KEY = "cleanup-item-geolookup-v1";
 const ITEM_STORY_STORAGE_KEY = "cleanup-item-story-v1";
+const CONTRIBUTORS_STORAGE_KEY = "cleanup-contributors-v1";
+const CONTRIBUTORS_FETCH_TS_KEY = "cleanup-contributors-v1_ts";
+const POIS_STORAGE_KEY = "cleanup-pois-v1";
+const POIS_FETCH_TS_KEY = "cleanup-pois-v1_ts";
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes — reduces Supabase egress on repeat page loads
 const LANCASTER_TIDE_JSON_URL = `${import.meta.env.BASE_URL}lancaster-tides.json`;
 const LANCASTER_TIDE_CHART_URL =
     "https://www.tide-forecast.com/tide/Lancaster/tide-times";
@@ -7598,8 +7623,9 @@ function SelectedItemDrawer({
                                     }}
                                 >
                                     <img
-                                        src={selectedItem.image_url}
+                                        src={getStorageThumbnailUrl(selectedItem.image_url, 600, 75)}
                                         alt="Debris evidence"
+                                        loading="lazy"
                                         style={{
                                             width: "100%",
                                             height: "100%",
@@ -8795,6 +8821,7 @@ function ContributorMobileSheet({ contributor, mapsUrl, onClose }) {
                                     <img
                                         src={contributor.logo_url}
                                         alt={`${contributor.name || "Business"} logo`}
+                                        loading="lazy"
                                         style={{
                                             width: "100%",
                                             height: "100%",
@@ -9249,19 +9276,22 @@ function App() {
         }
 
         const message = buildCurrentReportMessage();
-        const copied = await copyTextToClipboard(message);
+        const messengerUrl = `${messengerThreadUrl}?text=${encodeURIComponent(message)}`;
+
+        // Open synchronously within the user gesture before any await, otherwise
+        // browsers treat the window.open call as a popup and block it.
+        window.open(messengerUrl, "_blank", "noopener,noreferrer");
+
         setReportCooldownUntil(Date.now() + REPORT_ACTION_COOLDOWN_MS);
 
-        const messengerUrl = `${messengerThreadUrl}?text=${encodeURIComponent(message)}`;
+        const copied = await copyTextToClipboard(message);
 
         setReportStatusMessage(
             copied
-                ? "Opening Messenger. Report text copied to your clipboard."
-                : "Opening Messenger. Clipboard blocked, so paste manually.",
+                ? "Messenger opened. Report text copied to your clipboard."
+                : "Messenger opened. Clipboard blocked, so paste manually.",
             3600,
         );
-
-        window.open(messengerUrl, "_blank", "noopener,noreferrer");
     };
 
     const handleOpenEmailForReport = async () => {
@@ -9278,19 +9308,23 @@ function App() {
         }
 
         const message = buildCurrentReportMessage();
-        const copied = await copyTextToClipboard(message);
         const subject = "River Lune report from cleanup map";
         const mailtoUrl = `mailto:${encodeURIComponent(COMMUNITY_EMAIL_ACCOUNT)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`;
 
+        // Navigate synchronously within the user gesture before any await, otherwise
+        // some browsers may suppress the mailto: navigation.
+        window.location.href = mailtoUrl;
+
         setReportCooldownUntil(Date.now() + REPORT_ACTION_COOLDOWN_MS);
+
+        const copied = await copyTextToClipboard(message);
+
         setReportStatusMessage(
             copied
-                ? "Opening email draft with report details."
-                : "Opening email draft. If body is empty, paste details manually.",
+                ? "Email draft opened with report details."
+                : "Email draft opened. If body is empty, paste details manually.",
             3600,
         );
-
-        window.location.href = mailtoUrl;
     };
 
     const markOverlayInteraction = () => {
@@ -10180,12 +10214,21 @@ function App() {
         };
     };
 
-    async function fetchItems() {
+    async function fetchItems({ bypassTtl = false } = {}) {
         setIsLoadingItems(true);
 
         if (!hasSupabaseConfig) {
             setIsLoadingItems(false);
             return false;
+        }
+
+        if (!bypassTtl) {
+            const lastFetchTs = Number(localStorage.getItem(ITEMS_FETCH_TS_KEY) || 0);
+            const cachedItems = readStoredJson(ITEMS_STORAGE_KEY, [], Array.isArray);
+            if (Date.now() - lastFetchTs < CACHE_TTL_MS && cachedItems.length > 0) {
+                setIsLoadingItems(false);
+                return true;
+            }
         }
 
         const { data, error } = await supabase.from("items").select("*");
@@ -10203,33 +10246,55 @@ function App() {
         setDbGeoFieldSupport(inferDbGeoFieldSupport(nextItems));
         setDbStoryFieldSupport(inferDbStoryFieldSupport(nextItems));
         setItems(nextItems);
+        localStorage.setItem(ITEMS_FETCH_TS_KEY, String(Date.now()));
         setIsLoadingItems(false);
         return true;
     }
 
-    async function fetchContributors() {
+    async function fetchContributors({ bypassTtl = false } = {}) {
         if (!hasSupabaseConfig) {
             setContributors([]);
             return false;
         }
 
+        if (!bypassTtl) {
+            const lastFetchTs = Number(localStorage.getItem(CONTRIBUTORS_FETCH_TS_KEY) || 0);
+            const cached = readStoredJson(CONTRIBUTORS_STORAGE_KEY, [], Array.isArray);
+            if (Date.now() - lastFetchTs < CACHE_TTL_MS && cached.length > 0) {
+                setContributors(cached);
+                return true;
+            }
+        }
+
         const { data, error } = await supabase
             .from("contributors")
-            .select("*");
+            .select("id, name, logo_url, website_url, description");
 
         if (error) {
             setContributors([]);
             return false;
         }
 
-        setContributors(Array.isArray(data) ? data : []);
+        const next = Array.isArray(data) ? data : [];
+        setContributors(next);
+        localStorage.setItem(CONTRIBUTORS_STORAGE_KEY, JSON.stringify(next));
+        localStorage.setItem(CONTRIBUTORS_FETCH_TS_KEY, String(Date.now()));
         return true;
     }
 
-    async function fetchHistoricalPois() {
+    async function fetchHistoricalPois({ bypassTtl = false } = {}) {
         if (!hasSupabaseConfig) {
             setHistoricalPois([]);
             return false;
+        }
+
+        if (!bypassTtl) {
+            const lastFetchTs = Number(localStorage.getItem(POIS_FETCH_TS_KEY) || 0);
+            const cached = readStoredJson(POIS_STORAGE_KEY, [], Array.isArray);
+            if (Date.now() - lastFetchTs < CACHE_TTL_MS && cached.length > 0) {
+                setHistoricalPois(cached);
+                return true;
+            }
         }
 
         const { data, error } = await supabase
@@ -10269,6 +10334,8 @@ function App() {
             : [];
 
         setHistoricalPois(normalized);
+        localStorage.setItem(POIS_STORAGE_KEY, JSON.stringify(normalized));
+        localStorage.setItem(POIS_FETCH_TS_KEY, String(Date.now()));
         return true;
     }
 
@@ -10289,7 +10356,7 @@ function App() {
 
         const { data, error } = await supabase
             .from("historic_overlays")
-            .select("*")
+            .select("overlay_id, status, is_public, bounds, corners, control_points, editor_opacity, source_url, attribution, published_at, updated_at")
             .order("updated_at", { ascending: false });
 
         if (error) {
@@ -11119,7 +11186,7 @@ function App() {
                 }
 
                 setUploadProgressText("Saved. Refreshing map...");
-                await fetchItems();
+                await fetchItems({ bypassTtl: true });
                 saveSucceeded = true;
                 setUploadProgressText("");
             } catch {
@@ -11472,7 +11539,7 @@ function App() {
             setIsImageViewerOpen(false);
         }
 
-        await fetchItems();
+        await fetchItems({ bypassTtl: true });
         setIsUpdatingItemId(null);
     }
 
@@ -13962,9 +14029,9 @@ function App() {
                 contributors={contributors}
                 supabase={supabase}
                 canManageItems={canManageItems}
-                onContributorAdded={fetchContributors}
-                onContributorUpdated={fetchContributors}
-                onContributorDeleted={fetchContributors}
+                onContributorAdded={() => fetchContributors({ bypassTtl: true })}
+                onContributorUpdated={() => fetchContributors({ bypassTtl: true })}
+                onContributorDeleted={() => fetchContributors({ bypassTtl: true })}
             />
 
             <PoiPanel

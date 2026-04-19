@@ -154,6 +154,7 @@ export default function ImageCarousel({ images = [] }) {
                                     src={currentImage.image_url}
                                     alt={currentImage.alt_text || `Image ${currentIndex + 1}`}
                                     onError={() => setImgError(true)}
+                                    loading="lazy"
                                     style={{
                                         position: "absolute",
                                         inset: 0,
