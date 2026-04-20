@@ -699,7 +699,7 @@ const GPS_STORAGE_KEY = "cleanup-item-gps-v1";
 const WEIGHT_STORAGE_KEY = "cleanup-item-weights-v1";
 const GEOLOOKUP_STORAGE_KEY = "cleanup-item-geolookup-v1";
 const ITEM_STORY_STORAGE_KEY = "cleanup-item-story-v1";
-const CONTRIBUTORS_STORAGE_KEY = "cleanup-contributors-v1";
+const CONTRIBUTORS_STORAGE_KEY = "cleanup-contributors-v2";
 const CONTRIBUTORS_FETCH_TS_KEY = "cleanup-contributors-v1_ts";
 const POIS_STORAGE_KEY = "cleanup-pois-v1";
 const POIS_FETCH_TS_KEY = "cleanup-pois-v1_ts";
@@ -10390,7 +10390,7 @@ function App() {
 
         const { data, error } = await supabase
             .from("contributors")
-            .select("id, name, logo_url, website_url, description");
+            .select("id, name, logo_url, website_url, description, lat, lng, google_maps_link, contribution_note");
 
         if (error) {
             setContributors([]);
