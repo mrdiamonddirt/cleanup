@@ -22,6 +22,8 @@ export default function SelectedItemDrawer({
     removeLocation,
     startEditingItem,
     canManageItems,
+    markItemRecovered,
+    lastSaveResult,
     onUploadReferenceImage,
     isUploadingReferenceImage,
     onCopyShareLink,
@@ -715,14 +717,14 @@ export default function SelectedItemDrawer({
                                             flex: "1 1 90px",
                                             padding: "10px",
                                             border: "none",
-                                            background: "#1d4ed8",
+                                            background: isUpdatingItemId === selectedItem.id ? "#93c5fd" : "#1d4ed8",
                                             color: "#fff",
                                             borderRadius: "6px",
                                             fontWeight: 700,
-                                            cursor: "pointer",
+                                            cursor: isUpdatingItemId === selectedItem.id ? "default" : "pointer",
                                         }}
                                     >
-                                        Save
+                                        {isUpdatingItemId === selectedItem.id ? "Saving\u2026" : "Save"}
                                     </button>
                                     <button
                                         onClick={() => setEditingItemId(null)}
@@ -741,16 +743,35 @@ export default function SelectedItemDrawer({
                                         Cancel
                                     </button>
                                 </div>
+                                {lastSaveResult?.itemId === selectedItem.id && lastSaveResult.status === "error" ? (
+                                    <div style={{ marginTop: "6px", padding: "8px 10px", background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: "6px", fontSize: "0.82rem", color: "#b91c1c", fontWeight: 600 }}>
+                                        Could not save changes. Please try again.
+                                    </div>
+                                ) : null}
                             </div>
                         ) : canManageItems ? (
                             <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "0" }}>
+                                {lastSaveResult?.itemId === selectedItem.id && lastSaveResult.status === "success" ? (
+                                    <div style={{ flex: "1 1 100%", padding: "8px 10px", background: "#f0fdf4", border: "1px solid #86efac", borderRadius: "6px", fontSize: "0.82rem", color: "#15803d", fontWeight: 600, textAlign: "center" }}>
+                                        Saved ✓
+                                    </div>
+                                ) : lastSaveResult?.itemId === selectedItem.id && lastSaveResult.status === "recovered" ? (
+                                    <div style={{ flex: "1 1 100%", padding: "8px 10px", background: "#f0fdf4", border: "1px solid #86efac", borderRadius: "6px", fontSize: "0.82rem", color: "#15803d", fontWeight: 600, textAlign: "center" }}>
+                                        Marked as recovered ✓
+                                    </div>
+                                ) : lastSaveResult?.itemId === selectedItem.id && lastSaveResult.status === "error" ? (
+                                    <div style={{ flex: "1 1 100%", padding: "8px 10px", background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: "6px", fontSize: "0.82rem", color: "#b91c1c", fontWeight: 600, textAlign: "center" }}>
+                                        Could not save. Please try again.
+                                    </div>
+                                ) : null}
                                 {!selectedCounts.isRecovered && (
                                     <button
+                                        disabled={isUpdatingItemId === selectedItem.id}
                                         style={{
                                             flex: "1 1 100%",
                                             marginTop: "0",
                                             padding: compactNoScroll ? "8px" : "10px",
-                                            backgroundColor: "#2ecc71",
+                                            backgroundColor: isUpdatingItemId === selectedItem.id ? "#86efac" : "#2ecc71",
                                             color: "white",
                                             border: "none",
                                             borderRadius: "6px",
@@ -759,22 +780,12 @@ export default function SelectedItemDrawer({
                                             fontSize: compactNoScroll ? "0.8rem" : "0.9rem",
                                         }}
                                         onClick={() => {
-                                            setEditingItemId(selectedItem.id);
-                                            setEditForm({
-                                                type: normalizeType(selectedItem.type),
-                                                total: selectedCounts.total,
-                                                recovered: selectedCounts.total,
-                                                estimatedWeight: String(selectedWeight?.value || getDefaultWeightForType(selectedItem.type)),
-                                                lat: selectedGps ? String(selectedGps.latitude) : "",
-                                                lng: selectedGps ? String(selectedGps.longitude) : "",
-                                                knownSinceDate: normalizeOptionalDateInput(selectedStory?.knownSinceDate),
-                                                recoveredOnDate: normalizeOptionalDateInput(selectedStory?.recoveredOnDate),
-                                                referenceImageUrl: selectedStory?.referenceImageUrl || "",
-                                                referenceImageCaption: selectedStory?.referenceImageCaption || "",
-                                            });
+                                            if (markItemRecovered) {
+                                                markItemRecovered(selectedItem.id);
+                                            }
                                         }}
                                     >
-                                        Mark All Recovered
+                                        {isUpdatingItemId === selectedItem.id ? "Marking\u2026" : "Mark All Recovered"}
                                     </button>
                                 )}
                                 <button

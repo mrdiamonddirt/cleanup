@@ -3148,6 +3148,7 @@ function PublicReportOverlay({
     onNoteChange,
     onOpenMessenger,
     onOpenEmail,
+    onCopyReportText,
     onCancel,
     markOverlayInteraction,
     hasMessengerTarget,
@@ -3451,6 +3452,35 @@ function PublicReportOverlay({
                     Send by Email
                 </button>
             </div>
+
+            {onCopyReportText ? (
+                <button
+                    type="button"
+                    onClick={onCopyReportText}
+                    style={{
+                        marginTop: "6px",
+                        width: "100%",
+                        border: "1px solid #94a3b8",
+                        background: "#f8fafc",
+                        color: "#334155",
+                        borderRadius: "10px",
+                        minHeight: isMobile ? "42px" : "38px",
+                        padding: isMobile ? "10px 14px" : "8px 13px",
+                        fontSize: isMobile ? "0.9rem" : "0.83rem",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "7px",
+                    }}
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1Zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2Zm0 16H8V7h11v14Z"/>
+                    </svg>
+                    Copy report text
+                </button>
+            ) : null}
 
             {!hasMessengerTarget ? (
                 <div style={{ marginTop: "8px", fontSize: "0.75rem", color: "#7f1d1d" }}>
@@ -8985,6 +9015,8 @@ function App() {
         referenceImageCaption: "",
     });
     const [isUpdatingItemId, setIsUpdatingItemId] = useState(null);
+    const [lastSaveResult, setLastSaveResult] = useState(null); // { itemId, status: 'success'|'error' }
+    const saveResultTimeoutRef = useRef(null);
     const [selectedItemId, setSelectedItemId] = useState(null);
     const [querySelectedItemId, setQuerySelectedItemId] = useState(() => readSelectedItemIdFromQuery());
     const [querySelectedPoiSlug, setQuerySelectedPoiSlug] = useState(() => readSelectedPoiSlugFromQuery());
@@ -9220,6 +9252,17 @@ function App() {
         }, timeoutMs);
     };
 
+    const showSaveResult = (itemId, status) => {
+        setLastSaveResult({ itemId, status });
+        if (saveResultTimeoutRef.current) {
+            window.clearTimeout(saveResultTimeoutRef.current);
+        }
+        saveResultTimeoutRef.current = window.setTimeout(() => {
+            setLastSaveResult(null);
+            saveResultTimeoutRef.current = null;
+        }, 2500);
+    };
+
     const copyTextToClipboard = async (textValue) => {
         if (!textValue) return false;
 
@@ -9277,22 +9320,46 @@ function App() {
         const message = buildCurrentReportMessage();
         const messengerUrl = `${messengerThreadUrl}?text=${encodeURIComponent(message)}`;
 
+        // Attempt a synchronous execCommand copy BEFORE window.open so we still
+        // hold the user-gesture token on Android Chrome (async clipboard API
+        // will be denied after window.open consumes the gesture).
+        let syncCopied = false;
+        try {
+            const ta = document.createElement("textarea");
+            ta.value = message;
+            ta.setAttribute("readonly", "");
+            ta.style.cssText = "position:absolute;left:-9999px;top:-9999px;";
+            document.body.appendChild(ta);
+            ta.select();
+            syncCopied = document.execCommand("copy");
+            document.body.removeChild(ta);
+        } catch (_) {
+            // ignored — will fall through to async attempt below
+        }
+
         // Must be synchronous (no async/await) so mobile browsers preserve the
         // user-gesture token and do not block window.open as a popup.
         window.open(messengerUrl, "_blank", "noopener,noreferrer");
         setReportCooldownUntil(Date.now() + REPORT_ACTION_COOLDOWN_MS);
 
-        // Clipboard copy is fire-and-forget; update status once settled.
-        copyTextToClipboard(message).then((copied) => {
-            setReportStatusMessage(
-                copied
-                    ? "Messenger opened. Report text copied to your clipboard."
-                    : "Messenger opened. Clipboard blocked, so paste manually.",
-                3600,
-            );
-        }).catch(() => {
-            setReportStatusMessage("Messenger opened.", 3600);
-        });
+        if (syncCopied) {
+            setReportStatusMessage("Messenger opened. Report text copied to your clipboard.", 3600);
+        } else {
+            // Async clipboard as a second attempt (works on desktop/iOS Safari).
+            copyTextToClipboard(message).then((copied) => {
+                setReportStatusMessage(
+                    copied
+                        ? "Messenger opened. Report text copied to your clipboard."
+                        : "Messenger opened. If the message box is empty, use the Copy button below and paste it in.",
+                    3600,
+                );
+            }).catch(() => {
+                setReportStatusMessage(
+                    "Messenger opened. If the message box is empty, use the Copy button below and paste it in.",
+                    3600,
+                );
+            });
+        }
     };
 
     const handleOpenEmailForReport = () => {
@@ -11344,7 +11411,7 @@ function App() {
         }
 
         if (error) {
-            alert("Unable to save changes.");
+            showSaveResult(itemId, "error");
             setIsUpdatingItemId(null);
             return;
         }
@@ -11404,9 +11471,45 @@ function App() {
             });
         }
 
+        showSaveResult(itemId, "success");
         setEditingItemId(null);
         setIsUpdatingItemId(null);
-        fetchItems();
+        fetchItems({ bypassTtl: true });
+    }
+
+    async function markItemRecovered(itemId) {
+        if (!canManageItems) return;
+
+        const item = items.find((i) => String(i?.id) === String(itemId));
+        if (!item) return;
+
+        setIsUpdatingItemId(itemId);
+
+        const total = Math.max(1, clampInt(item.total_count ?? 1, 1));
+        const updatePayload = { is_recovered: true };
+        if (dbCountFieldSupport.recovered) updatePayload.recovered_count = total;
+
+        const { error } = await supabase
+            .from("items")
+            .update(updatePayload)
+            .eq("id", itemId);
+
+        if (error) {
+            showSaveResult(itemId, "error");
+            setIsUpdatingItemId(null);
+            return;
+        }
+
+        if (!dbCountFieldSupport.total) {
+            setLocalCounts((prev) => ({
+                ...prev,
+                [itemId]: { total, recovered: total },
+            }));
+        }
+
+        showSaveResult(itemId, "recovered");
+        setIsUpdatingItemId(null);
+        fetchItems({ bypassTtl: true });
     }
 
     async function removeLocation(itemId) {
@@ -13036,6 +13139,17 @@ function App() {
                         }
                         onOpenMessenger={handleOpenMessengerForReport}
                         onOpenEmail={handleOpenEmailForReport}
+                        onCopyReportText={() => {
+                            const msg = buildCurrentReportMessage();
+                            copyTextToClipboard(msg).then((copied) => {
+                                setReportStatusMessage(
+                                    copied ? "Report text copied to clipboard." : "Could not copy automatically — please copy manually.",
+                                    2600,
+                                );
+                            }).catch(() => {
+                                setReportStatusMessage("Could not copy automatically — please copy manually.", 2600);
+                            });
+                        }}
                         onCancel={() => {
                             setReportLocation(null);
                             setReportNote("");
@@ -14085,6 +14199,8 @@ function App() {
                     removeLocation={removeLocation}
                     startEditingItem={startEditingItem}
                     canManageItems={canManageItems}
+                    markItemRecovered={markItemRecovered}
+                    lastSaveResult={lastSaveResult}
                     onUploadReferenceImage={uploadReferenceImageFromEdit}
                     isUploadingReferenceImage={isUploadingReferenceImage}
                     onCopyShareLink={copyShareLinkForItem}
