@@ -61,6 +61,15 @@ h1 {
   text-transform: uppercase;
 }
 
+.item-breakdown {
+  margin-top: 8px;
+  color: #dbeafe;
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1.35;
+}
+
 ul {
   margin: 16px 0 0;
   padding: 0;

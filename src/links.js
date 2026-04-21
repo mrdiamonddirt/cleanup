@@ -10,6 +10,15 @@ const ASSUMED_ITEM_WEIGHTS_KG = {
     misc: 30,
 };
 
+const TYPE_COUNT_ORDER = ["trolley", "bike", "motorbike", "historic", "misc"];
+const TYPE_COUNT_LABELS = {
+    trolley: ["trolley", "trolleys"],
+    bike: ["bike", "bikes"],
+    motorbike: ["motorbike", "motorbikes"],
+    historic: ["historic find", "historic finds"],
+    misc: ["misc item", "misc items"],
+};
+
 const DEFAULT_WEIGHT_KG = ASSUMED_ITEM_WEIGHTS_KG.misc;
 
 const normalizeType = (value) => String(value || "").toLowerCase().trim();
@@ -46,10 +55,16 @@ const formatWeightLabel = (valueKg) => {
 };
 
 const weightNode = document.getElementById("weight-total");
+const itemBreakdownNode = document.getElementById("item-breakdown");
 
 const setWeightText = (text) => {
     if (!weightNode) return;
     weightNode.textContent = text;
+};
+
+const setItemBreakdownText = (text) => {
+    if (!itemBreakdownNode) return;
+    itemBreakdownNode.textContent = text;
 };
 
 const readCachedItems = () => {
@@ -79,16 +94,52 @@ const computeEstimatedRecoveredKg = (rows) =>
         return sum + recoveredCount * weightPerItem;
     }, 0);
 
+const buildRecoveredTypeBreakdown = (rows) => {
+    const totalsByType = {
+        trolley: 0,
+        bike: 0,
+        motorbike: 0,
+        historic: 0,
+        misc: 0,
+    };
+
+    rows.forEach((row) => {
+        const totalCount = getTotalCount(row);
+        const recovered = getRecoveredCount(row);
+        const recoveredCount = clampRecoveredCount(totalCount, recovered);
+        if (recoveredCount <= 0) return;
+
+        const typeKey = normalizeType(row?.type);
+        const normalizedType = Object.prototype.hasOwnProperty.call(totalsByType, typeKey)
+            ? typeKey
+            : "misc";
+        totalsByType[normalizedType] += recoveredCount;
+    });
+
+    const parts = TYPE_COUNT_ORDER
+        .map((type) => {
+            const count = totalsByType[type] || 0;
+            if (count <= 0) return "";
+            const [singular, plural] = TYPE_COUNT_LABELS[type];
+            return `${count.toLocaleString("en-GB")} ${count === 1 ? singular : plural}`;
+        })
+        .filter(Boolean);
+
+    return parts.length > 0 ? parts.join(" • ") : "No recovered items yet";
+};
+
 const loadRecoveredWeight = async () => {
     if (!hasSupabaseConfig) {
         const cachedItems = readCachedItems();
         if (cachedItems.length > 0) {
             setWeightText(formatWeightLabel(computeEstimatedRecoveredKg(cachedItems)));
+            setItemBreakdownText(buildRecoveredTypeBreakdown(cachedItems));
             return;
         }
 
         console.warn("[links] Supabase config missing and no cached items available.");
         setWeightText("Recovered weight unavailable");
+        setItemBreakdownText("Recovered item counts unavailable");
         return;
     }
 
@@ -96,6 +147,7 @@ const loadRecoveredWeight = async () => {
 
     if (!error && Array.isArray(data) && data.length > 0) {
         setWeightText(formatWeightLabel(computeEstimatedRecoveredKg(data)));
+        setItemBreakdownText(buildRecoveredTypeBreakdown(data));
         return;
     }
 
@@ -103,6 +155,7 @@ const loadRecoveredWeight = async () => {
     if (cachedItems.length > 0) {
         console.warn("[links] Using cached items fallback for recovered weight.");
         setWeightText(formatWeightLabel(computeEstimatedRecoveredKg(cachedItems)));
+        setItemBreakdownText(buildRecoveredTypeBreakdown(cachedItems));
         return;
     }
 
@@ -113,6 +166,7 @@ const loadRecoveredWeight = async () => {
     }
 
     setWeightText("Recovered weight unavailable");
+    setItemBreakdownText("Recovered item counts unavailable");
 };
 
 loadRecoveredWeight();
