@@ -78,7 +78,8 @@ ul {
   gap: 14px;
 }
 
-a.link-card {
+a.link-card,
+button.link-card {
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -95,7 +96,15 @@ a.link-card {
   overflow: hidden;
 }
 
-a.link-card::before {
+button.link-card {
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+a.link-card::before,
+button.link-card::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -105,7 +114,9 @@ a.link-card::before {
 }
 
 a.link-card:hover,
-a.link-card:focus-visible {
+a.link-card:focus-visible,
+button.link-card:hover,
+button.link-card:focus-visible {
   transform: translateY(-3px) scale(1.015);
   border-color: rgba(255, 255, 255, 0.72);
   box-shadow: 0 18px 32px rgba(0, 0, 0, 0.32);
@@ -114,7 +125,9 @@ a.link-card:focus-visible {
 }
 
 a.link-card:hover::before,
-a.link-card:focus-visible::before {
+a.link-card:focus-visible::before,
+button.link-card:hover::before,
+button.link-card:focus-visible::before {
   opacity: 1;
 }
 
@@ -127,6 +140,9 @@ a.link-card:focus-visible::before {
 
 .text-stack {
   display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
   min-width: 0;
 }
 
@@ -142,10 +158,18 @@ a.link-card:focus-visible::before {
   flex-shrink: 0;
 }
 
-.label {
+.title {
   font-size: clamp(1rem, 1.35vw, 1.12rem);
+  font-weight: 900;
   line-height: 1.2;
   text-shadow: none;
+}
+
+.description {
+  font-size: clamp(0.78rem, 1.08vw, 0.9rem);
+  font-weight: 700;
+  line-height: 1.25;
+  opacity: 0.95;
 }
 
 .brand-home {
@@ -180,10 +204,14 @@ a.link-card:focus-visible::before {
   border-color: rgba(15, 70, 155, 0.28);
 }
 
-.brand-facebook .label {
+.brand-facebook .title {
   color: #ffffff;
   font-weight: 900;
   text-shadow: 0 1px 2px rgba(8, 41, 102, 0.5);
+}
+
+.brand-facebook .description {
+  color: rgba(255, 255, 255, 0.95);
 }
 
 .brand-instagram {
@@ -210,10 +238,14 @@ a.link-card:focus-visible::before {
   border-color: rgba(90, 42, 124, 0.32);
 }
 
-.brand-instagram .label {
+.brand-instagram .title {
   color: #ffffff;
   font-weight: 900;
   text-shadow: 0 1px 2px rgba(73, 10, 72, 0.5);
+}
+
+.brand-instagram .description {
+  color: rgba(255, 255, 255, 0.95);
 }
 
 .brand-bmc {
@@ -227,16 +259,42 @@ a.link-card:focus-visible::before {
   display: none;
 }
 
-.brand-bmc .label {
+.brand-bmc .title {
   color: #171717;
   font-weight: 900;
   text-shadow: none;
+}
+
+.brand-bmc .description {
+  color: rgba(23, 23, 23, 0.88);
 }
 
 .brand-bmc .icon-chip {
   background: #171717;
   color: #ffdd00;
   border-color: rgba(23, 23, 23, 0.88);
+}
+
+.brand-share {
+  background: linear-gradient(145deg, rgba(14, 165, 233, 0.5), rgba(6, 95, 70, 0.45));
+  color: #effdff;
+  border-color: rgba(255, 255, 255, 0.62);
+  box-shadow: 0 16px 34px rgba(8, 145, 178, 0.3);
+}
+
+.brand-share .icon-chip {
+  background: rgba(255, 255, 255, 0.92);
+  color: #0f766e;
+  border-color: rgba(15, 118, 110, 0.22);
+}
+
+.share-status {
+  min-height: 1.3em;
+  margin: 12px 2px 0;
+  color: #d9f6ff;
+  font-size: 0.84rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
 }
 
 @keyframes floatIn {
@@ -271,6 +329,29 @@ ul li:nth-child(1) { animation-delay: 60ms; }
 ul li:nth-child(2) { animation-delay: 120ms; }
 ul li:nth-child(3) { animation-delay: 180ms; }
 ul li:nth-child(4) { animation-delay: 240ms; }
+ul li:nth-child(5) { animation-delay: 300ms; }
+
+@media (hover: none), (pointer: coarse) {
+  .brand-facebook,
+  .brand-instagram {
+    animation: none;
+    background-size: 100% 100%;
+  }
+
+  a.link-card,
+  button.link-card {
+    transition: border-color 140ms ease;
+  }
+
+  a.link-card:hover,
+  a.link-card:focus-visible,
+  button.link-card:hover,
+  button.link-card:focus-visible {
+    transform: none;
+    filter: none;
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.28);
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -289,11 +370,16 @@ ul li:nth-child(4) { animation-delay: 240ms; }
     border-radius: 20px;
   }
 
-  a.link-card {
+  a.link-card,
+  button.link-card {
     padding: 14px 14px;
   }
 
-  .label {
+  .title {
     font-size: 0.96rem;
+  }
+
+  .description {
+    font-size: 0.8rem;
   }
 }

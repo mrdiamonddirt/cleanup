@@ -1,6 +1,8 @@
 import { hasSupabaseConfig, supabase } from "./supabaseClient";
 
 const ITEMS_STORAGE_KEY = "cleanup-items-v1";
+const CANONICAL_LINKS_URL = "https://rivercleanup.co.uk/links/";
+const LINKS_FETCH_TIMEOUT_MS = 4500;
 
 const ASSUMED_ITEM_WEIGHTS_KG = {
     trolley: 28,
@@ -56,6 +58,9 @@ const formatWeightLabel = (valueKg) => {
 
 const weightNode = document.getElementById("weight-total");
 const itemBreakdownNode = document.getElementById("item-breakdown");
+const shareButtonNode = document.getElementById("share-links-button");
+const shareStatusNode = document.getElementById("share-status");
+let shareStatusTimer = null;
 
 const setWeightText = (text) => {
     if (!weightNode) return;
@@ -65,6 +70,24 @@ const setWeightText = (text) => {
 const setItemBreakdownText = (text) => {
     if (!itemBreakdownNode) return;
     itemBreakdownNode.textContent = text;
+};
+
+const setShareStatusText = (text) => {
+    if (!shareStatusNode) return;
+    shareStatusNode.textContent = text;
+
+    if (shareStatusTimer) {
+        window.clearTimeout(shareStatusTimer);
+        shareStatusTimer = null;
+    }
+
+    if (!text) return;
+    shareStatusTimer = window.setTimeout(() => {
+        if (shareStatusNode.textContent === text) {
+            shareStatusNode.textContent = "";
+        }
+        shareStatusTimer = null;
+    }, 2400);
 };
 
 const readCachedItems = () => {
@@ -128,6 +151,64 @@ const buildRecoveredTypeBreakdown = (rows) => {
     return parts.length > 0 ? parts.join(" • ") : "No recovered items yet";
 };
 
+const fetchItemsWithTimeout = async (timeoutMs = LINKS_FETCH_TIMEOUT_MS) => {
+    let timeoutHandle;
+    const timeoutPromise = new Promise((resolve) => {
+        timeoutHandle = window.setTimeout(() => {
+            resolve({
+                data: null,
+                error: new Error("Items request timed out"),
+            });
+        }, timeoutMs);
+    });
+
+    const result = await Promise.race([
+        supabase.from("items").select("*"),
+        timeoutPromise,
+    ]);
+
+    window.clearTimeout(timeoutHandle);
+    return result;
+};
+
+const handleShareLinks = async () => {
+    const shareData = {
+        title: "River Lune Cleanup links",
+        text: "Quick links for River Lune Cleanup",
+        url: CANONICAL_LINKS_URL,
+    };
+
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+        try {
+            await navigator.share(shareData);
+            setShareStatusText("Thanks for sharing this page.");
+            return;
+        } catch (error) {
+            if (error?.name === "AbortError") {
+                return;
+            }
+        }
+    }
+
+    try {
+        if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(CANONICAL_LINKS_URL);
+            setShareStatusText("Link copied to clipboard.");
+            return;
+        }
+
+        setShareStatusText("Sharing not supported in this browser.");
+    } catch {
+        setShareStatusText("Unable to share right now. Please try again.");
+    }
+};
+
+if (shareButtonNode) {
+    shareButtonNode.addEventListener("click", () => {
+        void handleShareLinks();
+    });
+}
+
 const loadRecoveredWeight = async () => {
     if (!hasSupabaseConfig) {
         const cachedItems = readCachedItems();
@@ -143,7 +224,7 @@ const loadRecoveredWeight = async () => {
         return;
     }
 
-    const { data, error } = await supabase.from("items").select("*");
+    const { data, error } = await fetchItemsWithTimeout();
 
     if (!error && Array.isArray(data) && data.length > 0) {
         setWeightText(formatWeightLabel(computeEstimatedRecoveredKg(data)));
