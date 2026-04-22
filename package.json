@@ -9,6 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "update:tides": "node scripts/update-lancaster-tides.mjs",
+    "backfill:w3w": "node scripts/backfill-w3w.mjs",
     "generate:seo": "node scripts/generate-seo-pages.mjs",
     "generate:sitemap": "node scripts/generate-sitemap.mjs",
     "generate:links-og": "node scripts/generate-links-og-image.mjs",

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { normalizeW3WWords, resolveW3WFromCoords } from "./w3w";
 
 // Module-level cache: "lat5dp,lng5dp" ? words string
 const w3wCache = new Map();
@@ -41,22 +42,16 @@ export function useW3W(lat, lng) {
 
         const controller = new AbortController();
 
-        const url =
-            `https://api.what3words.com/v3/convert-to-3wa` +
-            `?coordinates=${encodeURIComponent(`${lat},${lng}`)}` +
-            `&language=en` +
-            `&format=json` +
-            `&key=${encodeURIComponent(W3W_API_KEY)}`;
-
-        fetch(url, { signal: controller.signal })
-            .then((res) => {
-                if (!res.ok) throw new Error(`W3W ${res.status}`);
-                return res.json();
-            })
-            .then((data) => {
-                const result = data?.words ?? null;
-                if (result) w3wCache.set(cacheKeyRef.current, result);
-                setWords(result);
+        resolveW3WFromCoords({
+            latitude: lat,
+            longitude: lng,
+            apiKey: W3W_API_KEY,
+            signal: controller.signal,
+        })
+            .then((result) => {
+                const normalizedResult = normalizeW3WWords(result);
+                if (normalizedResult) w3wCache.set(cacheKeyRef.current, normalizedResult);
+                setWords(normalizedResult || null);
                 setLoading(false);
             })
             .catch((err) => {

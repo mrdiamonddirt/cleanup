@@ -14,6 +14,7 @@ import {
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { hasSupabaseConfig, supabase } from "./supabaseClient";
+import { normalizeW3WWords, resolveW3WFromCoords } from "./w3w";
 import ContributorBusinessPanel from "./components/panels/ContributorBusinessPanel";
 import PoiPanel from "./components/panels/PoiPanel";
 import PoiCard from "./components/PoiCard";
@@ -34,6 +35,7 @@ const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || "";
 const HAS_MAPBOX_TOKEN = Boolean(MAPBOX_TOKEN && MAPBOX_TOKEN.trim());
 const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY || "";
 const HAS_MAPTILER_KEY = Boolean(MAPTILER_KEY && MAPTILER_KEY.trim());
+const W3W_API_KEY = (import.meta.env.VITE_W3W_API_KEY || "").trim();
 const HISTORIC_OVERLAY_DRAFTS_STORAGE_KEY = "cleanup-historic-overlay-drafts-v1";
 const HISTORIC_OVERLAY_STATUS_DRAFT = "draft";
 const HISTORIC_OVERLAY_STATUS_READY = "ready";
@@ -1666,6 +1668,12 @@ const inferDbWeightFieldSupport = (items) => {
 
 const inferDbW3wFieldSupport = (items) => {
     const first = Array.isArray(items) ? items[0] : null;
+
+    return first ? Object.prototype.hasOwnProperty.call(first, "w3w_address") : null;
+};
+
+const inferDbPoiW3wFieldSupport = (pois) => {
+    const first = Array.isArray(pois) ? pois[0] : null;
 
     return first ? Object.prototype.hasOwnProperty.call(first, "w3w_address") : null;
 };
@@ -9122,6 +9130,7 @@ function App() {
     const [isContributorsVisible, setIsContributorsVisible] = useState(true);
     const [contributors, setContributors] = useState([]);
     const [historicalPois, setHistoricalPois] = useState([]);
+    const [dbPoiW3wFieldSupport, setDbPoiW3wFieldSupport] = useState(null);
     const [isHistoricalPoisVisible, setIsHistoricalPoisVisible] = useState(true);
     const [isPoiPanelOpen, setIsPoiPanelOpen] = useState(false);
     const [selectedHistoricalPoiId, setSelectedHistoricalPoiId] = useState(null);
@@ -10415,6 +10424,7 @@ function App() {
             const cached = readStoredJson(POIS_STORAGE_KEY, [], Array.isArray);
             if (Date.now() - lastFetchTs < CACHE_TTL_MS && cached.length > 0) {
                 setHistoricalPois(cached);
+                setDbPoiW3wFieldSupport(inferDbPoiW3wFieldSupport(cached));
                 return true;
             }
         }
@@ -10456,6 +10466,7 @@ function App() {
             : [];
 
         setHistoricalPois(normalized);
+        setDbPoiW3wFieldSupport(inferDbPoiW3wFieldSupport(normalized));
         localStorage.setItem(POIS_STORAGE_KEY, JSON.stringify(normalized));
         localStorage.setItem(POIS_FETCH_TS_KEY, String(Date.now()));
         return true;
@@ -10628,6 +10639,25 @@ function App() {
                 ? HISTORICAL_POI_STATUS_PUBLISHED
                 : HISTORICAL_POI_STATUS_DRAFT;
         const isPublished = normalizedStatus === HISTORICAL_POI_STATUS_PUBLISHED;
+        const hasValidPoiGps =
+            Number.isFinite(Number(latitude)) &&
+            Number.isFinite(Number(longitude)) &&
+            Number(latitude) >= -90 && Number(latitude) <= 90 &&
+            Number(longitude) >= -180 && Number(longitude) <= 180;
+        const canPersistPoiW3W = dbPoiW3wFieldSupport !== false;
+
+        let resolvedPoiW3WAddress = "";
+        if (canPersistPoiW3W && hasValidPoiGps && W3W_API_KEY) {
+            try {
+                resolvedPoiW3WAddress = await resolveW3WFromCoords({
+                    latitude,
+                    longitude,
+                    apiKey: W3W_API_KEY,
+                });
+            } catch {
+                // W3W persistence is optional.
+            }
+        }
 
         const payload = {
             title,
@@ -10647,15 +10677,49 @@ function App() {
             published_at: null,
         };
 
+        if (canPersistPoiW3W && resolvedPoiW3WAddress) {
+            payload.w3w_address = resolvedPoiW3WAddress;
+            payload.w3w_updated_at = new Date().toISOString();
+        }
+
+        const hasPoiW3wColumns = Object.prototype.hasOwnProperty.call(payload, "w3w_address")
+            || Object.prototype.hasOwnProperty.call(payload, "w3w_updated_at");
+        const isPoiW3wColumnMissingError = (error) =>
+            Boolean(
+                error &&
+                (
+                    error.message?.toLowerCase().includes("w3w_address") ||
+                    error.message?.toLowerCase().includes("w3w_updated_at")
+                ),
+            );
+
         if (!poiId) {
             payload.published_at = isPublished ? new Date().toISOString() : null;
             payload.created_by = currentUser?.id || null;
 
-            const { data, error } = await supabase
+            let { data, error } = await supabase
                 .from("pois")
                 .insert([payload])
                 .select("id")
                 .single();
+
+            if (isPoiW3wColumnMissingError(error)) {
+                const retryPayload = { ...payload };
+                delete retryPayload.w3w_address;
+                delete retryPayload.w3w_updated_at;
+
+                const retryResult = await supabase
+                    .from("pois")
+                    .insert([retryPayload])
+                    .select("id")
+                    .single();
+
+                data = retryResult.data;
+                error = retryResult.error;
+                setDbPoiW3wFieldSupport(false);
+            } else if (!error && hasPoiW3wColumns) {
+                setDbPoiW3wFieldSupport((prev) => prev ?? true);
+            }
 
             if (error || !data?.id) {
                 throw new Error(error?.message || "Failed to create POI");
@@ -10689,10 +10753,26 @@ function App() {
             ? (existingPoi?.published_at || new Date().toISOString())
             : null;
 
-        const { error: updateError } = await supabase
+        let { error: updateError } = await supabase
             .from("pois")
             .update(payload)
             .eq("id", poiId);
+
+        if (isPoiW3wColumnMissingError(updateError)) {
+            const retryPayload = { ...payload };
+            delete retryPayload.w3w_address;
+            delete retryPayload.w3w_updated_at;
+
+            const retryResult = await supabase
+                .from("pois")
+                .update(retryPayload)
+                .eq("id", poiId);
+
+            updateError = retryResult.error;
+            setDbPoiW3wFieldSupport(false);
+        } else if (!updateError && hasPoiW3wColumns) {
+            setDbPoiW3wFieldSupport((prev) => prev ?? true);
+        }
 
         if (updateError) {
             throw new Error(updateError?.message || "Failed to update POI");
@@ -11074,20 +11154,15 @@ function App() {
 
     async function handleFetchPendingW3W() {
         if (!pendingLocation || pendingItemW3WLoading || pendingItemW3WWords) return;
-        const apiKey = (import.meta.env.VITE_W3W_API_KEY || "").trim();
-        if (!apiKey) return;
+        if (!W3W_API_KEY) return;
         setPendingItemW3WLoading(true);
         try {
-            const url =
-                `https://api.what3words.com/v3/convert-to-3wa` +
-                `?coordinates=${encodeURIComponent(`${pendingLocation.y},${pendingLocation.x}`)}` +
-                `&language=en&format=json` +
-                `&key=${encodeURIComponent(apiKey)}`;
-            const res = await fetch(url);
-            if (!res.ok) throw new Error(`W3W ${res.status}`);
-            const data = await res.json();
-            const words = data?.words ?? null;
-            setPendingItemW3WWords(words);
+            const words = await resolveW3WFromCoords({
+                latitude: pendingLocation.y,
+                longitude: pendingLocation.x,
+                apiKey: W3W_API_KEY,
+            });
+            setPendingItemW3WWords(words || null);
         } catch {
             // silently fail — W3W is optional
         } finally {
@@ -11275,6 +11350,9 @@ function App() {
                         longitude: prev.longitude ?? true,
                     }));
                     setDbWeightFieldSupport((prev) => prev ?? true);
+                    if (Object.prototype.hasOwnProperty.call(insertPayload, "w3w_address")) {
+                        setDbW3wFieldSupport((prev) => prev ?? true);
+                    }
                 }
 
                 if (error) {
@@ -11370,6 +11448,8 @@ function App() {
             return;
         }
 
+        const existingItem = items.find((item) => String(item?.id) === String(itemId)) || null;
+
         const total = Math.max(1, clampInt(editForm.total, 1));
         const recovered = Math.min(total, clampInt(editForm.recovered, 0));
         const nextType = normalizeType(editForm.type);
@@ -11407,6 +11487,36 @@ function App() {
 
         setIsUpdatingItemId(itemId);
 
+        const existingGps = getItemGps(existingItem);
+        const hasGpsChanged =
+            hasValidGps && (
+                !existingGps ||
+                Math.abs(existingGps.latitude - parsedLat) > 0.000001 ||
+                Math.abs(existingGps.longitude - parsedLng) > 0.000001
+            );
+        const existingW3WAddress = normalizeW3WWords(existingItem?.w3w_address);
+
+        if (
+            dbW3wFieldSupport !== false &&
+            hasValidGps &&
+            (hasGpsChanged || !existingW3WAddress) &&
+            W3W_API_KEY
+        ) {
+            try {
+                const resolvedW3WAddress = await resolveW3WFromCoords({
+                    latitude: parsedLat,
+                    longitude: parsedLng,
+                    apiKey: W3W_API_KEY,
+                });
+
+                if (resolvedW3WAddress) {
+                    updatePayload.w3w_address = resolvedW3WAddress;
+                }
+            } catch {
+                // W3W persistence is optional.
+            }
+        }
+
         let { error } = await supabase
             .from("items")
             .update(updatePayload)
@@ -11426,8 +11536,10 @@ function App() {
                 error.message?.toLowerCase().includes("reference_image_url") ||
                 error.message?.toLowerCase().includes("reference_image_caption")
             );
+        const w3wColumnMissing =
+            error && error.message?.toLowerCase().includes("w3w_address");
 
-        if (gpsColumnMissing || weightColumnMissing || storyColumnMissing) {
+        if (gpsColumnMissing || weightColumnMissing || storyColumnMissing || w3wColumnMissing) {
             const retryPayload = { ...updatePayload };
 
             if (gpsColumnMissing) {
@@ -11454,12 +11566,19 @@ function App() {
                 });
             }
 
+            if (w3wColumnMissing) {
+                delete retryPayload.w3w_address;
+                setDbW3wFieldSupport(false);
+            }
+
             const retryResult = await supabase
                 .from("items")
                 .update(retryPayload)
                 .eq("id", itemId);
 
             error = retryResult.error;
+        } else if (!error && Object.prototype.hasOwnProperty.call(updatePayload, "w3w_address")) {
+            setDbW3wFieldSupport((prev) => prev ?? true);
         }
 
         if (error) {

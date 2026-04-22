@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState } from "react";
 import ImageCarousel from "./ImageCarousel";
 import { useW3W } from "../useW3W";
+import { normalizeW3WWords } from "../w3w";
 
 export default function PoiCard({
     poi,
@@ -14,10 +15,14 @@ export default function PoiCard({
     const cardRef = useRef(null);
     const shareStatusTimeoutRef = useRef(null);
     const [shareStatus, setShareStatus] = useState("");
-    const { words: w3wWords, loading: w3wLoading } = useW3W(
-        poi ? Number(poi.latitude) : null,
-        poi ? Number(poi.longitude) : null,
+    const storedW3WWords = normalizeW3WWords(poi?.w3w_address);
+    const shouldResolveW3WLive = !storedW3WWords;
+    const { words: fallbackW3WWords, loading: fallbackW3WLoading } = useW3W(
+        shouldResolveW3WLive && poi ? Number(poi.latitude) : null,
+        shouldResolveW3WLive && poi ? Number(poi.longitude) : null,
     );
+    const w3wWords = storedW3WWords || fallbackW3WWords;
+    const w3wLoading = shouldResolveW3WLive && fallbackW3WLoading;
 
     if (!poi) return null;
 
