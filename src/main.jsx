@@ -1327,6 +1327,18 @@ const formatEaElapsedSpan = (deltaMs) => {
     return remHours > 0 ? `${days}d ${remHours}h` : `${days}d`;
 };
 
+const formatOperationElapsedSeconds = (totalSeconds) => {
+    if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) return "0s";
+
+    if (totalSeconds < 60) {
+        return `${totalSeconds}s`;
+    }
+
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+};
+
 const getEaDeltaDirection = (deltaValue) => {
     if (!Number.isFinite(deltaValue) || Math.abs(deltaValue) < 0.0005) return "flat";
     return deltaValue > 0 ? "up" : "down";
@@ -2831,6 +2843,8 @@ function PendingPlacementOverlay({
     pendingEstimatedWeight,
     isSavingItem,
     isPickingImage,
+    uploadStage,
+    busyElapsedSeconds,
     uploadProgressText,
     uploadError,
     onDismissUploadError,
@@ -2853,6 +2867,8 @@ function PendingPlacementOverlay({
     const panelRef = useRef(null);
     const rafRef = useRef(null);
     const isBusy = isSavingItem || isPickingImage;
+    const desktopPanelWidth = pendingItemType ? 320 : 360;
+    const [isWeightTouched, setIsWeightTouched] = useState(false);
     const [panelPosition, setPanelPosition] = useState({
         left: 12,
         top: 12,
@@ -2901,7 +2917,7 @@ function PendingPlacementOverlay({
         const updatePosition = () => {
             const container = map.getContainer();
             const point = map.latLngToContainerPoint([pendingLocation.y, pendingLocation.x]);
-            const panelWidth = panelRef.current?.offsetWidth || Math.min(container.clientWidth - 24, isMobile ? 288 : 320);
+            const panelWidth = panelRef.current?.offsetWidth || Math.min(container.clientWidth - 24, isMobile ? 288 : desktopPanelWidth);
             const panelHeight = panelRef.current?.offsetHeight || 220;
             const gap = isMobile ? 18 : 22;
             const minInset = 12;
@@ -2949,7 +2965,93 @@ function PendingPlacementOverlay({
         };
     }, [map, pendingLocation, pendingItemType, pendingCount, pendingEstimatedWeight, isMobile, isBusy]);
 
+    useEffect(() => {
+        setIsWeightTouched(false);
+    }, [pendingItemType, pendingLocation?.y, pendingLocation?.x]);
+
     if (!pendingLocation) return null;
+
+    const trimmedWeightInput = typeof pendingEstimatedWeight === "string" ? pendingEstimatedWeight.trim() : "";
+    const parsedRawWeight = trimmedWeightInput ? Number.parseFloat(trimmedWeightInput) : null;
+    const hasInvalidWeightInput =
+        Boolean(pendingItemType) &&
+        trimmedWeightInput.length > 0 &&
+        (!Number.isFinite(parsedRawWeight) || parsedRawWeight < 0.1);
+    const effectiveWeightKg = pendingItemType
+        ? (parseEstimatedWeightKg(pendingEstimatedWeight) || getDefaultWeightForType(pendingItemType))
+        : null;
+    const estimatedTotalWeightKg = effectiveWeightKg === null ? null : Math.round(effectiveWeightKg * pendingCount * 10) / 10;
+    const currentStage = uploadError
+        ? "error"
+        : (uploadStage || (isBusy ? "saving" : "idle"));
+    const stageLabel = {
+        opening: "Selecting photo",
+        preparing: "Preparing image",
+        uploading: "Uploading photo",
+        saving: "Saving item",
+        success: "Saved",
+        error: "Needs attention",
+        idle: "Ready",
+    }[currentStage] || "Working";
+    const stageColor = {
+        opening: "#0f766e",
+        preparing: "#0f766e",
+        uploading: "#0f766e",
+        saving: "#0f766e",
+        success: "#166534",
+        error: "#7f1d1d",
+        idle: "#334155",
+    }[currentStage] || "#334155";
+    const stageBackground = {
+        opening: "#ecfeff",
+        preparing: "#ecfeff",
+        uploading: "#ecfeff",
+        saving: "#ecfeff",
+        success: "#ecfdf3",
+        error: "#fef2f2",
+        idle: "#f8fafc",
+    }[currentStage] || "#f8fafc";
+
+    const handleImagePickRequest = (imageSource) => {
+        setIsWeightTouched(true);
+        if (hasInvalidWeightInput) return;
+        handleTypePick(pendingItemType, imageSource);
+    };
+
+    const typeSelectionOptions = [
+        {
+            key: "bike",
+            icon: "🚲",
+            label: "Bike",
+            hint: "Most common riverbank finds",
+        },
+        {
+            key: "historic",
+            icon: "🏺",
+            label: "Historic",
+            hint: "Artifacts or older materials",
+        },
+        {
+            key: "motorbike",
+            icon: "🏍️",
+            label: "Motorbike",
+            hint: "Heavier parts or full frames",
+        },
+        {
+            key: "trolley",
+            icon: "🛒",
+            label: "Trolley",
+            hint: "Shopping and utility trolleys",
+        },
+        {
+            key: "misc",
+            icon: "🧰",
+            label: "Misc",
+            hint: "Anything that does not fit above",
+        },
+    ];
+    const selectedTypeOption = typeSelectionOptions.find((option) => option.key === pendingItemType) || null;
+    const useDesktopCompactTypeButtons = !isMobile;
 
     const panelNode = (
         <div
@@ -2960,7 +3062,7 @@ function PendingPlacementOverlay({
                 right: isMobile ? "8px" : "auto",
                 bottom: isMobile ? "calc(env(safe-area-inset-bottom, 0px) + 8px)" : "auto",
                 top: isMobile ? "auto" : `${panelPosition.top}px`,
-                width: isMobile ? "auto" : "320px",
+                width: isMobile ? "auto" : `${desktopPanelWidth}px`,
                 maxHeight: isMobile ? "62svh" : "none",
                 overflowY: isMobile ? "auto" : "visible",
                 padding: isMobile ? "12px" : "10px 12px",
@@ -3001,16 +3103,75 @@ function PendingPlacementOverlay({
             ) : null}
             <div
                 style={{
-                    fontSize: "0.9rem",
-                    fontWeight: 700,
-                    color: "#1e293b",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "8px",
+                    marginBottom: "4px",
+                    flexWrap: "wrap",
+                }}
+            >
+                <div
+                    style={{
+                        fontSize: "0.9rem",
+                        fontWeight: 700,
+                        color: "#1e293b",
+                    }}
+                >
+                    {pendingItemType
+                        ? `Add a photo for this ${TYPE_LABELS[pendingItemType] || "item"}`
+                        : "Choose item type for this location"}
+                </div>
+                <span
+                    style={{
+                        fontSize: "0.68rem",
+                        fontWeight: 700,
+                        letterSpacing: "0.04em",
+                        textTransform: "uppercase",
+                        color: pendingItemType ? "#0369a1" : "#334155",
+                        background: pendingItemType ? "#e0f2fe" : "#f1f5f9",
+                        border: pendingItemType ? "1px solid #bae6fd" : "1px solid #cbd5e1",
+                        borderRadius: "999px",
+                        padding: "3px 8px",
+                    }}
+                >
+                    {pendingItemType ? "Step 2 of 2" : "Step 1 of 2"}
+                </span>
+            </div>
+            <div
+                style={{
+                    fontSize: "0.76rem",
+                    color: "#64748b",
                     marginBottom: "8px",
+                    lineHeight: 1.35,
                 }}
             >
                 {pendingItemType
-                    ? `Add a photo for this ${TYPE_LABELS[pendingItemType] || "item"}`
-                    : "Choose item type for this location"}
+                    ? "Confirm details, then add your photo."
+                    : "Pick the best match and we will prefill sensible defaults."}
             </div>
+            {selectedTypeOption ? (
+                <div
+                    style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        padding: "8px 10px",
+                        borderRadius: "10px",
+                        border: "1px solid #bfdbfe",
+                        background: "linear-gradient(180deg, #f8fbff 0%, #eff6ff 100%)",
+                        marginBottom: "8px",
+                    }}
+                >
+                    <span style={{ fontSize: "1rem" }}>{selectedTypeOption.icon}</span>
+                    <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: "0.79rem", fontWeight: 700, color: "#0f172a" }}>{selectedTypeOption.label}</div>
+                        <div style={{ fontSize: "0.72rem", color: "#475569" }}>
+                            Default {formatWeightKg(getDefaultWeightForType(selectedTypeOption.key))} per item
+                        </div>
+                    </div>
+                </div>
+            ) : null}
             {(w3wLoading || w3wWords) ? (
                 <div style={{ fontSize: "0.77rem", marginBottom: "6px", lineHeight: 1.4 }}>
                     {w3wLoading ? (
@@ -3117,28 +3278,40 @@ function PendingPlacementOverlay({
                         step="0.1"
                         value={pendingEstimatedWeight}
                         onChange={(event) => setPendingEstimatedWeight(event.target.value)}
+                        onBlur={() => setIsWeightTouched(true)}
                         disabled={isBusy}
                         style={{
                             width: "100%",
                             marginTop: "4px",
-                            border: "1px solid #cbd5e1",
+                            border: isWeightTouched && hasInvalidWeightInput ? "1px solid #f87171" : "1px solid #cbd5e1",
                             borderRadius: "6px",
                             padding: "8px",
                             boxSizing: "border-box",
                             fontSize: controlFontSize,
                         }}
                     />
-                    <div style={{ marginTop: "4px", fontSize: "0.74rem", color: "#64748b", lineHeight: 1.35 }}>
-                        Defaults to {formatWeightKg(getDefaultWeightForType(pendingItemType))} for {TYPE_PLURAL_LABELS[pendingItemType] || "items"}.
-                    </div>
+                    {isWeightTouched && hasInvalidWeightInput ? (
+                        <div style={{ marginTop: "4px", fontSize: "0.74rem", color: "#b91c1c", lineHeight: 1.35 }}>
+                            Enter a valid number of at least 0.1 kg per item.
+                        </div>
+                    ) : (
+                        <div style={{ marginTop: "4px", fontSize: "0.74rem", color: "#64748b", lineHeight: 1.35 }}>
+                            Defaults to {formatWeightKg(getDefaultWeightForType(pendingItemType))} for {TYPE_PLURAL_LABELS[pendingItemType] || "items"}.
+                        </div>
+                    )}
+                    {estimatedTotalWeightKg !== null ? (
+                        <div style={{ marginTop: "3px", fontSize: "0.74rem", color: "#334155", lineHeight: 1.35, fontWeight: 600 }}>
+                            Estimated total: {formatWeightKg(estimatedTotalWeightKg)} for {pendingCount} {pendingCount === 1 ? "item" : "items"}.
+                        </div>
+                    ) : null}
                 </div>
             ) : null}
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                 {pendingItemType ? (
                     <>
                         <button
-                            onClick={() => handleTypePick(pendingItemType, "camera")}
-                            disabled={isBusy}
+                            onClick={() => handleImagePickRequest("camera")}
+                            disabled={isBusy || hasInvalidWeightInput}
                             style={{
                                 border: "1px solid #2563eb",
                                 background: "#eff6ff",
@@ -3147,15 +3320,15 @@ function PendingPlacementOverlay({
                                 borderRadius: "8px",
                                 fontSize: controlFontSize,
                                 fontWeight: 700,
-                                cursor: isBusy ? "not-allowed" : "pointer",
-                                opacity: isBusy ? 0.6 : 1,
+                                cursor: (isBusy || hasInvalidWeightInput) ? "not-allowed" : "pointer",
+                                opacity: (isBusy || hasInvalidWeightInput) ? 0.6 : 1,
                             }}
                         >
                             Use Camera
                         </button>
                         <button
-                            onClick={() => handleTypePick(pendingItemType, "gallery")}
-                            disabled={isBusy}
+                            onClick={() => handleImagePickRequest("gallery")}
+                            disabled={isBusy || hasInvalidWeightInput}
                             style={{
                                 border: "1px solid #94a3b8",
                                 background: "#fff",
@@ -3164,8 +3337,8 @@ function PendingPlacementOverlay({
                                 borderRadius: "8px",
                                 fontSize: controlFontSize,
                                 fontWeight: 700,
-                                cursor: isBusy ? "not-allowed" : "pointer",
-                                opacity: isBusy ? 0.6 : 1,
+                                cursor: (isBusy || hasInvalidWeightInput) ? "not-allowed" : "pointer",
+                                opacity: (isBusy || hasInvalidWeightInput) ? 0.6 : 1,
                             }}
                         >
                             Choose From Gallery
@@ -3174,6 +3347,7 @@ function PendingPlacementOverlay({
                             onClick={() => {
                                 setPendingItemType(null);
                                 setPendingEstimatedWeight("");
+                                setIsWeightTouched(false);
                             }}
                             disabled={isBusy}
                             style={{
@@ -3193,35 +3367,71 @@ function PendingPlacementOverlay({
                     </>
                 ) : (
                     <>
-                        {[
-                            { key: "bike", label: "🚲 Bike" },
-                            { key: "historic", label: "🏺 Historic find" },
-                            { key: "motorbike", label: "🏍️ Motorbike" },
-                            { key: "trolley", label: "🛒 Trolley" },
-                            { key: "misc", label: "🧰 Misc" },
-                        ].map((option) => (
+                        <div
+                            style={{
+                                display: "grid",
+                                gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))",
+                                gap: isMobile ? "8px" : "7px",
+                                width: "100%",
+                            }}
+                        >
+                        {typeSelectionOptions.map((option) => (
                             <button
                                 key={option.key}
                                 onClick={() => {
                                     setPendingItemType(option.key);
                                     setPendingEstimatedWeight(String(getDefaultWeightForType(option.key)));
+                                    setIsWeightTouched(false);
                                 }}
                                 disabled={isBusy}
                                 style={{
-                                    border: "1px solid #94a3b8",
-                                    background: "#fff",
+                                    border: useDesktopCompactTypeButtons ? "1px solid #bfdbfe" : "1px solid #cbd5e1",
+                                    background: useDesktopCompactTypeButtons
+                                        ? "linear-gradient(180deg, #f8fbff 0%, #eef6ff 100%)"
+                                        : "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
                                     color: "#0f172a",
-                                    padding: isMobile ? "10px 14px" : "8px 12px",
-                                    borderRadius: "8px",
+                                    padding: isMobile ? "10px 12px" : "8px 9px",
+                                    borderRadius: "10px",
                                     fontSize: controlFontSize,
                                     fontWeight: 700,
+                                    textAlign: "left",
+                                    display: "grid",
+                                    gap: useDesktopCompactTypeButtons ? "2px" : "3px",
                                     cursor: isBusy ? "not-allowed" : "pointer",
                                     opacity: isBusy ? 0.6 : 1,
+                                    boxShadow: "0 1px 0 rgba(15,23,42,0.02)",
+                                    transform: "translateY(0)",
+                                    transition: "transform 120ms ease, box-shadow 140ms ease, border-color 140ms ease",
                                 }}
                             >
-                                {option.label}
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: useDesktopCompactTypeButtons ? "0.8rem" : "0.84rem" }}>
+                                    <span style={{ fontSize: "1rem", lineHeight: 1 }}>{option.icon}</span>
+                                    <span>{option.label}</span>
+                                </span>
+                                {!useDesktopCompactTypeButtons ? (
+                                    <span style={{ fontSize: "0.69rem", color: "#64748b", fontWeight: 600, lineHeight: 1.35 }}>
+                                        {option.hint}
+                                    </span>
+                                ) : null}
+                                <span
+                                    style={{
+                                        fontSize: useDesktopCompactTypeButtons ? "0.65rem" : "0.68rem",
+                                        color: "#475569",
+                                        fontWeight: 600,
+                                        lineHeight: 1.3,
+                                        display: "inline-flex",
+                                        width: "fit-content",
+                                        borderRadius: "999px",
+                                        border: useDesktopCompactTypeButtons ? "1px solid #dbeafe" : "none",
+                                        background: useDesktopCompactTypeButtons ? "#f8fbff" : "transparent",
+                                        padding: useDesktopCompactTypeButtons ? "1px 6px" : "0",
+                                    }}
+                                >
+                                    {useDesktopCompactTypeButtons ? formatWeightKg(getDefaultWeightForType(option.key)) : `Default ${formatWeightKg(getDefaultWeightForType(option.key))}`}
+                                </span>
                             </button>
                         ))}
+                        </div>
                     </>
                 )}
                 <button
@@ -3229,6 +3439,7 @@ function PendingPlacementOverlay({
                         setPendingItemType(null);
                         setPendingEstimatedWeight("");
                         setPendingLocation(null);
+                        setIsWeightTouched(false);
                     }}
                     disabled={isBusy}
                     style={{
@@ -3249,13 +3460,13 @@ function PendingPlacementOverlay({
             {(isBusy || uploadProgressText || uploadError) && (
                 <div
                     style={{
-                        marginTop: "8px",
+                        marginTop: "10px",
                         fontSize: "0.8rem",
-                        color: uploadError ? "#7f1d1d" : "#64748b",
-                        background: uploadError ? "#fef2f2" : "transparent",
-                        border: uploadError ? "1px solid #fecaca" : "none",
-                        borderRadius: uploadError ? "8px" : "0",
-                        padding: uploadError ? "8px" : "0",
+                        color: uploadError ? "#7f1d1d" : "#334155",
+                        background: uploadError ? "#fef2f2" : "#f8fafc",
+                        border: uploadError ? "1px solid #fecaca" : "1px solid #e2e8f0",
+                        borderRadius: "10px",
+                        padding: "8px",
                     }}
                 >
                     {uploadError ? (
@@ -3303,7 +3514,43 @@ function PendingPlacementOverlay({
                             </div>
                         </div>
                     ) : (
-                        uploadProgressText || "Uploading and saving item..."
+                        <div style={{ display: "grid", gap: "6px" }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", flexWrap: "wrap" }}>
+                                <span
+                                    style={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: "6px",
+                                        borderRadius: "999px",
+                                        border: `1px solid ${currentStage === "success" ? "#86efac" : "#bae6fd"}`,
+                                        background: stageBackground,
+                                        color: stageColor,
+                                        fontSize: "0.72rem",
+                                        fontWeight: 700,
+                                        padding: "3px 8px",
+                                    }}
+                                >
+                                    <span
+                                        aria-hidden="true"
+                                        style={{
+                                            width: "6px",
+                                            height: "6px",
+                                            borderRadius: "999px",
+                                            background: stageColor,
+                                        }}
+                                    />
+                                    {stageLabel}
+                                </span>
+                                {isBusy && busyElapsedSeconds > 0 ? (
+                                    <span style={{ fontSize: "0.72rem", color: "#64748b", fontWeight: 600 }}>
+                                        Elapsed {formatOperationElapsedSeconds(busyElapsedSeconds)}
+                                    </span>
+                                ) : null}
+                            </div>
+                            <div style={{ color: "#475569", fontSize: "0.77rem", lineHeight: 1.4 }}>
+                                {uploadProgressText || "Working on your item..."}
+                            </div>
+                        </div>
                     )}
                 </div>
             )}
@@ -9227,6 +9474,8 @@ function App() {
     const [pendingItemType, setPendingItemType] = useState(null);
     const [isSavingItem, setIsSavingItem] = useState(false);
     const [isPickingImage, setIsPickingImage] = useState(false);
+    const [uploadStage, setUploadStage] = useState("idle");
+    const [busyElapsedSeconds, setBusyElapsedSeconds] = useState(0);
     const [isUploadingReferenceImage, setIsUploadingReferenceImage] = useState(false);
     const [uploadProgressText, setUploadProgressText] = useState("");
     const [uploadError, setUploadError] = useState("");
@@ -9376,6 +9625,7 @@ function App() {
     const [pendingItemW3WWords, setPendingItemW3WWords] = useState(null);
     const [pendingItemW3WLoading, setPendingItemW3WLoading] = useState(false);
     const pendingItemW3WWordsRef = useRef(null);
+    const uploadBusyStartedAtRef = useRef(0);
     pendingItemW3WWordsRef.current = pendingItemW3WWords;
     const isHistoricOverlayEditorModeEnabled =
         canManageItems && isHistoricOverlayEditorModeRequested;
@@ -9499,14 +9749,45 @@ function App() {
     };
 
     const clearUploadFeedback = () => {
+        setUploadStage("idle");
         setUploadError("");
         setUploadProgressText("");
     };
 
     const showUploadError = (error, fallbackMessage) => {
+        setUploadStage("error");
         setUploadProgressText("");
         setUploadError(parseFieldErrorMessage(error, fallbackMessage));
     };
+
+    useEffect(() => {
+        const isUploadBusy = isSavingItem || isPickingImage;
+
+        if (!isUploadBusy) {
+            uploadBusyStartedAtRef.current = 0;
+            setBusyElapsedSeconds(0);
+            return undefined;
+        }
+
+        if (!uploadBusyStartedAtRef.current) {
+            uploadBusyStartedAtRef.current = Date.now();
+        }
+
+        const tickElapsed = () => {
+            const elapsed = Math.max(
+                1,
+                Math.floor((Date.now() - uploadBusyStartedAtRef.current) / 1000),
+            );
+            setBusyElapsedSeconds(elapsed);
+        };
+
+        tickElapsed();
+        const intervalId = window.setInterval(tickElapsed, 1000);
+
+        return () => {
+            window.clearInterval(intervalId);
+        };
+    }, [isPickingImage, isSavingItem]);
 
     const runTimedMutation = async ({
         label,
@@ -11419,6 +11700,7 @@ function App() {
         if (!pendingLocation || isSavingItem || isPickingImage) return;
 
         clearUploadFeedback();
+        setUploadStage("opening");
         setLastUploadRequest({ selectedType, imageSource });
 
         const input = document.createElement("input");
@@ -11490,6 +11772,7 @@ function App() {
                 return;
             }
 
+            setUploadStage("idle");
             setUploadProgressText(message);
             if (clearAfterMs > 0) {
                 window.setTimeout(() => setUploadProgressText(""), clearAfterMs);
@@ -11510,6 +11793,7 @@ function App() {
             resolvePicker();
 
             if (!file) {
+                setUploadStage("idle");
                 setUploadProgressText("No image selected.");
                 window.setTimeout(() => setUploadProgressText(""), 1500);
                 return;
@@ -11521,10 +11805,12 @@ function App() {
             }
 
             setIsSavingItem(true);
+            setUploadStage("preparing");
             setUploadProgressText("Removing photo metadata...");
 
             try {
                 const sanitizedFile = await sanitizeImageFile(file);
+                setUploadStage("uploading");
                 setUploadProgressText("Uploading photo...");
                 const imageUrl = await uploadImage(sanitizedFile);
                 let gpsSavedToDb = false;
@@ -11558,6 +11844,7 @@ function App() {
                 let { data, error } = await runTimedMutation({
                     label: "Save item",
                     onRetry: (_retryError, nextAttempt, attempts) => {
+                        setUploadStage("saving");
                         setUploadProgressText(`Saving item (attempt ${nextAttempt}/${attempts})...`);
                     },
                     operation: async () => supabase
@@ -11600,6 +11887,7 @@ function App() {
                     const retryResult = await runTimedMutation({
                         label: "Save item",
                         onRetry: (_retryError, nextAttempt, attempts) => {
+                            setUploadStage("saving");
                             setUploadProgressText(`Saving item (attempt ${nextAttempt}/${attempts})...`);
                         },
                         operation: async () => supabase
@@ -11626,7 +11914,6 @@ function App() {
 
                 if (error) {
                     showUploadError(error, "Could not save item. Please try again.");
-                    alert(parseFieldErrorMessage(error, "Could not save item. Please try again."));
                     return;
                 }
 
@@ -11654,18 +11941,21 @@ function App() {
                     }));
                 }
 
+                setUploadStage("saving");
                 setUploadProgressText("Saved. Refreshing map...");
                 await fetchItems({ bypassTtl: true });
                 saveSucceeded = true;
-                clearUploadFeedback();
             } catch (error) {
                 showUploadError(error, "Upload failed. Please try again.");
-                alert(parseFieldErrorMessage(error, "Upload failed. Please try again."));
             } finally {
                 setIsSavingItem(false);
                 resolvePicker();
 
                 if (saveSucceeded) {
+                    setUploadStage("success");
+                    setUploadProgressText("Item saved successfully.");
+                    await wait(1200);
+                    clearUploadFeedback();
                     setPendingItemType(null);
                     setPendingLocation(null);
                     setPendingEstimatedWeight("");
@@ -11694,6 +11984,7 @@ function App() {
         }
 
         setUploadError("");
+        setUploadStage("opening");
         handleTypePick(lastUploadRequest.selectedType, lastUploadRequest.imageSource);
     }
 
@@ -13584,9 +13875,11 @@ function App() {
                         pendingEstimatedWeight={pendingEstimatedWeight}
                         isSavingItem={isSavingItem}
                         isPickingImage={isPickingImage}
+                        uploadStage={uploadStage}
+                        busyElapsedSeconds={busyElapsedSeconds}
                         uploadProgressText={uploadProgressText}
                         uploadError={uploadError}
-                        onDismissUploadError={() => setUploadError("")}
+                        onDismissUploadError={clearUploadFeedback}
                         onRetryUpload={lastUploadRequest ? retryLastUploadRequest : null}
                         isMobile={isMobile}
                         controlFontSize={controlFontSize}
