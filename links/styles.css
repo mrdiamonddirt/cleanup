@@ -14,6 +14,8 @@
 body {
   margin: 0;
   min-height: 100vh;
+  min-height: 100svh;
+  min-height: 100dvh;
   font-family: "Manrope", "Segoe UI", sans-serif;
   background:
     radial-gradient(circle at 6% 8%, rgba(34, 193, 195, 0.35), transparent 32%),
@@ -24,6 +26,10 @@ body {
   display: grid;
   place-items: center;
   padding: 24px;
+  padding-top: max(24px, env(safe-area-inset-top));
+  padding-right: max(24px, env(safe-area-inset-right));
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
+  padding-left: max(24px, env(safe-area-inset-left));
   overflow-x: hidden;
 }
 
@@ -33,6 +39,7 @@ main {
   border: 1px solid var(--panel-border);
   border-radius: 26px;
   padding: clamp(18px, 2.2vw, 30px);
+  -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   box-shadow:
     0 32px 56px rgba(0, 0, 0, 0.35),
@@ -94,6 +101,11 @@ button.link-card {
   transition: transform 150ms ease, box-shadow 220ms ease, border-color 180ms ease, filter 180ms ease;
   position: relative;
   overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  touch-action: manipulation;
+  transform: translateZ(0);
 }
 
 button.link-card {
@@ -101,6 +113,8 @@ button.link-card {
   font: inherit;
   text-align: left;
   cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  background-clip: padding-box;
 }
 
 a.link-card::before,
@@ -117,7 +131,7 @@ a.link-card:hover,
 a.link-card:focus-visible,
 button.link-card:hover,
 button.link-card:focus-visible {
-  transform: translateY(-3px) scale(1.015);
+  transform: translate3d(0, -3px, 0) scale(1.015);
   border-color: rgba(255, 255, 255, 0.72);
   box-shadow: 0 18px 32px rgba(0, 0, 0, 0.32);
   filter: saturate(1.14);
@@ -299,11 +313,9 @@ button.link-card:focus-visible::before {
 
 @keyframes floatIn {
   from {
-    opacity: 0;
     transform: translateY(12px);
   }
   to {
-    opacity: 1;
     transform: translateY(0);
   }
 }
@@ -321,7 +333,6 @@ button.link-card:focus-visible::before {
 }
 
 ul li {
-  opacity: 0;
   animation: floatIn 380ms ease forwards;
 }
 
@@ -347,9 +358,42 @@ ul li:nth-child(5) { animation-delay: 300ms; }
   a.link-card:focus-visible,
   button.link-card:hover,
   button.link-card:focus-visible {
-    transform: none;
+    transform: translateZ(0);
     filter: none;
     box-shadow: 0 10px 20px rgba(0, 0, 0, 0.28);
+  }
+}
+
+@media (max-width: 768px) {
+  body {
+    place-items: stretch;
+    padding: 0;
+    padding-top: env(safe-area-inset-top);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+  }
+
+  main {
+    width: 100%;
+    min-height: 100vh;
+    min-height: 100svh;
+    min-height: 100dvh;
+    border-radius: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 18px;
+  }
+
+  ul {
+    flex: 1;
+    margin-top: 14px;
+    align-content: start;
+  }
+
+  a.link-card,
+  button.link-card {
+    min-height: clamp(72px, 12svh, 96px);
   }
 }
 
@@ -362,12 +406,15 @@ ul li:nth-child(5) { animation-delay: 300ms; }
 
 @media (max-width: 560px) {
   body {
-    padding: 14px;
+    padding-top: env(safe-area-inset-top);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
   }
 
   main {
     padding: 16px;
-    border-radius: 20px;
+    border-radius: 0;
   }
 
   a.link-card,
