@@ -90,7 +90,10 @@ const main = async () => {
         "https://rivercleanup.co.uk",
     );
 
-    const urls = [`${siteUrl}/`];
+    const urls = [
+        `${siteUrl}/`,
+        `${siteUrl}/links/`,
+    ];
 
     if (supabaseUrl && supabaseKey) {
         const supabase = createClient(supabaseUrl, supabaseKey, {
