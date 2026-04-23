@@ -133,6 +133,122 @@ const EARLIEST_HISTORIC_OVERLAY_YEAR = PROVIDER_HISTORIC_OVERLAY_LAYERS.reduce(
 );
 const DEFAULT_HISTORIC_OVERLAY_OPACITY = 0.72;
 const DEFAULT_HISTORIC_DRAFT_EDITOR_OPACITY = 0.62;
+const CAMERA_PICKER_TIMEOUT_MS = 18000;
+const GALLERY_PICKER_TIMEOUT_MS = 15000;
+const SUPABASE_UPLOAD_TIMEOUT_MS = 45000;
+const SUPABASE_MUTATION_TIMEOUT_MS = 25000;
+const DEFAULT_RETRY_ATTEMPTS = 3;
+const DEFAULT_RETRY_BASE_DELAY_MS = 900;
+
+const wait = (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs));
+
+const buildTimeoutError = (label, timeoutMs) => {
+    const timeoutError = new Error(`${label} timed out after ${timeoutMs}ms`);
+    timeoutError.code = "TIMEOUT";
+    timeoutError.timeoutMs = timeoutMs;
+    return timeoutError;
+};
+
+const getErrorMessage = (error) => {
+    if (!error) return "";
+    if (typeof error === "string") return error;
+    if (typeof error?.message === "string") return error.message;
+    return String(error);
+};
+
+const isTransientOperationError = (error) => {
+    const message = getErrorMessage(error).toLowerCase();
+    if (error?.code === "TIMEOUT") return true;
+
+    return (
+        message.includes("network") ||
+        message.includes("fetch") ||
+        message.includes("timed out") ||
+        message.includes("timeout") ||
+        message.includes("connection") ||
+        message.includes("econn") ||
+        message.includes("429") ||
+        message.includes("502") ||
+        message.includes("503") ||
+        message.includes("504")
+    );
+};
+
+const parseFieldErrorMessage = (error, fallbackMessage) => {
+    const message = getErrorMessage(error).toLowerCase();
+
+    if (error?.code === "TIMEOUT" || message.includes("timeout") || message.includes("timed out")) {
+        return "This took too long to complete. Please check signal and try again.";
+    }
+
+    if (message.includes("network") || message.includes("fetch") || message.includes("connection") || message.includes("econn")) {
+        return "Network issue detected. Move to better signal and retry.";
+    }
+
+    if (message.includes("unauthorized") || message.includes("401")) {
+        return "Session expired. Please sign in again.";
+    }
+
+    if (message.includes("forbidden") || message.includes("403")) {
+        return "Permission denied for this action.";
+    }
+
+    if (message.includes("payload too large") || message.includes("413")) {
+        return "Image is too large. Please use a smaller photo.";
+    }
+
+    return fallbackMessage;
+};
+
+const runWithTimeout = async (operation, timeoutMs, label) => {
+    let timeoutId = null;
+    const timeoutPromise = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(buildTimeoutError(label, timeoutMs)), timeoutMs);
+    });
+
+    try {
+        return await Promise.race([operation(), timeoutPromise]);
+    } finally {
+        if (timeoutId) {
+            clearTimeout(timeoutId);
+        }
+    }
+};
+
+const runWithRetry = async (
+    operation,
+    {
+        attempts = DEFAULT_RETRY_ATTEMPTS,
+        baseDelayMs = DEFAULT_RETRY_BASE_DELAY_MS,
+        isRetryable = isTransientOperationError,
+        onRetry = null,
+    } = {},
+) => {
+    let lastError = null;
+
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+        try {
+            return await operation(attempt, attempts);
+        } catch (error) {
+            lastError = error;
+            const canRetry = attempt < attempts && isRetryable(error);
+
+            if (!canRetry) {
+                throw error;
+            }
+
+            if (typeof onRetry === "function") {
+                onRetry(error, attempt + 1, attempts);
+            }
+
+            const delayMs = baseDelayMs * (2 ** (attempt - 1));
+            // Keep retries bounded and visible for field use.
+            await wait(delayMs);
+        }
+    }
+
+    throw lastError;
+};
 
 const buildHistoricDraftCornersFromBounds = (bounds) => {
     const normalizedBounds = normalizeHistoricOverlayBounds(bounds);
@@ -2716,6 +2832,9 @@ function PendingPlacementOverlay({
     isSavingItem,
     isPickingImage,
     uploadProgressText,
+    uploadError,
+    onDismissUploadError,
+    onRetryUpload,
     isMobile,
     controlFontSize,
     touchButtonSize,
@@ -3127,15 +3246,65 @@ function PendingPlacementOverlay({
                     Cancel
                 </button>
             </div>
-            {(isBusy || uploadProgressText) && (
+            {(isBusy || uploadProgressText || uploadError) && (
                 <div
                     style={{
                         marginTop: "8px",
                         fontSize: "0.8rem",
-                        color: "#64748b",
+                        color: uploadError ? "#7f1d1d" : "#64748b",
+                        background: uploadError ? "#fef2f2" : "transparent",
+                        border: uploadError ? "1px solid #fecaca" : "none",
+                        borderRadius: uploadError ? "8px" : "0",
+                        padding: uploadError ? "8px" : "0",
                     }}
                 >
-                    {uploadProgressText || "Uploading and saving item..."}
+                    {uploadError ? (
+                        <div style={{ display: "grid", gap: "8px" }}>
+                            <div style={{ fontWeight: 600 }}>{uploadError}</div>
+                            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                                {typeof onRetryUpload === "function" ? (
+                                    <button
+                                        type="button"
+                                        onClick={onRetryUpload}
+                                        disabled={isBusy}
+                                        style={{
+                                            border: "1px solid #f87171",
+                                            background: "#ffffff",
+                                            color: "#991b1b",
+                                            padding: "6px 10px",
+                                            borderRadius: "6px",
+                                            fontSize: "0.75rem",
+                                            fontWeight: 700,
+                                            cursor: isBusy ? "not-allowed" : "pointer",
+                                            opacity: isBusy ? 0.65 : 1,
+                                        }}
+                                    >
+                                        Retry
+                                    </button>
+                                ) : null}
+                                <button
+                                    type="button"
+                                    onClick={onDismissUploadError}
+                                    disabled={isBusy}
+                                    style={{
+                                        border: "1px solid #fecaca",
+                                        background: "#ffffff",
+                                        color: "#7f1d1d",
+                                        padding: "6px 10px",
+                                        borderRadius: "6px",
+                                        fontSize: "0.75rem",
+                                        fontWeight: 600,
+                                        cursor: isBusy ? "not-allowed" : "pointer",
+                                        opacity: isBusy ? 0.65 : 1,
+                                    }}
+                                >
+                                    Dismiss
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        uploadProgressText || "Uploading and saving item..."
+                    )}
                 </div>
             )}
         </div>
@@ -9060,6 +9229,11 @@ function App() {
     const [isPickingImage, setIsPickingImage] = useState(false);
     const [isUploadingReferenceImage, setIsUploadingReferenceImage] = useState(false);
     const [uploadProgressText, setUploadProgressText] = useState("");
+    const [uploadError, setUploadError] = useState("");
+    const [isOnline, setIsOnline] = useState(() =>
+        typeof navigator === "undefined" ? true : navigator.onLine,
+    );
+    const [lastUploadRequest, setLastUploadRequest] = useState(null);
     const [pendingCount, setPendingCount] = useState(1);
     const [editingItemId, setEditingItemId] = useState(null);
     const [editForm, setEditForm] = useState({
@@ -9323,6 +9497,50 @@ function App() {
             saveResultTimeoutRef.current = null;
         }, 2500);
     };
+
+    const clearUploadFeedback = () => {
+        setUploadError("");
+        setUploadProgressText("");
+    };
+
+    const showUploadError = (error, fallbackMessage) => {
+        setUploadProgressText("");
+        setUploadError(parseFieldErrorMessage(error, fallbackMessage));
+    };
+
+    const runTimedMutation = async ({
+        label,
+        operation,
+        timeoutMs = SUPABASE_MUTATION_TIMEOUT_MS,
+        attempts = DEFAULT_RETRY_ATTEMPTS,
+        onRetry,
+    }) => runWithRetry(
+        async () => {
+            const result = await runWithTimeout(operation, timeoutMs, label);
+            if (result?.error && isTransientOperationError(result.error)) {
+                throw result.error;
+            }
+            return result;
+        },
+        {
+            attempts,
+            isRetryable: isTransientOperationError,
+            onRetry,
+        },
+    );
+
+    useEffect(() => {
+        const handleOnline = () => setIsOnline(true);
+        const handleOffline = () => setIsOnline(false);
+
+        window.addEventListener("online", handleOnline);
+        window.addEventListener("offline", handleOffline);
+
+        return () => {
+            window.removeEventListener("online", handleOnline);
+            window.removeEventListener("offline", handleOffline);
+        };
+    }, []);
 
     const copyTextToClipboard = async (textValue) => {
         if (!textValue) return false;
@@ -10881,14 +11099,24 @@ function App() {
         const fileName = `${Math.random().toString(36).slice(2)}.${fileExt}`;
         const filePath = `${fileName}`;
 
-    // Upload the file to the Supabase Bucket
-        const { error: uploadError } = await supabase.storage
-            .from("debris-images")
-            .upload(filePath, file, {
-                contentType: file?.type || undefined,
-            });
+        await runTimedMutation({
+            label: "Photo upload",
+            timeoutMs: SUPABASE_UPLOAD_TIMEOUT_MS,
+            onRetry: (_error, nextAttempt, attempts) => {
+                setUploadProgressText(`Uploading photo (attempt ${nextAttempt}/${attempts})...`);
+            },
+            operation: async () => {
+                const { error: uploadError } = await supabase.storage
+                    .from("debris-images")
+                    .upload(filePath, file, {
+                        contentType: file?.type || undefined,
+                    });
 
-        if (uploadError) throw uploadError;
+                if (uploadError) {
+                    throw uploadError;
+                }
+            },
+        });
 
         // 2. Get the Public URL
         const { data } = supabase.storage
@@ -10900,6 +11128,13 @@ function App() {
     function uploadReferenceImageFromEdit() {
         if (!canManageItems) {
             alert("This account is read-only for now.");
+            return;
+        }
+
+        clearUploadFeedback();
+
+        if (!isOnline) {
+            showUploadError(null, "You are offline. Reconnect and try again.");
             return;
         }
 
@@ -10955,7 +11190,7 @@ function App() {
         fallbackTimerId = window.setTimeout(() => {
             if (hasResolvedPicker) return;
             handlePickerFailure("Could not open gallery. Please try again.", 2200);
-        }, 6000);
+        }, GALLERY_PICKER_TIMEOUT_MS);
 
         input.onchange = async (event) => {
             resolvePicker();
@@ -10978,11 +11213,12 @@ function App() {
                     ...prev,
                     referenceImageUrl,
                 }));
+                setUploadError("");
                 setUploadProgressText("Reference image uploaded.");
                 window.setTimeout(() => setUploadProgressText(""), 1800);
-            } catch {
-                setUploadProgressText("Reference upload failed. Please try again.");
-                alert("Reference upload failed. Please try again.");
+            } catch (error) {
+                showUploadError(error, "Reference upload failed. Please try again.");
+                alert(parseFieldErrorMessage(error, "Reference upload failed. Please try again."));
             } finally {
                 setIsUploadingReferenceImage(false);
             }
@@ -11152,6 +11388,10 @@ function App() {
         setPendingItemW3WLoading(false);
     }, [pendingLocation?.y, pendingLocation?.x]);
 
+    useEffect(() => {
+        setUploadError("");
+    }, [pendingLocation?.y, pendingLocation?.x, pendingItemType]);
+
     async function handleFetchPendingW3W() {
         if (!pendingLocation || pendingItemW3WLoading || pendingItemW3WWords) return;
         if (!W3W_API_KEY) return;
@@ -11178,6 +11418,9 @@ function App() {
 
         if (!pendingLocation || isSavingItem || isPickingImage) return;
 
+        clearUploadFeedback();
+        setLastUploadRequest({ selectedType, imageSource });
+
         const input = document.createElement("input");
         input.type = "file";
         input.accept = "image/*";
@@ -11190,6 +11433,9 @@ function App() {
         const launchFailureMessage = imageSource === "camera"
             ? "Could not open camera. Please try again."
             : "Could not open gallery. Please try again.";
+        const pickerTimeoutMs = imageSource === "camera"
+            ? CAMERA_PICKER_TIMEOUT_MS
+            : GALLERY_PICKER_TIMEOUT_MS;
 
         setUploadProgressText(openingMessage);
         setIsPickingImage(true);
@@ -11236,8 +11482,14 @@ function App() {
             unlockPickerState();
         };
 
-        const handlePickerFailure = (message, clearAfterMs = 2200) => {
+        const handlePickerFailure = (message, clearAfterMs = 2200, persistError = false) => {
             resolvePicker();
+
+            if (persistError) {
+                showUploadError(null, message);
+                return;
+            }
+
             setUploadProgressText(message);
             if (clearAfterMs > 0) {
                 window.setTimeout(() => setUploadProgressText(""), clearAfterMs);
@@ -11248,8 +11500,8 @@ function App() {
 
         fallbackTimerId = window.setTimeout(() => {
             if (hasResolvedPicker) return;
-            handlePickerFailure(launchFailureMessage);
-        }, 6000);
+            handlePickerFailure(launchFailureMessage, 0, true);
+        }, pickerTimeoutMs);
 
         input.onchange = async (event) => {
             const file = event.target.files?.[0];
@@ -11260,6 +11512,11 @@ function App() {
             if (!file) {
                 setUploadProgressText("No image selected.");
                 window.setTimeout(() => setUploadProgressText(""), 1500);
+                return;
+            }
+
+            if (!isOnline) {
+                showUploadError(null, "No internet connection. Reconnect and retry upload.");
                 return;
             }
 
@@ -11298,11 +11555,17 @@ function App() {
                     insertPayload.w3w_address = pendingItemW3WWordsRef.current;
                 }
 
-                let { data, error } = await supabase
-                    .from("items")
-                    .insert([insertPayload])
-                    .select("id")
-                    .single();
+                let { data, error } = await runTimedMutation({
+                    label: "Save item",
+                    onRetry: (_retryError, nextAttempt, attempts) => {
+                        setUploadProgressText(`Saving item (attempt ${nextAttempt}/${attempts})...`);
+                    },
+                    operation: async () => supabase
+                        .from("items")
+                        .insert([insertPayload])
+                        .select("id")
+                        .single(),
+                });
 
                 const gpsColumnMissing =
                     error &&
@@ -11334,11 +11597,17 @@ function App() {
                         setDbW3wFieldSupport(false);
                     }
 
-                    const retryResult = await supabase
-                        .from("items")
-                        .insert([retryPayload])
-                        .select("id")
-                        .single();
+                    const retryResult = await runTimedMutation({
+                        label: "Save item",
+                        onRetry: (_retryError, nextAttempt, attempts) => {
+                            setUploadProgressText(`Saving item (attempt ${nextAttempt}/${attempts})...`);
+                        },
+                        operation: async () => supabase
+                            .from("items")
+                            .insert([retryPayload])
+                            .select("id")
+                            .single(),
+                    });
 
                     data = retryResult.data;
                     error = retryResult.error;
@@ -11356,8 +11625,8 @@ function App() {
                 }
 
                 if (error) {
-                    setUploadProgressText("Could not save item. Please try again.");
-                    alert("Could not save item. Please try again.");
+                    showUploadError(error, "Could not save item. Please try again.");
+                    alert(parseFieldErrorMessage(error, "Could not save item. Please try again."));
                     return;
                 }
 
@@ -11388,10 +11657,10 @@ function App() {
                 setUploadProgressText("Saved. Refreshing map...");
                 await fetchItems({ bypassTtl: true });
                 saveSucceeded = true;
-                setUploadProgressText("");
-            } catch {
-                setUploadProgressText("Upload failed. Please try again.");
-                alert("Upload failed. Please try again.");
+                clearUploadFeedback();
+            } catch (error) {
+                showUploadError(error, "Upload failed. Please try again.");
+                alert(parseFieldErrorMessage(error, "Upload failed. Please try again."));
             } finally {
                 setIsSavingItem(false);
                 resolvePicker();
@@ -11412,8 +11681,20 @@ function App() {
         try {
             input.click();
         } catch {
-            handlePickerFailure(launchFailureMessage);
+            handlePickerFailure(launchFailureMessage, 0, true);
         }
+    }
+
+    function retryLastUploadRequest() {
+        if (!lastUploadRequest || isSavingItem || isPickingImage) return;
+
+        if (!pendingLocation) {
+            showUploadError(null, "Select a map location again, then retry.");
+            return;
+        }
+
+        setUploadError("");
+        handleTypePick(lastUploadRequest.selectedType, lastUploadRequest.imageSource);
     }
 
     function startEditingItem(item) {
@@ -11651,6 +11932,12 @@ function App() {
     async function markItemRecovered(itemId) {
         if (!canManageItems) return;
 
+        if (!isOnline) {
+            showUploadError(null, "You are offline. Reconnect before marking this as recovered.");
+            showSaveResult(itemId, "error");
+            return;
+        }
+
         const item = items.find((i) => String(i?.id) === String(itemId));
         if (!item) return;
 
@@ -11660,12 +11947,26 @@ function App() {
         const updatePayload = { is_recovered: true };
         if (dbCountFieldSupport.recovered) updatePayload.recovered_count = total;
 
-        const { error } = await supabase
-            .from("items")
-            .update(updatePayload)
-            .eq("id", itemId);
+        let error = null;
+
+        try {
+            const result = await runTimedMutation({
+                label: "Mark recovered",
+                onRetry: () => {
+                    setUploadProgressText("Retrying recovered update...");
+                },
+                operation: async () => supabase
+                    .from("items")
+                    .update(updatePayload)
+                    .eq("id", itemId),
+            });
+            error = result?.error || null;
+        } catch (mutationError) {
+            error = mutationError;
+        }
 
         if (error) {
+            showUploadError(error, "Could not mark item as recovered. Please try again.");
             showSaveResult(itemId, "error");
             setIsUpdatingItemId(null);
             return;
@@ -11678,6 +11979,7 @@ function App() {
             }));
         }
 
+        clearUploadFeedback();
         showSaveResult(itemId, "recovered");
         setIsUpdatingItemId(null);
         fetchItems({ bypassTtl: true });
@@ -13283,6 +13585,9 @@ function App() {
                         isSavingItem={isSavingItem}
                         isPickingImage={isPickingImage}
                         uploadProgressText={uploadProgressText}
+                        uploadError={uploadError}
+                        onDismissUploadError={() => setUploadError("")}
+                        onRetryUpload={lastUploadRequest ? retryLastUploadRequest : null}
                         isMobile={isMobile}
                         controlFontSize={controlFontSize}
                         touchButtonSize={touchButtonSize}
