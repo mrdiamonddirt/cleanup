@@ -1,6 +1,23 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+function getStorageThumbnailUrl(url, width = 400, quality = 75) {
+    if (!url) return url;
+    try {
+        const u = new URL(url);
+        if (!u.pathname.includes("/storage/v1/object/public/")) return url;
+        u.pathname = u.pathname.replace(
+            "/storage/v1/object/public/",
+            "/storage/v1/render/image/public/",
+        );
+        u.searchParams.set("width", String(width));
+        u.searchParams.set("quality", String(quality));
+        return u.toString();
+    } catch {
+        return url;
+    }
+}
+
 export default function FullscreenImageViewer({
     isOpen,
     isMobile,
@@ -24,7 +41,10 @@ export default function FullscreenImageViewer({
     const [zoomLevel, setZoomLevel] = useState(1);
     const [isDetailsVisible, setIsDetailsVisible] = useState(true);
     const [activeImageIndex, setActiveImageIndex] = useState(0);
+    const [displayImageUrl, setDisplayImageUrl] = useState(null);
+    const [isFullImageReady, setIsFullImageReady] = useState(false);
     const swipeTouchStartX = useRef(null);
+    const prefetchedFullResUrlsRef = useRef(new Set());
 
     useEffect(() => {
         if (!isOpen) return;
@@ -33,18 +53,80 @@ export default function FullscreenImageViewer({
         setActiveImageIndex(0);
     }, [isOpen, selectedItem?.id]);
 
-    if (!isOpen || !selectedItem?.image_url || !selectedCounts) return null;
-
-    const clampZoom = (value) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
-    const zoomPercent = Math.round(zoomLevel * 100);
+    const hasPrimaryImage = Boolean(selectedItem?.image_url);
     const hasReferenceImage = Boolean(selectedStory?.referenceImageUrl);
-    const images = [
-        { url: selectedItem.image_url, label: null },
-        ...(hasReferenceImage ? [{ url: selectedStory.referenceImageUrl, label: "Reference Image", sourceLink: selectedStory.referenceImageCaption }] : []),
-    ];
-    const activeImage = images[activeImageIndex] ?? images[0];
+    const images = hasPrimaryImage
+        ? [
+            { url: selectedItem.image_url, label: null },
+            ...(hasReferenceImage
+                ? [{ url: selectedStory.referenceImageUrl, label: "Reference Image", sourceLink: selectedStory.referenceImageCaption }]
+                : []),
+        ]
+        : [];
+    const activeImage = images[activeImageIndex] ?? images[0] ?? null;
+    const activeImageUrl = activeImage?.url ?? null;
     const canGoPrev = activeImageIndex > 0;
     const canGoNext = activeImageIndex < images.length - 1;
+    const clampZoom = (value) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
+    const zoomPercent = Math.round(zoomLevel * 100);
+
+    useEffect(() => {
+        if (!isOpen || !activeImageUrl) {
+            setDisplayImageUrl(null);
+            setIsFullImageReady(false);
+            return;
+        }
+
+        const previewUrl = getStorageThumbnailUrl(activeImageUrl, 900, 72);
+        const usesFullImageDirectly = previewUrl === activeImageUrl;
+        setDisplayImageUrl(previewUrl);
+        setIsFullImageReady(usesFullImageDirectly);
+
+        if (usesFullImageDirectly) {
+            return;
+        }
+
+        let cancelled = false;
+        const fullImage = new Image();
+        fullImage.src = activeImageUrl;
+
+        const promoteFullImage = () => {
+            if (cancelled) return;
+            setDisplayImageUrl(activeImageUrl);
+            setIsFullImageReady(true);
+            prefetchedFullResUrlsRef.current.add(activeImageUrl);
+        };
+
+        fullImage.onload = promoteFullImage;
+        fullImage.onerror = promoteFullImage;
+
+        if (fullImage.complete) {
+            promoteFullImage();
+        }
+
+        return () => {
+            cancelled = true;
+        };
+    }, [isOpen, activeImageUrl]);
+
+    useEffect(() => {
+        if (!isOpen || images.length < 2) return;
+
+        const neighbors = [
+            images[activeImageIndex - 1]?.url,
+            images[activeImageIndex + 1]?.url,
+        ].filter(Boolean);
+
+        neighbors.forEach((url) => {
+            if (prefetchedFullResUrlsRef.current.has(url)) return;
+            const img = new Image();
+            img.src = url;
+            img.onload = () => prefetchedFullResUrlsRef.current.add(url);
+            img.onerror = () => prefetchedFullResUrlsRef.current.add(url);
+        });
+    }, [isOpen, images, activeImageIndex]);
+
+    if (!isOpen || !selectedCounts || !activeImage) return null;
 
     const handleTouchStart = (e) => {
         if (zoomLevel > 1) { swipeTouchStartX.current = null; return; }
@@ -250,13 +332,27 @@ export default function FullscreenImageViewer({
                     ) : null}
 
                     <img
-                        src={activeImage.url}
+                        src={displayImageUrl ?? activeImage.url}
                         alt={activeImage.label ?? "Debris evidence full size"}
                         style={{
                             width: `${zoomPercent}%`,
                             height: "auto",
+                            opacity: isFullImageReady ? 1 : 0.92,
+                            transition: "opacity 0.2s ease",
                         }}
                     />
+
+                    {!isFullImageReady ? (
+                        <div
+                            style={{
+                                color: "rgba(226,232,240,0.86)",
+                                fontSize: "0.78rem",
+                                fontWeight: 600,
+                            }}
+                        >
+                            Loading full quality image...
+                        </div>
+                    ) : null}
 
                     {activeImage.sourceLink ? (
                         <a

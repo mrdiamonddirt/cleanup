@@ -5,6 +5,23 @@ function isHeicUrl(url) {
     return lower.includes(".heic") || lower.includes(".heif");
 }
 
+function getStorageThumbnailUrl(url, width = 400, quality = 75) {
+    if (!url) return url;
+    try {
+        const u = new URL(url);
+        if (!u.pathname.includes("/storage/v1/object/public/")) return url;
+        u.pathname = u.pathname.replace(
+            "/storage/v1/object/public/",
+            "/storage/v1/render/image/public/",
+        );
+        u.searchParams.set("width", String(width));
+        u.searchParams.set("quality", String(quality));
+        return u.toString();
+    } catch {
+        return url;
+    }
+}
+
 export default function ImageCarousel({ images = [] }) {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [imgError, setImgError] = useState(false);
@@ -42,6 +59,14 @@ export default function ImageCarousel({ images = [] }) {
     }
 
     const currentImage = images[currentIndex];
+    const currentImageSmall = getStorageThumbnailUrl(currentImage.image_url, 360, 60);
+    const currentImageMedium = getStorageThumbnailUrl(currentImage.image_url, 720, 68);
+    const currentImageLarge = getStorageThumbnailUrl(currentImage.image_url, 1080, 74);
+    const currentImageSrcSet = [
+        `${currentImageSmall} 360w`,
+        `${currentImageMedium} 720w`,
+        `${currentImageLarge} 1080w`,
+    ].join(", ");
     const hasMultipleImages = images.length > 1;
     const indicatorLaneHeight = hasMultipleImages ? 30 : 0;
     const prevIndex = (currentIndex - 1 + images.length) % images.length;
@@ -151,7 +176,9 @@ export default function ImageCarousel({ images = [] }) {
                                 }}
                             >
                                 <img
-                                    src={currentImage.image_url}
+                                    src={currentImageMedium}
+                                    srcSet={currentImageSrcSet}
+                                    sizes="(max-width: 400px) 92vw, (max-width: 768px) 88vw, 720px"
                                     alt={currentImage.alt_text || `Image ${currentIndex + 1}`}
                                     onError={() => setImgError(true)}
                                     loading="lazy"

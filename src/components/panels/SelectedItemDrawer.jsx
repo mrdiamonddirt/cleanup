@@ -1,6 +1,25 @@
 import React from "react";
 import { createPortal } from "react-dom";
 
+function getStorageThumbnailUrl(url, width = 400, quality = 75) {
+    if (!url) return url;
+    try {
+        const u = new URL(url);
+        if (!u.pathname.includes("/storage/v1/object/public/")) return url;
+        u.pathname = u.pathname.replace(
+            "/storage/v1/object/public/",
+            "/storage/v1/render/image/public/",
+        );
+        // Force non-cropping resize so the whole image is always visible.
+        u.searchParams.set("resize", "contain");
+        u.searchParams.set("width", String(width));
+        u.searchParams.set("quality", String(quality));
+        return u.toString();
+    } catch {
+        return url;
+    }
+}
+
 export default function SelectedItemDrawer({
     selectedItem,
     selectedCounts,
@@ -58,6 +77,17 @@ export default function SelectedItemDrawer({
         selectedStory?.knownSinceDate,
         selectedStory?.recoveredOnDate,
     );
+    const selectedItemPreviewSmall = getStorageThumbnailUrl(selectedItem?.image_url, 180, 52);
+    const selectedItemPreviewMedium = getStorageThumbnailUrl(selectedItem?.image_url, 320, 60);
+    const selectedItemPreviewLarge = getStorageThumbnailUrl(selectedItem?.image_url, 560, 68);
+    const selectedItemPreviewSrcSet = [
+        `${selectedItemPreviewSmall} 180w`,
+        `${selectedItemPreviewMedium} 320w`,
+        `${selectedItemPreviewLarge} 560w`,
+    ].join(", ");
+    const selectedItemPreviewSizes = useCompactLayout
+        ? "calc(100vw - 56px)"
+        : "240px";
 
     const drawerNode = (
         <>
@@ -287,8 +317,13 @@ export default function SelectedItemDrawer({
                                     }}
                                 >
                                     <img
-                                        src={selectedItem.image_url}
+                                        src={selectedItemPreviewMedium}
+                                        srcSet={selectedItemPreviewSrcSet}
+                                        sizes={selectedItemPreviewSizes}
                                         alt="Debris evidence"
+                                        loading="eager"
+                                        fetchPriority="high"
+                                        decoding="async"
                                         style={{
                                             width: "100%",
                                             height: "100%",
