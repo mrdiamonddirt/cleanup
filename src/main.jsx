@@ -11713,8 +11713,14 @@ function App() {
         const point = pendingLocation;
         const openingMessage = imageSource === "camera" ? "Opening camera..." : "Opening gallery...";
         const launchFailureMessage = imageSource === "camera"
-            ? "Could not open camera. Please try again."
-            : "Could not open gallery. Please try again.";
+            ? "Could not open camera. Check camera permissions and try again."
+            : "Could not open gallery. Check photo permissions and try again.";
+        const pickerTimeoutMessage = imageSource === "camera"
+            ? "Camera took too long to respond. Close it and try again."
+            : "Gallery took too long to respond. Please try again.";
+        const pickerCancelledMessage = imageSource === "camera"
+            ? "Camera closed without selecting a photo."
+            : "Gallery closed without selecting a photo.";
         const pickerTimeoutMs = imageSource === "camera"
             ? CAMERA_PICKER_TIMEOUT_MS
             : GALLERY_PICKER_TIMEOUT_MS;
@@ -11750,10 +11756,7 @@ function App() {
             focusTimerId = window.setTimeout(() => {
                 if (hasResolvedPicker) return;
                 releasePickerListeners();
-                unlockPickerState();
-                setUploadProgressText((current) =>
-                    current.startsWith("Opening ") ? "" : current,
-                );
+                handlePickerCancel();
             }, 250);
         };
 
@@ -11764,38 +11767,40 @@ function App() {
             unlockPickerState();
         };
 
-        const handlePickerFailure = (message, clearAfterMs = 2200, persistError = false) => {
+        const handlePickerCancel = () => {
             resolvePicker();
-
-            if (persistError) {
-                showUploadError(null, message);
-                return;
-            }
-
             setUploadStage("idle");
-            setUploadProgressText(message);
-            if (clearAfterMs > 0) {
-                window.setTimeout(() => setUploadProgressText(""), clearAfterMs);
-            }
+            setUploadError("");
+            setUploadProgressText(pickerCancelledMessage);
+            window.setTimeout(() => setUploadProgressText(""), 1800);
+        };
+
+        const handlePickerError = (message, details = null) => {
+            resolvePicker();
+            console.warn("Image picker failed", {
+                source: imageSource,
+                message,
+                details,
+            });
+            showUploadError(null, message);
         };
 
         window.addEventListener("focus", handleWindowFocus, { once: true });
 
         fallbackTimerId = window.setTimeout(() => {
             if (hasResolvedPicker) return;
-            handlePickerFailure(launchFailureMessage, 0, true);
+            handlePickerError(pickerTimeoutMessage, "picker-timeout");
         }, pickerTimeoutMs);
 
         input.onchange = async (event) => {
             const file = event.target.files?.[0];
             const estimatedWeightKg = parseEstimatedWeightKg(pendingEstimatedWeight) || getDefaultWeightForType(selectedType);
             let saveSucceeded = false;
+            let failureStage = "preparing";
             resolvePicker();
 
             if (!file) {
-                setUploadStage("idle");
-                setUploadProgressText("No image selected.");
-                window.setTimeout(() => setUploadProgressText(""), 1500);
+                handlePickerCancel();
                 return;
             }
 
@@ -11810,6 +11815,7 @@ function App() {
 
             try {
                 const sanitizedFile = await sanitizeImageFile(file);
+                failureStage = "uploading";
                 setUploadStage("uploading");
                 setUploadProgressText("Uploading photo...");
                 const imageUrl = await uploadImage(sanitizedFile);
@@ -11841,6 +11847,7 @@ function App() {
                     insertPayload.w3w_address = pendingItemW3WWordsRef.current;
                 }
 
+                failureStage = "saving";
                 let { data, error } = await runTimedMutation({
                     label: "Save item",
                     onRetry: (_retryError, nextAttempt, attempts) => {
@@ -11942,11 +11949,17 @@ function App() {
                 }
 
                 setUploadStage("saving");
+                failureStage = "saving";
                 setUploadProgressText("Saved. Refreshing map...");
                 await fetchItems({ bypassTtl: true });
                 saveSucceeded = true;
             } catch (error) {
-                showUploadError(error, "Upload failed. Please try again.");
+                const fallbackMessage = failureStage === "preparing"
+                    ? "Could not prepare the selected photo. Please choose another image and try again."
+                    : (failureStage === "uploading"
+                        ? "Photo upload failed. Check your connection and try again."
+                        : "Photo uploaded, but saving the item failed. Please retry.");
+                showUploadError(error, fallbackMessage);
             } finally {
                 setIsSavingItem(false);
                 resolvePicker();
@@ -11965,13 +11978,13 @@ function App() {
         };
 
         input.oncancel = () => {
-            handlePickerFailure("No image selected.", 1500);
+            handlePickerCancel();
         };
 
         try {
             input.click();
-        } catch {
-            handlePickerFailure(launchFailureMessage, 0, true);
+        } catch (error) {
+            handlePickerError(launchFailureMessage, error?.message || "picker-open-failed");
         }
     }
 
