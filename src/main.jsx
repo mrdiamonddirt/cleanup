@@ -11675,7 +11675,10 @@ function App() {
 
     async function handleFetchPendingW3W() {
         if (!pendingLocation || pendingItemW3WLoading || pendingItemW3WWords) return;
-        if (!W3W_API_KEY) return;
+        if (!W3W_API_KEY) {
+            console.warn("[W3W] Add-item lookup skipped: missing VITE_W3W_API_KEY.");
+            return;
+        }
         setPendingItemW3WLoading(true);
         try {
             const words = await resolveW3WFromCoords({
@@ -11683,9 +11686,15 @@ function App() {
                 longitude: pendingLocation.x,
                 apiKey: W3W_API_KEY,
             });
+            if (!words) {
+                console.warn("[W3W] Add-item lookup returned no words.", {
+                    latitude: pendingLocation.y,
+                    longitude: pendingLocation.x,
+                });
+            }
             setPendingItemW3WWords(words || null);
-        } catch {
-            // silently fail — W3W is optional
+        } catch (err) {
+            console.warn("[W3W] Add-item lookup failed.", err);
         } finally {
             setPendingItemW3WLoading(false);
         }
@@ -12096,9 +12105,14 @@ function App() {
 
                 if (resolvedW3WAddress) {
                     updatePayload.w3w_address = resolvedW3WAddress;
+                } else {
+                    console.warn("[W3W] Edit-item lookup returned no words.", {
+                        latitude: parsedLat,
+                        longitude: parsedLng,
+                    });
                 }
-            } catch {
-                // W3W persistence is optional.
+            } catch (err) {
+                console.warn("[W3W] Edit-item lookup failed.", err);
             }
         }
 

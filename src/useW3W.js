@@ -56,6 +56,7 @@ export function useW3W(lat, lng) {
             })
             .catch((err) => {
                 if (err.name === "AbortError") return;
+                console.warn("[W3W] Hook lookup failed.", err);
                 setLoading(false);
             });
 

@@ -21,11 +21,17 @@ export async function resolveW3WFromCoords({
     signal,
 }) {
     const normalizedApiKey = String(apiKey || "").trim();
-    if (!normalizedApiKey) return "";
+    if (!normalizedApiKey) {
+        console.warn("[W3W] Lookup skipped: missing VITE_W3W_API_KEY.");
+        return "";
+    }
 
     const lat = Number(latitude);
     const lng = Number(longitude);
-    if (!hasValidW3WCoordinates(lat, lng)) return "";
+    if (!hasValidW3WCoordinates(lat, lng)) {
+        console.warn("[W3W] Lookup skipped: invalid coordinates.", { latitude, longitude });
+        return "";
+    }
 
     const url =
         "https://api.what3words.com/v3/convert-to-3wa" +
@@ -35,6 +41,7 @@ export async function resolveW3WFromCoords({
 
     const response = await fetchImpl(url, signal ? { signal } : undefined);
     if (!response.ok) {
+        console.warn("[W3W] API request failed.", { status: response.status, statusText: response.statusText });
         throw new Error(`W3W ${response.status}`);
     }
 
