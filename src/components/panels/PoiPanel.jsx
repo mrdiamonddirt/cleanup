@@ -44,6 +44,8 @@ export default function PoiPanel({
     const [longitude, setLongitude] = useState("");
     const [periodStartYear, setPeriodStartYear] = useState("");
     const [periodEndYear, setPeriodEndYear] = useState("");
+    const [isPub, setIsPub] = useState(false);
+    const [isCleanupSupporter, setIsCleanupSupporter] = useState(false);
     const [isHistoric, setIsHistoric] = useState(false);
     const [isMuseum, setIsMuseum] = useState(false);
     const [googleMapsUrl, setGoogleMapsUrl] = useState("");
@@ -69,6 +71,8 @@ export default function PoiPanel({
         setLongitude("");
         setPeriodStartYear("");
         setPeriodEndYear("");
+        setIsPub(false);
+        setIsCleanupSupporter(false);
         setIsHistoric(false);
         setIsMuseum(false);
         setGoogleMapsUrl("");
@@ -125,6 +129,8 @@ export default function PoiPanel({
         setLongitude(Number.isFinite(Number(initialPoi.longitude)) ? Number(initialPoi.longitude).toFixed(6) : "");
         setPeriodStartYear(Number.isFinite(Number(initialPoi.period_start_year)) ? String(initialPoi.period_start_year) : "");
         setPeriodEndYear(Number.isFinite(Number(initialPoi.period_end_year)) ? String(initialPoi.period_end_year) : "");
+        setIsPub(Boolean(initialPoi.is_pub));
+        setIsCleanupSupporter(Boolean(initialPoi.is_cleanup_supporter));
         setIsHistoric(Boolean(initialPoi.is_historic));
         setIsMuseum(Boolean(initialPoi.is_museum));
         setGoogleMapsUrl(String(initialPoi.google_maps_url || ""));
@@ -220,6 +226,8 @@ export default function PoiPanel({
                 longitude: Number.parseFloat(longitude),
                 period_start_year: Number.isFinite(startYear) ? startYear : null,
                 period_end_year: Number.isFinite(endYear) ? endYear : null,
+                is_pub: isPub,
+                is_cleanup_supporter: isCleanupSupporter,
                 is_historic: isHistoric,
                 is_museum: isMuseum,
                 google_maps_url: googleMapsUrl.trim() || null,
@@ -460,6 +468,14 @@ export default function PoiPanel({
                                 <option value="draft">Draft</option>
                                 <option value="published">Published</option>
                             </select>
+                        </label>
+                        <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.78rem", color: "#334155" }}>
+                            <input type="checkbox" checked={isPub} onChange={(event) => setIsPub(event.target.checked)} />
+                            <span>Mark as pub</span>
+                        </label>
+                        <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.78rem", color: "#334155" }}>
+                            <input type="checkbox" checked={isCleanupSupporter} onChange={(event) => setIsCleanupSupporter(event.target.checked)} />
+                            <span>Highlight as cleanup supporter</span>
                         </label>
                         <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.78rem", color: "#334155" }}>
                             <input type="checkbox" checked={isHistoric} onChange={(event) => setIsHistoric(event.target.checked)} />

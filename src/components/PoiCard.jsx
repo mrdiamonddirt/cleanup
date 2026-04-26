@@ -207,6 +207,34 @@ export default function PoiCard({
                                 flexWrap: "wrap",
                             }}
                         >
+                            {poi.is_pub && (
+                                <span
+                                    style={{
+                                        fontSize: "0.7rem",
+                                        background: "#fef3c7",
+                                        color: "#92400e",
+                                        padding: "3px 8px",
+                                        borderRadius: "4px",
+                                        fontWeight: 600,
+                                    }}
+                                >
+                                    🍺 Pub
+                                </span>
+                            )}
+                            {poi.is_cleanup_supporter && (
+                                <span
+                                    style={{
+                                        fontSize: "0.7rem",
+                                        background: "#fef3c7",
+                                        color: "#92400e",
+                                        padding: "3px 8px",
+                                        borderRadius: "4px",
+                                        fontWeight: 700,
+                                    }}
+                                >
+                                    ★ Cleanup Supporter
+                                </span>
+                            )}
                             {poi.is_historic && (
                                 <span
                                     style={{

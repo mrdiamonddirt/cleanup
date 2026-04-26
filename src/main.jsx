@@ -2393,7 +2393,7 @@ const getFlowStationIcon = () =>
         iconAnchor: [19, 19],
     });
 
-const getPoiIcon = (isHistoric = false, isMuseum = false) => {
+const getPoiIcon = (isCleanupSupporter = false, isPub = false, isHistoric = false, isMuseum = false) => {
     let emoji = "📍";
     let color = "#0f766e";
     let borderColor = "#0f766e";
@@ -2401,7 +2401,21 @@ const getPoiIcon = (isHistoric = false, isMuseum = false) => {
     let shadowColor = "rgba(15, 118, 110, 0.28)";
     let className = "poi-marker";
 
-    if (isMuseum) {
+    if (isCleanupSupporter) {
+        emoji = "★";
+        color = "#92400e";
+        borderColor = "#d97706";
+        bgGradient = "#fffbeb 0%, #fde68a 100%";
+        shadowColor = "rgba(217, 119, 6, 0.3)";
+        className = "supporter-poi-marker";
+    } else if (isPub) {
+        emoji = "🍺";
+        color = "#78350f";
+        borderColor = "#a16207";
+        bgGradient = "#fef3c7 0%, #fcd34d 100%";
+        shadowColor = "rgba(120, 53, 15, 0.28)";
+        className = "pub-poi-marker";
+    } else if (isMuseum) {
         emoji = "🏛️";
         color = "#581c87";
         borderColor = "#7c3aed";
@@ -11121,6 +11135,8 @@ function App() {
         longitude,
         period_start_year,
         period_end_year,
+        is_pub,
+        is_cleanup_supporter,
         is_historic,
         is_museum,
         google_maps_url,
@@ -11167,6 +11183,8 @@ function App() {
             longitude,
             period_start_year: Number.isFinite(period_start_year) ? period_start_year : null,
             period_end_year: Number.isFinite(period_end_year) ? period_end_year : null,
+            is_pub: Boolean(is_pub),
+            is_cleanup_supporter: Boolean(is_cleanup_supporter),
             is_historic: Boolean(is_historic),
             is_museum: Boolean(is_museum),
             google_maps_url: google_maps_url || null,
@@ -13991,7 +14009,7 @@ function App() {
                                   <Marker
                                       key={`historical-poi-${poi.id}`}
                                       position={[latitude, longitude]}
-                                      icon={getPoiIcon(Boolean(poi?.is_historic), Boolean(poi?.is_museum))}
+                                      icon={getPoiIcon(Boolean(poi?.is_cleanup_supporter), Boolean(poi?.is_pub), Boolean(poi?.is_historic), Boolean(poi?.is_museum))}
                                       eventHandlers={{
                                           click: () => {
                                               setSelectedHistoricalPoiId(poi.id);
