@@ -14,6 +14,8 @@ function getStorageThumbnailUrl(url, width = 400, quality = 75) {
             "/storage/v1/object/public/",
             "/storage/v1/render/image/public/",
         );
+        // Ensure transformed thumbnails preserve full image bounds (no server-side crop).
+        u.searchParams.set('resize', 'contain');
         u.searchParams.set("width", String(width));
         u.searchParams.set("quality", String(quality));
         return u.toString();
@@ -33,10 +35,10 @@ export default function ImageCarousel({ images = [] }) {
     const isCompactMobile = viewportWidth > 0 && viewportWidth <= 400;
     const carouselGap = isCompactMobile ? "6px" : isMobileViewport ? "8px" : "10px";
     const mediaMinHeight = isCompactMobile
-        ? "clamp(124px, 23vh, 172px)"
+        ? "clamp(160px, 38vw, 220px)"
         : isMobileViewport
-            ? "clamp(140px, 26vh, 196px)"
-            : "220px";
+            ? "clamp(180px, 42vw, 260px)"
+            : "280px";
 
     if (!hasImages) {
         return (
@@ -119,9 +121,9 @@ export default function ImageCarousel({ images = [] }) {
                     style={{
                         position: "relative",
                         width: "100%",
-                        aspectRatio: "3 / 2",
+                        aspectRatio: "4 / 3",
                         minHeight: mediaMinHeight,
-                        background: "#f1f5f9",
+                        background: "#0f172a",
                         borderRadius: "12px",
                         overflow: "hidden",
                         cursor: "zoom-in",
@@ -175,6 +177,20 @@ export default function ImageCarousel({ images = [] }) {
                                     bottom: `${indicatorLaneHeight}px`,
                                 }}
                             >
+                                <img
+                                    aria-hidden="true"
+                                    src={currentImageSmall}
+                                    style={{
+                                        position: "absolute",
+                                        inset: 0,
+                                        width: "100%",
+                                        height: "100%",
+                                        objectFit: "cover",
+                                        filter: "blur(18px) brightness(0.55) saturate(1.3)",
+                                        transform: "scale(1.12)",
+                                        pointerEvents: "none",
+                                    }}
+                                />
                                 <img
                                     src={currentImageMedium}
                                     srcSet={currentImageSrcSet}

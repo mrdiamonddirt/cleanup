@@ -10,6 +10,8 @@ function getStorageThumbnailUrl(url, width = 400, quality = 75) {
             "/storage/v1/object/public/",
             "/storage/v1/render/image/public/",
         );
+        // Ensure transformed previews preserve full image bounds (no server-side crop).
+        u.searchParams.set('resize', 'contain');
         u.searchParams.set("width", String(width));
         u.searchParams.set("quality", String(quality));
         return u.toString();

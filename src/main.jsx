@@ -2400,8 +2400,9 @@ const getPoiIcon = (isCleanupSupporter = false, isPub = false, isHistoric = fals
     let bgGradient = "#f0fdfa 0%, #ccfbf1 100%";
     let shadowColor = "rgba(15, 118, 110, 0.28)";
     let className = "poi-marker";
+    const hasTypeIcon = isPub || isMuseum || isHistoric;
 
-    if (isCleanupSupporter) {
+    if (isCleanupSupporter && !hasTypeIcon) {
         emoji = "★";
         color = "#92400e";
         borderColor = "#d97706";
@@ -2414,30 +2415,34 @@ const getPoiIcon = (isCleanupSupporter = false, isPub = false, isHistoric = fals
         borderColor = "#a16207";
         bgGradient = "#fef3c7 0%, #fcd34d 100%";
         shadowColor = "rgba(120, 53, 15, 0.28)";
-        className = "pub-poi-marker";
+        className = isCleanupSupporter ? "pub-supporter-poi-marker" : "pub-poi-marker";
     } else if (isMuseum) {
         emoji = "🏛️";
         color = "#581c87";
         borderColor = "#7c3aed";
         bgGradient = "#f5f3ff 0%, #ede9fe 100%";
         shadowColor = "rgba(92, 28, 135, 0.28)";
-        className = "museum-poi-marker";
+        className = isCleanupSupporter ? "museum-supporter-poi-marker" : "museum-poi-marker";
     } else if (isHistoric) {
         emoji = "📜";
         color = "#9a3412";
         borderColor = "#8b5e34";
         bgGradient = "#fff7ed 0%, #ffedd5 100%";
         shadowColor = "rgba(154, 52, 18, 0.28)";
-        className = "historical-poi-marker";
+        className = isCleanupSupporter ? "historic-supporter-poi-marker" : "historical-poi-marker";
     }
+
+    const badgeHtml = isCleanupSupporter && hasTypeIcon
+        ? `<span aria-hidden="true" style="position: absolute; top: -5px; right: -5px; width: 14px; height: 14px; border-radius: 999px; border: 2px solid #fffbeb; display: inline-flex; align-items: center; justify-content: center; background: #facc15; color: #78350f; font-size: 8px; font-weight: 800; line-height: 1;">★</span>`
+        : "";
+
+    const innerHtml = badgeHtml
+        ? `<div style="position: relative; width: 38px; height: 38px;"><div style="width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; transform: rotate(45deg); border-radius: 8px; border: 2px solid ${borderColor}; background: linear-gradient(180deg, ${bgGradient}); box-shadow: 0 3px 10px ${shadowColor};"><span style="transform: rotate(-45deg); color: ${color}; font-size: 18px; font-weight: 800; line-height: 1;">${emoji}</span></div>${badgeHtml}</div>`
+        : `<div style="width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; transform: rotate(45deg); border-radius: 8px; border: 2px solid ${borderColor}; background: linear-gradient(180deg, ${bgGradient}); box-shadow: 0 3px 10px ${shadowColor};"><span style="transform: rotate(-45deg); color: ${color}; font-size: 18px; font-weight: 800; line-height: 1;">${emoji}</span></div>`;
 
     return L.divIcon({
         className,
-        html: `
-            <div style="width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; transform: rotate(45deg); border-radius: 8px; border: 2px solid ${borderColor}; background: linear-gradient(180deg, ${bgGradient}); box-shadow: 0 3px 10px ${shadowColor};">
-                <span style="transform: rotate(-45deg); color: ${color}; font-size: 18px; font-weight: 800; line-height: 1;">${emoji}</span>
-            </div>
-        `,
+        html: innerHtml,
         iconSize: [38, 38],
         iconAnchor: [19, 19],
     });
