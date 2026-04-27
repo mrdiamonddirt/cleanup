@@ -7536,8 +7536,8 @@ function FullscreenImageViewer({
             <div
                 style={{
                     position: "absolute",
-                    top: "10px",
-                    left: "10px",
+                    top: "max(10px, calc(env(safe-area-inset-top, 0px) + 8px))",
+                    left: "max(10px, env(safe-area-inset-left, 0px))",
                     display: "flex",
                     gap: "8px",
                     alignItems: "center",
@@ -7640,8 +7640,8 @@ function FullscreenImageViewer({
                 onClick={onClose}
                 style={{
                     position: "absolute",
-                    top: "10px",
-                    right: "10px",
+                    top: "max(10px, calc(env(safe-area-inset-top, 0px) + 8px))",
+                    right: "max(10px, env(safe-area-inset-right, 0px))",
                     zIndex: 3,
                     width: "40px",
                     height: "40px",
@@ -7666,8 +7666,16 @@ function FullscreenImageViewer({
                     alignItems: "start",
                     justifyItems: "center",
                     touchAction: zoomLevel > 1 ? "pan-x pan-y pinch-zoom" : "pan-y pinch-zoom",
-                    padding: isMobile ? "58px 8px 8px" : "64px 20px 20px",
-                    paddingBottom: isDetailsVisible ? (isMobile ? "150px" : "172px") : (isMobile ? "12px" : "20px"),
+                    padding: isMobile
+                        ? "calc(env(safe-area-inset-top, 0px) + 58px) max(8px, env(safe-area-inset-right, 0px)) 8px max(8px, env(safe-area-inset-left, 0px))"
+                        : "calc(env(safe-area-inset-top, 0px) + 64px) max(20px, env(safe-area-inset-right, 0px)) 20px max(20px, env(safe-area-inset-left, 0px))",
+                    paddingBottom: isDetailsVisible
+                        ? (isMobile
+                            ? "calc(env(safe-area-inset-bottom, 0px) + 150px)"
+                            : "calc(env(safe-area-inset-bottom, 0px) + 172px)")
+                        : (isMobile
+                            ? "calc(env(safe-area-inset-bottom, 0px) + 12px)"
+                            : "calc(env(safe-area-inset-bottom, 0px) + 20px)"),
                     boxSizing: "border-box",
                 }}
                 onTouchStart={images.length > 1 ? handleTouchStart : undefined}

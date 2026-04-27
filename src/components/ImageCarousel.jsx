@@ -442,8 +442,8 @@ export default function ImageCarousel({ images = [] }) {
                             aria-label="Close fullscreen image"
                             style={{
                                 position: "absolute",
-                                top: "12px",
-                                right: "12px",
+                                top: "max(12px, calc(env(safe-area-inset-top, 0px) + 8px))",
+                                right: "max(12px, env(safe-area-inset-right, 0px))",
                                 width: "38px",
                                 height: "38px",
                                 borderRadius: "999px",
