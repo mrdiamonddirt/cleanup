@@ -12700,16 +12700,26 @@ function App() {
         return () => observer.disconnect();
     }, [isMobile, isMobileStatsExpanded]);
 
-    const mobileStickyOffset = mobileStickyStackHeight > 0
-        ? mobileStickyStackHeight + 18
-        : (isMobileStatsExpanded ? 228 : 132);
+    const mobileStickyOffset = Math.max(
+        mobileStickyStackHeight + 18,
+        isMobileStatsExpanded ? 248 : 148,
+    );
     const mapHeight = isTidePlannerCollapsed
         ? isMobile
-            ? `clamp(360px, calc(100dvh - ${mobileStickyOffset}px), 860px)`
+            ? `clamp(300px, calc(100dvh - ${mobileStickyOffset}px), 860px)`
             : "calc(100dvh - 242px)"
         : isMobile
-          ? `clamp(320px, calc(100dvh - ${mobileStickyOffset + 230}px), 520px)`
+          ? `clamp(260px, calc(100dvh - ${mobileStickyOffset + 230}px), 520px)`
           : "calc(100vh - 250px)";
+    useEffect(() => {
+        if (!mapInstance || !isMobile) return undefined;
+
+        const frameId = window.requestAnimationFrame(() => {
+            mapInstance.invalidateSize({ pan: false, debounceMoveend: true });
+        });
+
+        return () => window.cancelAnimationFrame(frameId);
+    }, [isMobile, mapHeight, mapInstance]);
     const controlFontSize = isMobile ? "0.95rem" : "0.85rem";
     const touchButtonSize = isMobile ? "38px" : "30px";
     const activeFilterCount =
@@ -13805,6 +13815,7 @@ function App() {
                     marginTop: isTidePlannerCollapsed ? "2px" : "0",
                     flex: isTidePlannerCollapsed ? "1 1 auto" : "0 0 auto",
                     minHeight: 0,
+                    paddingBottom: isMobile ? "env(safe-area-inset-bottom, 0px)" : "0px",
                 }}
             >
                 <MapContainer
@@ -13814,7 +13825,9 @@ function App() {
                     touchZoom={true}
                     style={{
                         height: mapHeight,
-                        minHeight: isMobile ? "360px" : "400px",
+                        minHeight: isMobile
+                            ? (isTidePlannerCollapsed ? "300px" : "260px")
+                            : "400px",
                         width: "100%",
                         border: "2px solid #333",
                         borderRadius: "12px",
