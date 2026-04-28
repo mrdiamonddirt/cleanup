@@ -3034,6 +3034,7 @@ function PendingPlacementOverlay({
     const handleImagePickRequest = (imageSource) => {
         setIsWeightTouched(true);
         if (hasInvalidWeightInput) return;
+        if (isSavingItem || isPickingImage) return;
         handleTypePick(pendingItemType, imageSource);
     };
 
@@ -9653,6 +9654,12 @@ function App() {
     const [pendingItemW3WLoading, setPendingItemW3WLoading] = useState(false);
     const pendingItemW3WWordsRef = useRef(null);
     const uploadBusyStartedAtRef = useRef(0);
+    const pickerSessionIdRef = useRef(0);
+    const pickerSessionNonceRef = useRef(0);
+    const pickerFocusTimerRef = useRef(null);
+    const pickerFallbackTimerRef = useRef(null);
+    const pickerProgressClearTimerRef = useRef(null);
+    const pickerFocusHandlerRef = useRef(null);
     pendingItemW3WWordsRef.current = pendingItemW3WWords;
     const isHistoricOverlayEditorModeEnabled =
         canManageItems && isHistoricOverlayEditorModeRequested;
@@ -9775,7 +9782,32 @@ function App() {
         }, 2500);
     };
 
+    const clearPickerProgressClearTimer = () => {
+        if (pickerProgressClearTimerRef.current) {
+            window.clearTimeout(pickerProgressClearTimerRef.current);
+            pickerProgressClearTimerRef.current = null;
+        }
+    };
+
+    const clearPickerLifecycleHandlers = () => {
+        if (pickerFocusHandlerRef.current) {
+            window.removeEventListener("focus", pickerFocusHandlerRef.current);
+            pickerFocusHandlerRef.current = null;
+        }
+
+        if (pickerFallbackTimerRef.current) {
+            window.clearTimeout(pickerFallbackTimerRef.current);
+            pickerFallbackTimerRef.current = null;
+        }
+
+        if (pickerFocusTimerRef.current) {
+            window.clearTimeout(pickerFocusTimerRef.current);
+            pickerFocusTimerRef.current = null;
+        }
+    };
+
     const clearUploadFeedback = () => {
+        clearPickerProgressClearTimer();
         setUploadStage("idle");
         setUploadError("");
         setUploadProgressText("");
@@ -9786,6 +9818,11 @@ function App() {
         setUploadProgressText("");
         setUploadError(parseFieldErrorMessage(error, fallbackMessage));
     };
+
+    useEffect(() => () => {
+        clearPickerProgressClearTimer();
+        clearPickerLifecycleHandlers();
+    }, []);
 
     useEffect(() => {
         const isUploadBusy = isSavingItem || isPickingImage;
@@ -11737,11 +11774,18 @@ function App() {
             return;
         }
 
-        if (!pendingLocation || isSavingItem || isPickingImage) return;
+        if (!pendingLocation || isSavingItem || isPickingImage || pickerSessionIdRef.current !== 0) return;
+
+        clearPickerLifecycleHandlers();
+        clearPickerProgressClearTimer();
 
         clearUploadFeedback();
         setUploadStage("opening");
         setLastUploadRequest({ selectedType, imageSource });
+
+        pickerSessionNonceRef.current += 1;
+        const sessionId = pickerSessionNonceRef.current;
+        pickerSessionIdRef.current = sessionId;
 
         const input = document.createElement("input");
         input.type = "file";
@@ -11765,58 +11809,35 @@ function App() {
             ? CAMERA_PICKER_TIMEOUT_MS
             : GALLERY_PICKER_TIMEOUT_MS;
 
-        setUploadProgressText(openingMessage);
-        setIsPickingImage(true);
-
-        let hasResolvedPicker = false;
-        let fallbackTimerId = null;
-        let focusTimerId = null;
-
-        const releasePickerListeners = () => {
-            window.removeEventListener("focus", handleWindowFocus);
-
-            if (fallbackTimerId) {
-                window.clearTimeout(fallbackTimerId);
-                fallbackTimerId = null;
-            }
-
-            if (focusTimerId) {
-                window.clearTimeout(focusTimerId);
-                focusTimerId = null;
-            }
-        };
-
-        const unlockPickerState = () => {
-            setIsPickingImage(false);
-        };
-
-        const handleWindowFocus = () => {
-            if (hasResolvedPicker) return;
-
-            focusTimerId = window.setTimeout(() => {
-                if (hasResolvedPicker) return;
-                releasePickerListeners();
-                handlePickerCancel();
-            }, 250);
-        };
+        const isSessionActive = () => pickerSessionIdRef.current === sessionId;
 
         const resolvePicker = () => {
-            if (hasResolvedPicker) return;
-            hasResolvedPicker = true;
-            releasePickerListeners();
-            unlockPickerState();
+            if (!isSessionActive()) return false;
+            pickerSessionIdRef.current = 0;
+            clearPickerLifecycleHandlers();
+            setIsPickingImage(false);
+            return true;
+        };
+
+        const scheduleProgressClear = () => {
+            clearPickerProgressClearTimer();
+            pickerProgressClearTimerRef.current = window.setTimeout(() => {
+                pickerProgressClearTimerRef.current = null;
+                if (pickerSessionIdRef.current !== 0) return;
+                setUploadProgressText("");
+            }, 1800);
         };
 
         const handlePickerCancel = () => {
-            resolvePicker();
+            if (!resolvePicker()) return;
             setUploadStage("idle");
             setUploadError("");
             setUploadProgressText(pickerCancelledMessage);
-            window.setTimeout(() => setUploadProgressText(""), 1800);
+            scheduleProgressClear();
         };
 
         const handlePickerError = (message, details = null) => {
-            resolvePicker();
+            if (!resolvePicker()) return;
             console.warn("Image picker failed", {
                 source: imageSource,
                 message,
@@ -11825,24 +11846,44 @@ function App() {
             showUploadError(null, message);
         };
 
-        window.addEventListener("focus", handleWindowFocus, { once: true });
+        setUploadProgressText(openingMessage);
+        setIsPickingImage(true);
 
-        fallbackTimerId = window.setTimeout(() => {
-            if (hasResolvedPicker) return;
+        pickerFocusHandlerRef.current = () => {
+            if (!isSessionActive()) return;
+
+            if (pickerFocusTimerRef.current) {
+                window.clearTimeout(pickerFocusTimerRef.current);
+            }
+
+            // Give iOS camera/gallery handoff time to settle before treating it as cancel.
+            pickerFocusTimerRef.current = window.setTimeout(() => {
+                if (!isSessionActive()) return;
+                handlePickerCancel();
+            }, 1000);
+        };
+
+        window.addEventListener("focus", pickerFocusHandlerRef.current, { once: true });
+
+        pickerFallbackTimerRef.current = window.setTimeout(() => {
+            if (!isSessionActive()) return;
             handlePickerError(pickerTimeoutMessage, "picker-timeout");
         }, pickerTimeoutMs);
 
         input.onchange = async (event) => {
+            if (!isSessionActive()) return;
+
             const file = event.target.files?.[0];
             const estimatedWeightKg = parseEstimatedWeightKg(pendingEstimatedWeight) || getDefaultWeightForType(selectedType);
             let saveSucceeded = false;
             let failureStage = "preparing";
-            resolvePicker();
 
             if (!file) {
                 handlePickerCancel();
                 return;
             }
+
+            if (!resolvePicker()) return;
 
             if (!isOnline) {
                 showUploadError(null, "No internet connection. Reconnect and retry upload.");

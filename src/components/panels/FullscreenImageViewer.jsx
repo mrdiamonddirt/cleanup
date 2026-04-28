@@ -152,6 +152,16 @@ export default function FullscreenImageViewer({
         selectedStory?.knownSinceDate,
         selectedStory?.recoveredOnDate,
     );
+    const mobileControlTop = "max(10px, calc(env(safe-area-inset-top, 0px) + 8px))";
+    const mobileControlLeft = "max(10px, calc(env(safe-area-inset-left, 0px) + 8px))";
+    const mobileControlRight = "max(10px, calc(env(safe-area-inset-right, 0px) + 8px))";
+    const mobileContentTopPadding = "calc(env(safe-area-inset-top, 0px) + 58px)";
+    const mobileContentBottomPadding = isDetailsVisible
+        ? "calc(env(safe-area-inset-bottom, 0px) + 150px)"
+        : "calc(env(safe-area-inset-bottom, 0px) + 12px)";
+    const mobilePagerBottom = isDetailsVisible
+        ? "calc(env(safe-area-inset-bottom, 0px) + 154px)"
+        : "calc(env(safe-area-inset-bottom, 0px) + 14px)";
 
     const viewerNode = (
         <div
@@ -170,8 +180,8 @@ export default function FullscreenImageViewer({
             <div
                 style={{
                     position: "absolute",
-                    top: "10px",
-                    left: "10px",
+                    top: isMobile ? mobileControlTop : "10px",
+                    left: isMobile ? mobileControlLeft : "10px",
                     display: "flex",
                     gap: "8px",
                     alignItems: "center",
@@ -274,8 +284,8 @@ export default function FullscreenImageViewer({
                 onClick={onClose}
                 style={{
                     position: "absolute",
-                    top: "10px",
-                    right: "10px",
+                    top: isMobile ? mobileControlTop : "10px",
+                    right: isMobile ? mobileControlRight : "10px",
                     zIndex: 3,
                     width: "40px",
                     height: "40px",
@@ -300,8 +310,12 @@ export default function FullscreenImageViewer({
                     alignItems: "start",
                     justifyItems: "center",
                     touchAction: zoomLevel > 1 ? "pan-x pan-y pinch-zoom" : "pan-y pinch-zoom",
-                    padding: isMobile ? "58px 8px 8px" : "64px 20px 20px",
-                    paddingBottom: isDetailsVisible ? (isMobile ? "150px" : "172px") : (isMobile ? "12px" : "20px"),
+                    padding: isMobile
+                        ? `${mobileContentTopPadding} 8px 8px`
+                        : "64px 20px 20px",
+                    paddingBottom: isMobile
+                        ? mobileContentBottomPadding
+                        : (isDetailsVisible ? "172px" : "20px"),
                     boxSizing: "border-box",
                 }}
                 onTouchStart={images.length > 1 ? handleTouchStart : undefined}
@@ -375,7 +389,9 @@ export default function FullscreenImageViewer({
                         position: "absolute",
                         left: "50%",
                         transform: "translateX(-50%)",
-                        bottom: isDetailsVisible ? (isMobile ? "154px" : "178px") : "14px",
+                        bottom: isMobile
+                            ? mobilePagerBottom
+                            : (isDetailsVisible ? "178px" : "14px"),
                         display: "flex",
                         alignItems: "center",
                         gap: "8px",
@@ -450,7 +466,9 @@ export default function FullscreenImageViewer({
                         bottom: 0,
                         background: "linear-gradient(to top, rgba(0, 0, 0, 0.95), rgba(0, 0, 0, 0.6))",
                         color: "#f8fafc",
-                        padding: "10px 14px 14px",
+                        padding: isMobile
+                            ? "10px 14px calc(env(safe-area-inset-bottom, 0px) + 14px)"
+                            : "10px 14px 14px",
                         fontSize: "0.85rem",
                         lineHeight: 1.45,
                     }}
