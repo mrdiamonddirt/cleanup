@@ -135,6 +135,8 @@ const DEFAULT_HISTORIC_OVERLAY_OPACITY = 0.72;
 const DEFAULT_HISTORIC_DRAFT_EDITOR_OPACITY = 0.62;
 const CAMERA_PICKER_TIMEOUT_MS = 18000;
 const GALLERY_PICKER_TIMEOUT_MS = 15000;
+const PICKER_FOCUS_CANCEL_GRACE_MS = 1800;
+const PICKER_REOPEN_SUPPRESSION_MS = 420;
 const SUPABASE_UPLOAD_TIMEOUT_MS = 45000;
 const SUPABASE_MUTATION_TIMEOUT_MS = 25000;
 const DEFAULT_RETRY_ATTEMPTS = 3;
@@ -3031,7 +3033,9 @@ function PendingPlacementOverlay({
         idle: "#f8fafc",
     }[currentStage] || "#f8fafc";
 
-    const handleImagePickRequest = (imageSource) => {
+    const handleImagePickRequest = (imageSource, event) => {
+        event?.stopPropagation?.();
+        event?.preventDefault?.();
         setIsWeightTouched(true);
         if (hasInvalidWeightInput) return;
         if (isSavingItem || isPickingImage) return;
@@ -3330,7 +3334,7 @@ function PendingPlacementOverlay({
                 {pendingItemType ? (
                     <>
                         <button
-                            onClick={() => handleImagePickRequest("camera")}
+                            onClick={(event) => handleImagePickRequest("camera", event)}
                             disabled={isBusy || hasInvalidWeightInput}
                             style={{
                                 border: "1px solid #2563eb",
@@ -3347,7 +3351,7 @@ function PendingPlacementOverlay({
                             Use Camera
                         </button>
                         <button
-                            onClick={() => handleImagePickRequest("gallery")}
+                            onClick={(event) => handleImagePickRequest("gallery", event)}
                             disabled={isBusy || hasInvalidWeightInput}
                             style={{
                                 border: "1px solid #94a3b8",
@@ -9703,6 +9707,8 @@ function App() {
     const pickerFallbackTimerRef = useRef(null);
     const pickerProgressClearTimerRef = useRef(null);
     const pickerFocusHandlerRef = useRef(null);
+    const pickerInputRef = useRef(null);
+    const pickerLaunchSuppressedUntilRef = useRef(0);
     pendingItemW3WWordsRef.current = pendingItemW3WWords;
     const isHistoricOverlayEditorModeEnabled =
         canManageItems && isHistoricOverlayEditorModeRequested;
@@ -9849,6 +9855,22 @@ function App() {
         }
     };
 
+    const clearPickerInputElement = () => {
+        const activeInput = pickerInputRef.current;
+        if (!activeInput) return;
+
+        activeInput.onchange = null;
+        activeInput.oncancel = null;
+        activeInput.remove();
+        pickerInputRef.current = null;
+    };
+
+    const suppressPickerLaunch = (durationMs = PICKER_REOPEN_SUPPRESSION_MS) => {
+        pickerLaunchSuppressedUntilRef.current = Date.now() + durationMs;
+    };
+
+    const isPickerLaunchSuppressed = () => pickerLaunchSuppressedUntilRef.current > Date.now();
+
     const clearUploadFeedback = () => {
         clearPickerProgressClearTimer();
         setUploadStage("idle");
@@ -9865,6 +9887,7 @@ function App() {
     useEffect(() => () => {
         clearPickerProgressClearTimer();
         clearPickerLifecycleHandlers();
+        clearPickerInputElement();
     }, []);
 
     useEffect(() => {
@@ -11817,10 +11840,17 @@ function App() {
             return;
         }
 
-        if (!pendingLocation || isSavingItem || isPickingImage || pickerSessionIdRef.current !== 0) return;
+        if (
+            !pendingLocation ||
+            isSavingItem ||
+            isPickingImage ||
+            pickerSessionIdRef.current !== 0 ||
+            isPickerLaunchSuppressed()
+        ) return;
 
         clearPickerLifecycleHandlers();
         clearPickerProgressClearTimer();
+        clearPickerInputElement();
 
         clearUploadFeedback();
         setUploadStage("opening");
@@ -11833,9 +11863,12 @@ function App() {
         const input = document.createElement("input");
         input.type = "file";
         input.accept = "image/*";
+        input.style.display = "none";
         if (imageSource === "camera") {
             input.capture = "environment";
         }
+        document.body.appendChild(input);
+        pickerInputRef.current = input;
 
         const point = pendingLocation;
         const openingMessage = imageSource === "camera" ? "Opening camera..." : "Opening gallery...";
@@ -11858,6 +11891,8 @@ function App() {
             if (!isSessionActive()) return false;
             pickerSessionIdRef.current = 0;
             clearPickerLifecycleHandlers();
+            clearPickerInputElement();
+            suppressPickerLaunch();
             setIsPickingImage(false);
             return true;
         };
@@ -11902,8 +11937,9 @@ function App() {
             // Give iOS camera/gallery handoff time to settle before treating it as cancel.
             pickerFocusTimerRef.current = window.setTimeout(() => {
                 if (!isSessionActive()) return;
+                if (pickerInputRef.current?.files?.length) return;
                 handlePickerCancel();
-            }, 1000);
+            }, PICKER_FOCUS_CANCEL_GRACE_MS);
         };
 
         window.addEventListener("focus", pickerFocusHandlerRef.current, { once: true });
