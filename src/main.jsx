@@ -4345,6 +4345,18 @@ function AppTopBar({
                         100% { background-position: 0% 50%; }
                     }
 
+                    @keyframes appTopbarMenuItemIn {
+                        0% {
+                            opacity: 0;
+                            transform: translateY(5px) scale(0.98);
+                        }
+
+                        100% {
+                            opacity: 1;
+                            transform: translateY(0) scale(1);
+                        }
+                    }
+
                     @media (prefers-reduced-motion: reduce) {
                         .river-title-shimmer {
                             animation: none !important;
@@ -4361,18 +4373,31 @@ function AppTopBar({
                     }
 
                     .app-topbar-menu-trigger,
-                    .app-topbar-menu-item {
-                        transition: transform 140ms ease, box-shadow 180ms ease, background 180ms ease, border-color 180ms ease;
+                    .app-topbar-menu-item,
+                    .app-topbar-desktop-action {
+                        transition:
+                            transform 170ms cubic-bezier(0.22, 0.61, 0.36, 1),
+                            box-shadow 220ms ease,
+                            background 200ms ease,
+                            border-color 200ms ease,
+                            filter 200ms ease;
                     }
 
                     .app-topbar-menu-trigger:hover,
                     .app-topbar-menu-trigger:focus-visible {
-                        transform: translateY(-1px);
-                        box-shadow: 0 10px 24px rgba(15,23,42,0.14);
+                        transform: translateY(-1px) scale(1.01);
+                        box-shadow: 0 12px 28px rgba(15,23,42,0.16);
+                    }
+
+                    .app-topbar-menu-trigger:active,
+                    .app-topbar-menu-item:active,
+                    .app-topbar-desktop-action:active {
+                        transform: translateY(0) scale(0.98);
                     }
 
                     .app-topbar-menu-trigger:focus-visible,
-                    .app-topbar-menu-item:focus-visible {
+                    .app-topbar-menu-item:focus-visible,
+                    .app-topbar-desktop-action:focus-visible {
                         outline: 2px solid #0f172a;
                         outline-offset: 2px;
                     }
@@ -4381,7 +4406,19 @@ function AppTopBar({
                     .app-topbar-menu-item:focus-visible {
                         border-color: rgba(96,165,250,0.9);
                         background: linear-gradient(180deg, rgba(239,246,255,0.98), rgba(224,242,254,0.96));
-                        transform: translateY(-1px);
+                        transform: translateY(-2px);
+                        box-shadow: 0 10px 20px rgba(15,23,42,0.12);
+                    }
+
+                    .app-topbar-desktop-action:hover,
+                    .app-topbar-desktop-action:focus-visible {
+                        transform: translateY(-2px);
+                        box-shadow: 0 10px 20px rgba(15,23,42,0.14);
+                        filter: saturate(1.05);
+                    }
+
+                    .app-topbar-menu-item {
+                        animation: appTopbarMenuItemIn 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
                     }
 
                     .app-topbar-menu-chevron {
@@ -4390,6 +4427,22 @@ function AppTopBar({
 
                     .app-topbar-menu-trigger[aria-expanded="true"] .app-topbar-menu-chevron {
                         transform: rotate(180deg);
+                    }
+
+                    .app-topbar-mobile-signed-in {
+                        display: inline-flex;
+                        align-items: center;
+                    }
+
+                    @media (prefers-reduced-motion: reduce) {
+                        .app-topbar-menu-trigger,
+                        .app-topbar-menu-item,
+                        .app-topbar-desktop-action,
+                        .app-topbar-menu-chevron,
+                        .app-topbar-menu-item {
+                            transition: none !important;
+                            animation: none !important;
+                        }
                     }
                 `}
             </style>
@@ -4520,6 +4573,11 @@ function AppTopBar({
                                 <span style={{ width: "12px", height: "2px", borderRadius: "999px", background: "currentColor" }} />
                             </span>
                             <span>Menu</span>
+                            {signedIn ? (
+                                <span className="app-topbar-mobile-signed-in" aria-label={`Signed in as ${profileDisplayName}`}>
+                                    <ProfileAvatar imageUrl={profileAvatarUrl} label={profileDisplayName} size={20} />
+                                </span>
+                            ) : null}
                             <span className="app-topbar-menu-chevron" aria-hidden="true">▾</span>
                         </button>
 
@@ -4682,14 +4740,14 @@ function AppTopBar({
                                     onClick={handleLeaderboardMenuAction}
                                     style={{
                                         ...mobileMenuItemBaseStyle,
-                                        borderColor: "rgba(14,116,144,0.34)",
-                                        background: "linear-gradient(180deg, #ecfeff, #f0f9ff)",
+                                        borderColor: "rgba(245,158,11,0.42)",
+                                        background: "linear-gradient(180deg, #fffbeb, #fef3c7)",
                                         cursor: "pointer",
                                     }}
                                 >
-                                    <span aria-hidden="true" style={{ fontSize: "1rem", textAlign: "center", color: "#0e7490" }}>#</span>
+                                    <span aria-hidden="true" style={{ fontSize: "1rem", textAlign: "center", color: "#b45309" }}>👑</span>
                                     <span style={{ display: "grid", gap: "2px", minWidth: 0 }}>
-                                        <span style={{ fontSize: "0.84rem", fontWeight: 800, color: "#0f172a" }}>Leaderboard</span>
+                                        <span style={{ fontSize: "0.84rem", fontWeight: 800, color: "#0f172a" }}>Leaderboards</span>
                                         <span style={{ fontSize: "0.74rem", color: "#475569" }}>Top users, items, POIs, and contributors.</span>
                                     </span>
                                     <span aria-hidden="true" style={{ color: "#94a3b8", fontSize: "0.9rem" }}>›</span>
@@ -4787,6 +4845,7 @@ function AppTopBar({
                             href="https://buymeacoffee.com/rivercleanv"
                             target="_blank"
                             rel="noreferrer"
+                            className="app-topbar-desktop-action"
                             style={{
                                 ...desktopActionButtonStyle,
                                 border: "1px solid #bfdbfe",
@@ -4806,6 +4865,7 @@ function AppTopBar({
                             href="https://www.facebook.com/profile.php?id=61577489848878"
                             target="_blank"
                             rel="noreferrer"
+                            className="app-topbar-desktop-action"
                             style={{
                                 ...desktopActionButtonStyle,
                                 border: "1px solid #1877f2",
@@ -4825,6 +4885,7 @@ function AppTopBar({
                             href="https://www.instagram.com/rivercleanup.co.uk"
                             target="_blank"
                             rel="noreferrer"
+                            className="app-topbar-desktop-action"
                             style={{
                                 ...desktopActionButtonStyle,
                                 border: "1px solid #e1306c",
@@ -4844,6 +4905,7 @@ function AppTopBar({
                             href="https://www.youtube.com/@Rivercleanupuk"
                             target="_blank"
                             rel="noreferrer"
+                            className="app-topbar-desktop-action"
                             style={{
                                 ...desktopActionButtonStyle,
                                 border: "1px solid #dc2626",
@@ -4862,6 +4924,7 @@ function AppTopBar({
                         <button
                             type="button"
                             onClick={onOpenContributorPanel}
+                            className="app-topbar-desktop-action"
                             style={{
                                 ...desktopActionButtonStyle,
                                 border: "1px solid #f59e0b",
@@ -4880,25 +4943,27 @@ function AppTopBar({
                         <button
                             type="button"
                             onClick={onOpenLeaderboard}
+                            className="app-topbar-desktop-action"
                             style={{
                                 ...desktopActionButtonStyle,
-                                border: "1px solid #0e7490",
-                                background: "#ecfeff",
-                                color: "#155e75",
+                                border: "1px solid #f59e0b",
+                                background: "linear-gradient(180deg, #fffbeb, #fef3c7)",
+                                color: "#92400e",
                                 padding: "0 11px",
                                 fontSize: "0.76rem",
                                 fontWeight: 700,
                                 cursor: "pointer",
                             }}
-                            aria-label="Open leaderboard"
+                            aria-label="Open leaderboards"
                         >
-                            # Leaderboard
+                            👑 Leaderboards
                         </button>
 
                         {canManageItems ? (
                             <button
                                 type="button"
                                 onClick={onOpenPoiPanel}
+                                className="app-topbar-desktop-action"
                                 style={{
                                     ...desktopActionButtonStyle,
                                     border: "1px solid #9a3412",
@@ -4919,6 +4984,7 @@ function AppTopBar({
                             <button
                                 type="button"
                                 onClick={onOpenProfile}
+                                className="app-topbar-desktop-action"
                                 style={{
                                     ...desktopActionButtonStyle,
                                     border: "1px solid #bfdbfe",
@@ -4938,6 +5004,7 @@ function AppTopBar({
                             type="button"
                             onClick={signedIn ? onSignOut : onOpenAuthModal}
                             disabled={!authReady || isAuthActionLoading}
+                            className="app-topbar-desktop-action"
                             style={{
                                 ...desktopActionButtonStyle,
                                 border: `1px solid ${signedIn ? "#cbd5e1" : "#0f172a"}`,
@@ -5320,6 +5387,7 @@ function LeaderboardModal({
     onClose,
     scope,
     onScopeChange,
+    onRowActivate,
     rows,
     isLoading,
     error,
@@ -5334,7 +5402,7 @@ function LeaderboardModal({
     ];
 
     return (
-        <ModalShell isMobile={isMobile} title="Leaderboard" onClose={onClose} width="min(760px, calc(100vw - 32px))">
+        <ModalShell isMobile={isMobile} title="Leaderboards" onClose={onClose} width="min(760px, calc(100vw - 32px))">
             <p style={{ margin: 0, fontSize: "0.82rem", color: "#334155", lineHeight: 1.45 }}>
                 Ranked by total engagement (likes + shares).
             </p>
@@ -5387,7 +5455,43 @@ function LeaderboardModal({
                                 {rows.map((row, index) => (
                                     <tr key={`${row.id}-${index}`}>
                                         <td style={{ padding: "8px", borderBottom: "1px solid #eff6ff", fontSize: "0.78rem", color: "#0f172a", fontWeight: 700 }}>{index + 1}</td>
-                                        <td style={{ padding: "8px", borderBottom: "1px solid #eff6ff", fontSize: "0.78rem", color: "#0f172a" }}>{row.label}</td>
+                                        <td style={{ padding: "8px", borderBottom: "1px solid #eff6ff", fontSize: "0.78rem", color: "#0f172a" }}>
+                                            {scope === "users" ? (
+                                                <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
+                                                    <ProfileAvatar
+                                                        imageUrl={String(row?.avatarUrl || "")}
+                                                        label={String(row?.label || "User")}
+                                                        size={24}
+                                                    />
+                                                    <div style={{ display: "grid", minWidth: 0 }}>
+                                                        <span style={{ color: "#0f172a", fontWeight: 700, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: isMobile ? "190px" : "280px" }}>
+                                                            {String(row?.label || "User")}
+                                                        </span>
+                                                        <span style={{ color: "#64748b", fontSize: "0.68rem", lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: isMobile ? "190px" : "280px" }}>
+                                                            {String(row?.socialLabel || "GitHub supporter")}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <a
+                                                    href="#"
+                                                    onClick={(event) => {
+                                                        event.preventDefault();
+                                                        if (typeof onRowActivate === "function") {
+                                                            onRowActivate(scope, row);
+                                                        }
+                                                    }}
+                                                    style={{
+                                                        color: "#0f4bbd",
+                                                        textDecoration: "underline",
+                                                        textUnderlineOffset: "2px",
+                                                        fontWeight: 600,
+                                                    }}
+                                                >
+                                                    {String(row?.label || "-")}
+                                                </a>
+                                            )}
+                                        </td>
                                         <td style={{ padding: "8px", borderBottom: "1px solid #eff6ff", textAlign: "right", fontSize: "0.78rem", color: "#334155" }}>{row.likes}</td>
                                         <td style={{ padding: "8px", borderBottom: "1px solid #eff6ff", textAlign: "right", fontSize: "0.78rem", color: "#334155" }}>{row.shares}</td>
                                         <td style={{ padding: "8px", borderBottom: "1px solid #eff6ff", textAlign: "right", fontSize: "0.78rem", color: "#0f766e", fontWeight: 700 }}>{row.total}</td>
@@ -5469,6 +5573,14 @@ function ProfilePanel({
     const pointsLabel = Number.isFinite(Number(currentProfile?.supporter_points))
         ? Number(currentProfile.supporter_points)
         : 0;
+    const activeAdminProfileCount = Array.isArray(adminProfiles)
+        ? adminProfiles.filter((profile) => !profile?.delete_requested_at).length
+        : 0;
+    const adminUserCountLabel = isAdminProfilesLoading
+        ? "Users..."
+        : adminProfilesError
+            ? "Users unavailable"
+            : `${activeAdminProfileCount} users`;
 
     return (
         <ModalShell isMobile={isMobile} title="Your profile" onClose={onClose} width="min(560px, calc(100vw - 32px))">
@@ -5552,9 +5664,27 @@ function ProfilePanel({
                                 Manage supporter flags and points for signed-in profiles.
                             </div>
                         </div>
-                        {adminProfilesStatus ? (
-                            <span style={{ fontSize: "0.74rem", fontWeight: 700, color: "#166534" }}>{adminProfilesStatus}</span>
-                        ) : null}
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                            <span
+                                style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    borderRadius: "999px",
+                                    padding: "4px 10px",
+                                    fontSize: "0.7rem",
+                                    fontWeight: 700,
+                                    border: "1px solid #f59e0b",
+                                    background: "#fef3c7",
+                                    color: "#92400e",
+                                }}
+                            >
+                                {adminUserCountLabel}
+                            </span>
+                            {adminProfilesStatus ? (
+                                <span style={{ fontSize: "0.74rem", fontWeight: 700, color: "#166534" }}>{adminProfilesStatus}</span>
+                            ) : null}
+                        </div>
                     </div>
 
                     {adminProfilesError ? (
@@ -12662,7 +12792,7 @@ function App() {
             listSocialLeaderboardTotals(),
             supabase
                 .from("profiles")
-                .select("id, display_name, avatar_url")
+                .select("id, display_name, avatar_url, is_facebook_group_member")
                 .order("updated_at", { ascending: false }),
         ]);
 
@@ -14880,9 +15010,12 @@ function App() {
             leaderboardProfiles.map((profile) => {
                 const profileId = String(profile?.id || "");
                 const totals = leaderboardTotalsByEntityKey[`user:${profileId}`] || {};
+                const isFacebookGroupMember = Boolean(profile?.is_facebook_group_member);
                 return {
                     id: profileId,
                     label: String(profile?.display_name || profileId.slice(0, 8) || "User"),
+                    avatarUrl: String(profile?.avatar_url || ""),
+                    socialLabel: isFacebookGroupMember ? "Facebook group member" : "GitHub supporter",
                     likes: Number.isFinite(Number(totals?.likes)) ? Number(totals.likes) : 0,
                     shares: Number.isFinite(Number(totals?.shares)) ? Number(totals.shares) : 0,
                     total: Number.isFinite(Number(totals?.total)) ? Number(totals.total) : 0,
@@ -15082,6 +15215,52 @@ function App() {
         setReportStatus("");
         setIsFilterSheetOpen(false);
         setIsMapToolsOpen(false);
+    };
+
+    const handleLeaderboardRowActivate = (rowScope, row) => {
+        const entityId = String(row?.id || "").trim();
+        if (!entityId) return;
+
+        setIsLeaderboardModalOpen(false);
+
+        if (rowScope === "items") {
+            setIsContributorPanelOpen(false);
+            setSelectedContributorId(null);
+            setIsPoiPanelOpen(false);
+            setEditingHistoricalPoiId(null);
+            setSelectedHistoricalPoiId(null);
+            setEditingItemId(null);
+            setSelectedItemId(entityId);
+            return;
+        }
+
+        if (rowScope === "pois") {
+            setIsContributorPanelOpen(false);
+            setSelectedContributorId(null);
+            setEditingItemId(null);
+            setSelectedItemId(null);
+            setIsPoiPanelOpen(false);
+            setEditingHistoricalPoiId(null);
+            setSelectedHistoricalPoiId(entityId);
+            return;
+        }
+
+        if (rowScope === "contributors") {
+            setEditingItemId(null);
+            setSelectedItemId(null);
+            setIsPoiPanelOpen(false);
+            setEditingHistoricalPoiId(null);
+            setSelectedHistoricalPoiId(null);
+
+            if (isMobile) {
+                setIsContributorPanelOpen(false);
+                setSelectedContributorId(entityId);
+                return;
+            }
+
+            setSelectedContributorId(null);
+            setIsContributorPanelOpen(true);
+        }
     };
 
     const openPoiCreatePanel = () => {
@@ -17522,6 +17701,7 @@ function App() {
                 onClose={closeLeaderboardModal}
                 scope={leaderboardScope}
                 onScopeChange={setLeaderboardScope}
+                onRowActivate={handleLeaderboardRowActivate}
                 rows={leaderboardRowsByScope?.[leaderboardScope] || []}
                 isLoading={isLeaderboardLoading}
                 error={leaderboardError}
