@@ -63,6 +63,7 @@ Repository variables for non-sensitive production config:
 SEO_SITE_URL=https://rivercleanup.co.uk
 VITE_MAPTILER_KEY=...
 VITE_FACEBOOK_PAGE_RECIPIENT_ID=
+VITE_FACEBOOK_ACTIVE=true
 VITE_COMMUNITY_EMAIL_ACCOUNT=
 VITE_OWNER_GITHUB_LOGINS=mrdiamonddirt
 VITE_OWNER_EMAILS=

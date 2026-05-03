@@ -50,6 +50,7 @@ jobs:
           site_url="$(jq -r '.SEO_SITE_URL // empty' <<< "${REPO_VARS_JSON}")"
           maptiler_key="$(jq -r '.VITE_MAPTILER_KEY // empty' <<< "${REPO_VARS_JSON}")"
           facebook_page_recipient_id="$(jq -r '.VITE_FACEBOOK_PAGE_RECIPIENT_ID // empty' <<< "${REPO_VARS_JSON}")"
+          facebook_active="$(jq -r '.VITE_FACEBOOK_ACTIVE // empty' <<< "${REPO_VARS_JSON}")"
           community_email_account="$(jq -r '.VITE_COMMUNITY_EMAIL_ACCOUNT // empty' <<< "${REPO_VARS_JSON}")"
           owner_github_logins="$(jq -r '.VITE_OWNER_GITHUB_LOGINS // empty' <<< "${REPO_VARS_JSON}")"
           owner_emails="$(jq -r '.VITE_OWNER_EMAILS // empty' <<< "${REPO_VARS_JSON}")"
@@ -64,6 +65,7 @@ jobs:
           VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN}
           VITE_MAPTILER_KEY=${maptiler_key}
           VITE_FACEBOOK_PAGE_RECIPIENT_ID=${facebook_page_recipient_id}
+          VITE_FACEBOOK_ACTIVE=${facebook_active}
           VITE_COMMUNITY_EMAIL_ACCOUNT=${community_email_account}
           VITE_OWNER_GITHUB_LOGINS=${owner_github_logins}
           VITE_OWNER_EMAILS=${owner_emails}

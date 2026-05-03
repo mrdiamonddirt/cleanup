@@ -898,6 +898,9 @@ const OWNER_SUPABASE_IDS = (import.meta.env.VITE_OWNER_SUPABASE_IDS || "")
     .filter(Boolean);
 const FACEBOOK_PAGE_RECIPIENT_ID = (import.meta.env.VITE_FACEBOOK_PAGE_RECIPIENT_ID || "").trim();
 const COMMUNITY_EMAIL_ACCOUNT = (import.meta.env.VITE_COMMUNITY_EMAIL_ACCOUNT || "").trim();
+const FACEBOOK_ACTIVE = String(import.meta.env.VITE_FACEBOOK_ACTIVE ?? "true")
+    .trim()
+    .toLowerCase() !== "false";
 const ENABLE_PUBLIC_REPORTS = String(import.meta.env.VITE_ENABLE_PUBLIC_REPORTS ?? "true")
     .trim()
     .toLowerCase() !== "false";
@@ -5320,11 +5323,14 @@ function AuthProviderModal({
     isOpen,
     authError,
     isAuthActionLoading,
+    isFacebookActive,
     onClose,
     onSignInWithGitHub,
     onSignInWithFacebook,
 }) {
     if (!isOpen) return null;
+
+    const isFacebookSignInDisabled = isAuthActionLoading || !isFacebookActive;
 
     return (
         <ModalShell isMobile={isMobile} title="Sign in" onClose={onClose}>
@@ -5355,22 +5361,22 @@ function AuthProviderModal({
                 <button
                     type="button"
                     onClick={onSignInWithFacebook}
-                    disabled={isAuthActionLoading}
+                    disabled={isFacebookSignInDisabled}
                     style={{
-                        border: "1px solid #1877f2",
-                        background: "#1877f2",
-                        color: "#fff",
+                        border: isFacebookActive ? "1px solid #1877f2" : "1px solid #94a3b8",
+                        background: isFacebookActive ? "#1877f2" : "#cbd5e1",
+                        color: isFacebookActive ? "#fff" : "#475569",
                         borderRadius: "10px",
                         padding: "10px 12px",
                         width: isMobile ? "min(260px, 100%)" : "100%",
                         fontSize: "0.84rem",
                         fontWeight: 700,
-                        cursor: isAuthActionLoading ? "not-allowed" : "pointer",
-                        opacity: isAuthActionLoading ? 0.7 : 1,
+                        cursor: isFacebookSignInDisabled ? "not-allowed" : "pointer",
+                        opacity: isFacebookSignInDisabled ? 0.7 : 1,
                         textAlign: "center",
                     }}
                 >
-                    Sign in with Facebook
+                    {isFacebookActive ? "Sign in with Facebook" : "Coming soon"}
                 </button>
             </div>
             {authError ? (
@@ -13448,6 +13454,13 @@ function App() {
 
     async function signInWithFacebook() {
         setAuthError("");
+
+        if (!FACEBOOK_ACTIVE) {
+            setAuthError("Facebook sign-in is coming soon.");
+            setIsAuthActionLoading(false);
+            return;
+        }
+
         setIsAuthActionLoading(true);
         setIsAuthProviderModalOpen(false);
 
@@ -17617,6 +17630,7 @@ function App() {
                 isOpen={isAuthProviderModalOpen}
                 authError={authError}
                 isAuthActionLoading={isAuthActionLoading}
+                isFacebookActive={FACEBOOK_ACTIVE}
                 onClose={closeAuthProviderModal}
                 onSignInWithGitHub={signInWithGitHub}
                 onSignInWithFacebook={signInWithFacebook}
