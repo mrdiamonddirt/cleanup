@@ -505,3 +505,66 @@ code {
     max-height: 64px;
   }
 }
+
+.auth-provider-button {
+  transition: transform 180ms ease, box-shadow 180ms ease, filter 180ms ease;
+  box-shadow: 0 5px 12px rgba(15, 23, 42, 0.14);
+  min-height: 40px;
+}
+
+.auth-provider-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 22px rgba(15, 23, 42, 0.18);
+  filter: saturate(1.04);
+}
+
+.auth-provider-button:active:not(:disabled) {
+  transform: translateY(0) scale(0.99);
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.16);
+}
+
+.auth-provider-button:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.85);
+  outline-offset: 2px;
+}
+
+.auth-provider-button-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  line-height: 1;
+  position: relative;
+  z-index: 1;
+  width: 100%;
+}
+
+.auth-provider-logo {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 180ms ease;
+  flex: 0 0 20px;
+}
+
+.auth-provider-logo svg {
+  width: 19px;
+  height: 19px;
+  display: block;
+}
+
+.auth-provider-label {
+  font-weight: 700;
+  transform: translateY(0.5px);
+  white-space: nowrap;
+}
+
+.auth-provider-coming-soon-chip {
+  /* Positioned inline via JSX */
+}
+
+.auth-provider-button:hover:not(:disabled) .auth-provider-logo {
+  transform: scale(1.06);
+}

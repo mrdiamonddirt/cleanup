@@ -5350,117 +5350,224 @@ function AuthProviderModal({
     const isGoogleSignInDisabled = isAuthActionLoading || !isGoogleActive;
     const isTwitterSignInDisabled = isAuthActionLoading || !isTwitterActive;
 
+    const providerLogoBaseStyle = {
+        width: "18px",
+        height: "18px",
+        flexShrink: 0,
+        display: "block",
+    };
+
+    const renderProviderLogo = (provider) => {
+        if (provider === "github") {
+            return (
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" style={providerLogoBaseStyle}>
+                    <path
+                        d="M12 .3a12 12 0 0 0-3.79 23.39c.6.11.82-.25.82-.57v-2.23c-3.34.73-4.03-1.42-4.03-1.42-.55-1.38-1.34-1.75-1.34-1.75-1.09-.76.08-.75.08-.75 1.2.08 1.83 1.2 1.83 1.2 1.08 1.8 2.83 1.28 3.52.98.1-.76.42-1.28.76-1.57-2.66-.3-5.46-1.3-5.46-5.77 0-1.27.46-2.31 1.2-3.12-.12-.3-.52-1.5.11-3.11 0 0 .98-.31 3.2 1.19.94-.25 1.93-.37 2.93-.38 1 0 2 .13 2.93.38 2.22-1.5 3.2-1.19 3.2-1.19.63 1.61.23 2.81.11 3.11.74.81 1.2 1.85 1.2 3.12 0 4.48-2.81 5.46-5.49 5.76.43.37.82 1.1.82 2.22v3.3c0 .32.22.69.83.57A12 12 0 0 0 12 .3"
+                        fill="currentColor"
+                    />
+                </svg>
+            );
+        }
+
+        if (provider === "facebook") {
+            return (
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" style={providerLogoBaseStyle}>
+                    <path
+                        d="M22.68 12c0-5.9-4.78-10.68-10.68-10.68S1.32 6.1 1.32 12c0 5.2 3.73 9.53 8.65 10.47v-7.4H7.44V12h2.53V9.64c0-2.5 1.49-3.89 3.78-3.89 1.09 0 2.23.19 2.23.19v2.45h-1.26c-1.24 0-1.63.77-1.63 1.56V12h2.78l-.44 3.07h-2.34v7.4c4.92-.94 8.65-5.27 8.65-10.47z"
+                        fill="currentColor"
+                    />
+                </svg>
+            );
+        }
+
+        if (provider === "apple") {
+            return (
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" style={providerLogoBaseStyle}>
+                    <path
+                        d="M16.3 12.5c0-2.1 1.7-3.1 1.8-3.2-1-1.5-2.5-1.7-3-1.7-1.3-.1-2.5.8-3.2.8-.8 0-1.8-.8-3-.7-1.5 0-2.9.9-3.7 2.3-1.6 2.7-.4 6.8 1.1 8.9.7 1 1.5 2.2 2.7 2.1 1.1 0 1.5-.7 2.9-.7 1.3 0 1.7.7 2.9.7 1.2 0 1.9-1.1 2.6-2.1.8-1.2 1.1-2.3 1.1-2.4-.1 0-2.2-.8-2.2-4zM14.3 5.4c.6-.8 1.1-1.8 1-2.9-.9 0-2 .6-2.6 1.3-.6.7-1.1 1.8-1 2.8 1 .1 2-.5 2.6-1.2z"
+                        fill="currentColor"
+                    />
+                </svg>
+            );
+        }
+
+        if (provider === "google") {
+            return (
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" style={providerLogoBaseStyle}>
+                    <path d="M21.6 12.3c0-.6-.1-1.2-.2-1.8H12v3.4h5.4c-.2 1.1-.9 2.1-1.9 2.8v2.3h3c1.8-1.7 3.1-4.1 3.1-6.7z" fill="#4285F4" />
+                    <path d="M12 22c2.7 0 5-1 6.6-2.8l-3-2.3c-.8.5-1.9.9-3.6.9-2.8 0-5.2-1.9-6-4.5H2.8v2.4C4.4 19.5 7.9 22 12 22z" fill="#34A853" />
+                    <path d="M6 13.3c-.2-.5-.3-1-.3-1.6s.1-1.1.3-1.6V7.7H2.8C2.3 8.8 2 10 2 11.2s.3 2.4.8 3.5L6 13.3z" fill="#FBBC04" />
+                    <path d="M12 6.1c1.5 0 2.8.5 3.8 1.5l2.8-2.8C17 3.2 14.8 2.4 12 2.4c-4.1 0-7.6 2.5-9.2 6.1L6 10.1c.8-2.6 3.2-4.5 6-4.5z" fill="#EA4335" />
+                </svg>
+            );
+        }
+
+        return (
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" style={providerLogoBaseStyle}>
+                <path
+                    d="M5.5 4h3.8l3.3 4.8L16.7 4H20l-5.8 8.2L20.2 20h-3.8l-3.7-5.2L8.9 20H5.6l6-8.4L5.5 4z"
+                    fill="currentColor"
+                />
+            </svg>
+        );
+    };
+
     const socialButtonBaseStyle = {
         borderRadius: "10px",
-        padding: "10px 12px",
-        width: isMobile ? "min(260px, 100%)" : "100%",
-        fontSize: "0.84rem",
+        padding: isMobile ? "10px 12px" : "8px 10px",
+        width: isMobile ? "min(260px, 100%)" : "min(230px, 100%)",
+        fontSize: "0.8rem",
         fontWeight: 700,
         textAlign: "center",
         position: "relative",
         overflow: "hidden",
         isolation: "isolate",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
     };
 
-    const getComingSoonSocialStyle = (brandColor) => ({
-        border: `1px solid ${brandColor}`,
-        background: brandColor,
-        color: "#0f172a",
-        cursor: isAuthActionLoading ? "not-allowed" : "default",
-        opacity: isAuthActionLoading ? 0.7 : 1,
-        boxShadow: "inset 0 0 0 999px rgba(255, 255, 255, 0.62)",
-    });
+    const brandStyles = {
+        github: { border: "1px solid #24292f", background: "#24292f", color: "#ffffff", logoColor: "#ffffff" },
+        facebook: { border: "1px solid #1877f2", background: "#1877f2", color: "#ffffff", logoColor: "#ffffff" },
+        apple: { border: "1px solid #111827", background: "#111827", color: "#ffffff", logoColor: "#ffffff" },
+        google: { border: "1px solid #d0d7de", background: "#ffffff", color: "#111827", logoColor: "#111827" },
+        x: { border: "1px solid #0f172a", background: "#0f172a", color: "#ffffff", logoColor: "#ffffff" },
+    };
+
+    const renderAuthProviderButton = ({
+        provider,
+        label,
+        isDisabled,
+        isActive,
+        onClick,
+    }) => {
+        const brandStyle = brandStyles[provider];
+        const contentStyle = {
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "8px",
+            width: "100%",
+            lineHeight: 1,
+            position: "relative",
+            zIndex: 1,
+            opacity: 1,
+        };
+        const logoStyle = {
+            color: brandStyle.logoColor,
+            width: "18px",
+            height: "18px",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flex: "0 0 18px",
+        };
+        const labelStyle = {
+            fontWeight: 700,
+            transform: "translateY(0.5px)",
+            whiteSpace: "nowrap",
+        };
+        return (
+            <button
+                type="button"
+                onClick={onClick}
+                disabled={isDisabled}
+                className="auth-provider-button"
+                style={{
+                    ...socialButtonBaseStyle,
+                    ...brandStyle,
+                    cursor: isDisabled ? "not-allowed" : "pointer",
+                    opacity: isAuthActionLoading ? 0.7 : 1,
+                }}
+            >
+                <span className="auth-provider-button-content" style={contentStyle}>
+                    <span className="auth-provider-logo" aria-hidden="true" style={logoStyle}>
+                        {renderProviderLogo(provider)}
+                    </span>
+                    <span className="auth-provider-label" style={labelStyle}>{label}</span>
+                </span>
+                {!isActive ? (
+                    <span
+                        className="auth-provider-coming-soon-chip"
+                        aria-hidden="true"
+                        style={{
+                            position: "absolute",
+                            top: "50%",
+                            right: "10px",
+                            transform: "translateY(-50%)",
+                            borderRadius: "999px",
+                            border: "1px solid rgba(255, 255, 255, 0.55)",
+                            background: "rgba(0, 0, 0, 0.28)",
+                            color: "#ffffff",
+                            textShadow: "0 1px 2px rgba(0,0,0,0.4)",
+                            fontSize: "0.6rem",
+                            fontWeight: 700,
+                            textTransform: "uppercase",
+                            letterSpacing: "0.08em",
+                            padding: "3px 7px",
+                            lineHeight: 1,
+                            pointerEvents: "none",
+                            zIndex: 4,
+                            whiteSpace: "nowrap",
+                        }}
+                    >
+                        Soon
+                    </span>
+                ) : null}
+            </button>
+        );
+    };
 
     return (
         <ModalShell isMobile={isMobile} title="Sign in" onClose={onClose}>
             <p style={{ margin: 0, fontSize: "0.84rem", color: "#334155", lineHeight: 1.45 }}>
                 Pick how you want to sign in.
             </p>
-            <div style={{ marginTop: "10px", display: "grid", gap: "8px", justifyItems: isMobile ? "center" : "stretch" }}>
-                <button
-                    type="button"
-                    onClick={onSignInWithGitHub}
-                    disabled={isAuthActionLoading}
-                    style={{
-                        border: "1px solid #0f172a",
-                        background: "#111827",
-                        color: "#fff",
-                        borderRadius: "10px",
-                        padding: "10px 12px",
-                        width: isMobile ? "min(260px, 100%)" : "100%",
-                        fontSize: "0.84rem",
-                        fontWeight: 700,
-                        cursor: isAuthActionLoading ? "not-allowed" : "pointer",
-                        opacity: isAuthActionLoading ? 0.7 : 1,
-                        textAlign: "center",
-                    }}
-                >
-                    Sign in with GitHub
-                </button>
-                <button
-                    type="button"
-                    onClick={onSignInWithFacebook}
-                    disabled={isFacebookSignInDisabled}
-                    style={{
-                        ...socialButtonBaseStyle,
-                        border: "1px solid #1877f2",
-                        background: "#1877f2",
-                        color: "#fff",
-                        cursor: isFacebookSignInDisabled ? "not-allowed" : "pointer",
-                        opacity: isFacebookSignInDisabled && isFacebookActive ? 0.7 : 1,
-                        ...(isFacebookActive ? null : getComingSoonSocialStyle("#1877f2")),
-                    }}
-                >
-                    {isFacebookActive ? "Sign in with Facebook" : "Facebook coming soon"}
-                </button>
-                <button
-                    type="button"
-                    onClick={onSignInWithApple}
-                    disabled={isAppleSignInDisabled}
-                    style={{
-                        ...socialButtonBaseStyle,
-                        border: "1px solid #111827",
-                        background: "#111827",
-                        color: "#fff",
-                        cursor: isAppleSignInDisabled ? "not-allowed" : "pointer",
-                        opacity: isAppleSignInDisabled && isAppleActive ? 0.7 : 1,
-                        ...(isAppleActive ? null : getComingSoonSocialStyle("#111827")),
-                    }}
-                >
-                    {isAppleActive ? "Sign in with Apple" : "Apple coming soon"}
-                </button>
-                <button
-                    type="button"
-                    onClick={onSignInWithGoogle}
-                    disabled={isGoogleSignInDisabled}
-                    style={{
-                        ...socialButtonBaseStyle,
-                        border: "1px solid #2563eb",
-                        background: "#2563eb",
-                        color: "#fff",
-                        cursor: isGoogleSignInDisabled ? "not-allowed" : "pointer",
-                        opacity: isGoogleSignInDisabled && isGoogleActive ? 0.7 : 1,
-                        ...(isGoogleActive ? null : getComingSoonSocialStyle("#2563eb")),
-                    }}
-                >
-                    {isGoogleActive ? "Sign in with Google" : "Google coming soon"}
-                </button>
-                <button
-                    type="button"
-                    onClick={onSignInWithTwitter}
-                    disabled={isTwitterSignInDisabled}
-                    style={{
-                        ...socialButtonBaseStyle,
-                        border: "1px solid #1d9bf0",
-                        background: "#1d9bf0",
-                        color: "#fff",
-                        cursor: isTwitterSignInDisabled ? "not-allowed" : "pointer",
-                        opacity: isTwitterSignInDisabled && isTwitterActive ? 0.7 : 1,
-                        ...(isTwitterActive ? null : getComingSoonSocialStyle("#1d9bf0")),
-                    }}
-                >
-                    {isTwitterActive ? "Sign in with Twitter" : "Twitter coming soon"}
-                </button>
+            <div style={{ marginTop: "10px", display: "grid", gap: "8px", justifyItems: "center" }}>
+                {[
+                    {
+                        provider: "github",
+                        label: "GitHub",
+                        isDisabled: isAuthActionLoading,
+                        isActive: true,
+                        onClick: onSignInWithGitHub,
+                    },
+                    {
+                        provider: "facebook",
+                        label: "Facebook",
+                        isDisabled: isFacebookSignInDisabled,
+                        isActive: isFacebookActive,
+                        onClick: onSignInWithFacebook,
+                    },
+                    {
+                        provider: "apple",
+                        label: "Apple",
+                        isDisabled: isAppleSignInDisabled,
+                        isActive: isAppleActive,
+                        onClick: onSignInWithApple,
+                    },
+                    {
+                        provider: "google",
+                        label: "Google",
+                        isDisabled: isGoogleSignInDisabled,
+                        isActive: isGoogleActive,
+                        onClick: onSignInWithGoogle,
+                    },
+                    {
+                        provider: "x",
+                        label: "Twitter",
+                        isDisabled: isTwitterSignInDisabled,
+                        isActive: isTwitterActive,
+                        onClick: onSignInWithTwitter,
+                    },
+                ]
+                    .sort((left, right) => Number(right.isActive) - Number(left.isActive))
+                    .map((providerConfig) => (
+                        <React.Fragment key={providerConfig.provider}>
+                            {renderAuthProviderButton(providerConfig)}
+                        </React.Fragment>
+                    ))}
             </div>
             {authError ? (
                 <div style={{ marginTop: "8px", color: "#b91c1c", fontSize: "0.76rem" }}>{authError}</div>
@@ -13658,7 +13765,7 @@ function App() {
         setAuthError("");
 
         if (!isTwitterSignInActiveForCurrentUser) {
-            setAuthError("Twitter sign-in is coming soon.");
+            setAuthError("X sign-in is coming soon.");
             setIsAuthActionLoading(false);
             return;
         }
@@ -13674,12 +13781,12 @@ function App() {
 
         const redirectTo = `${window.location.origin}${window.location.pathname}`;
         const { error } = await supabase.auth.signInWithOAuth({
-            provider: "twitter",
+            provider: "x",
             options: { redirectTo },
         });
 
         if (error) {
-            setAuthError("Twitter sign-in failed. Please try again.");
+            setAuthError("X sign-in failed. Please try again.");
             setIsAuthActionLoading(false);
             return;
         }
