@@ -10259,7 +10259,27 @@ function FloodStatusPanel({ floodAlerts, isLoadingFloodAlerts, floodAlertsError,
     );
 }
 
-function ContributorMobileSheet({ contributor, mapsUrl, onClose }) {
+function ContributorMobileSheet({
+    contributor,
+    mapsUrl,
+    onClose,
+    onLike,
+    onShareRecorded,
+    onSubmitComment,
+    commentDraft,
+    onCommentDraftChange,
+    comments,
+    likeCount,
+    shareCount,
+    isSubmittingInteraction,
+    interactionStatus,
+    interactionError,
+    isLoadingComments,
+    commentsError,
+}) {
+    const shareStatusTimeoutRef = useRef(null);
+    const [shareStatus, setShareStatus] = useState("");
+
     useEffect(() => {
         if (!contributor) return undefined;
 
@@ -10271,7 +10291,75 @@ function ContributorMobileSheet({ contributor, mapsUrl, onClose }) {
         return () => window.removeEventListener("keydown", handleKeyDown);
     }, [contributor, onClose]);
 
+    useEffect(() => () => {
+        if (shareStatusTimeoutRef.current) {
+            window.clearTimeout(shareStatusTimeoutRef.current);
+            shareStatusTimeoutRef.current = null;
+        }
+    }, []);
+
     if (!contributor || typeof document === "undefined") return null;
+
+    const likeCountLabel = Number.isFinite(Number(likeCount)) ? Number(likeCount) : 0;
+    const shareCountLabel = Number.isFinite(Number(shareCount)) ? Number(shareCount) : 0;
+
+    const setShareStatusWithTimeout = (message) => {
+        setShareStatus(message);
+        if (shareStatusTimeoutRef.current) {
+            window.clearTimeout(shareStatusTimeoutRef.current);
+        }
+        shareStatusTimeoutRef.current = window.setTimeout(() => {
+            setShareStatus("");
+            shareStatusTimeoutRef.current = null;
+        }, 2200);
+    };
+
+    const handleShare = async () => {
+        const shareUrl = mapsUrl || contributor.website_url || (typeof window !== "undefined" ? window.location.href : "");
+        if (!shareUrl) return;
+
+        if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+            try {
+                await navigator.share({
+                    title: contributor.name || "River Bank Cleanup Tracker",
+                    text: "Check this cleanup contributor.",
+                    url: shareUrl,
+                });
+                setShareStatusWithTimeout("Share sheet opened.");
+                if (typeof onShareRecorded === "function") {
+                    await onShareRecorded(contributor);
+                }
+                return;
+            } catch (error) {
+                if (error?.name === "AbortError") {
+                    return;
+                }
+            }
+        }
+
+        try {
+            if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(shareUrl);
+            } else {
+                const textArea = document.createElement("textarea");
+                textArea.value = shareUrl;
+                textArea.setAttribute("readonly", "");
+                textArea.style.position = "absolute";
+                textArea.style.left = "-9999px";
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand("copy");
+                document.body.removeChild(textArea);
+            }
+
+            setShareStatusWithTimeout("Share link copied.");
+            if (typeof onShareRecorded === "function") {
+                await onShareRecorded(contributor);
+            }
+        } catch {
+            setShareStatusWithTimeout("Could not copy automatically.");
+        }
+    };
 
     return createPortal(
         <>
@@ -10456,6 +10544,52 @@ function ContributorMobileSheet({ contributor, mapsUrl, onClose }) {
                         </div>
 
                         <div style={{ display: "grid", gap: "8px", gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+                            {typeof onLike === "function" ? (
+                                <button
+                                    type="button"
+                                    onClick={() => onLike(contributor)}
+                                    disabled={isSubmittingInteraction}
+                                    style={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        minHeight: "34px",
+                                        borderRadius: "999px",
+                                        border: "1px solid #86efac",
+                                        background: "#dcfce7",
+                                        color: "#166534",
+                                        fontSize: "0.76rem",
+                                        fontWeight: 700,
+                                        padding: "0 9px",
+                                        cursor: isSubmittingInteraction ? "not-allowed" : "pointer",
+                                        opacity: isSubmittingInteraction ? 0.7 : 1,
+                                    }}
+                                >
+                                    Like ({likeCountLabel})
+                                </button>
+                            ) : null}
+                            <button
+                                type="button"
+                                onClick={handleShare}
+                                disabled={isSubmittingInteraction}
+                                style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    minHeight: "34px",
+                                    borderRadius: "999px",
+                                    border: "1px solid #fed7aa",
+                                    background: "#ffedd5",
+                                    color: "#9a3412",
+                                    fontSize: "0.76rem",
+                                    fontWeight: 700,
+                                    padding: "0 9px",
+                                    cursor: isSubmittingInteraction ? "not-allowed" : "pointer",
+                                    opacity: isSubmittingInteraction ? 0.7 : 1,
+                                }}
+                            >
+                                Share ({shareCountLabel})
+                            </button>
                             {contributor.website_url ? (
                                 <a
                                     href={contributor.website_url}
@@ -10505,6 +10639,18 @@ function ContributorMobileSheet({ contributor, mapsUrl, onClose }) {
                         </div>
                     </div>
 
+                    {shareStatus ? (
+                        <div style={{ fontSize: "0.76rem", color: "#9a3412", fontWeight: 700 }}>{shareStatus}</div>
+                    ) : null}
+
+                    {interactionStatus ? (
+                        <div style={{ fontSize: "0.76rem", color: "#155e75", fontWeight: 700 }}>{interactionStatus}</div>
+                    ) : null}
+
+                    {interactionError ? (
+                        <div style={{ fontSize: "0.76rem", color: "#991b1b", fontWeight: 700 }}>{interactionError}</div>
+                    ) : null}
+
                     {contributor.description ? (
                         <div
                             style={{
@@ -10539,6 +10685,48 @@ function ContributorMobileSheet({ contributor, mapsUrl, onClose }) {
                             }}
                         >
                             {contributor.contribution_note}
+                        </div>
+                    ) : null}
+
+                    {typeof onSubmitComment === "function" ? (
+                        <div style={{ borderRadius: "12px", border: "1px solid #e2e8f0", background: "#ffffff", padding: "10px", display: "grid", gap: "8px" }}>
+                            <div style={{ fontSize: "0.74rem", fontWeight: 800, color: "#334155", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                                Comments
+                            </div>
+                            <textarea
+                                value={commentDraft || ""}
+                                onChange={(event) => onCommentDraftChange?.(event.target.value)}
+                                rows={3}
+                                placeholder="Write a comment. It will be reviewed before publishing."
+                                disabled={isSubmittingInteraction}
+                                style={{ width: "100%", borderRadius: "8px", border: "1px solid #cbd5e1", padding: "8px", fontSize: "0.82rem", resize: "vertical", boxSizing: "border-box" }}
+                            />
+                            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                                <button
+                                    type="button"
+                                    onClick={() => onSubmitComment(contributor)}
+                                    disabled={isSubmittingInteraction}
+                                    style={{ border: "1px solid #0f172a", background: "#0f172a", color: "#fff", borderRadius: "8px", padding: "7px 11px", fontSize: "0.76rem", fontWeight: 700, cursor: isSubmittingInteraction ? "not-allowed" : "pointer", opacity: isSubmittingInteraction ? 0.7 : 1 }}
+                                >
+                                    {isSubmittingInteraction ? "Saving..." : "Submit for review"}
+                                </button>
+                            </div>
+
+                            {isLoadingComments ? (
+                                <div style={{ fontSize: "0.76rem", color: "#64748b" }}>Loading comments...</div>
+                            ) : commentsError ? (
+                                <div style={{ fontSize: "0.76rem", color: "#991b1b" }}>{commentsError}</div>
+                            ) : Array.isArray(comments) && comments.length ? (
+                                <div style={{ display: "grid", gap: "6px" }}>
+                                    {comments.slice(0, 8).map((comment) => (
+                                        <div key={comment.id} style={{ borderRadius: "8px", border: "1px solid #e2e8f0", background: "#f8fafc", padding: "8px", fontSize: "0.8rem", color: "#334155", whiteSpace: "pre-wrap" }}>
+                                            {comment.body}
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div style={{ fontSize: "0.76rem", color: "#64748b" }}>No approved comments yet.</div>
+                            )}
                         </div>
                     ) : null}
                 </div>
@@ -10691,6 +10879,24 @@ function App() {
     const [poiInteractionError, setPoiInteractionError] = useState("");
     const [selectedPoiLikeCount, setSelectedPoiLikeCount] = useState(0);
     const [selectedPoiShareCount, setSelectedPoiShareCount] = useState(0);
+    const [selectedContributorComments, setSelectedContributorComments] = useState([]);
+    const [isSelectedContributorCommentsLoading, setIsSelectedContributorCommentsLoading] = useState(false);
+    const [selectedContributorCommentsError, setSelectedContributorCommentsError] = useState("");
+    const [selectedContributorCommentDraft, setSelectedContributorCommentDraft] = useState("");
+    const [isContributorInteractionSaving, setIsContributorInteractionSaving] = useState(false);
+    const [contributorInteractionStatus, setContributorInteractionStatus] = useState("");
+    const [contributorInteractionError, setContributorInteractionError] = useState("");
+    const [selectedContributorLikeCount, setSelectedContributorLikeCount] = useState(0);
+    const [selectedContributorShareCount, setSelectedContributorShareCount] = useState(0);
+    const [selectedItemComments, setSelectedItemComments] = useState([]);
+    const [isSelectedItemCommentsLoading, setIsSelectedItemCommentsLoading] = useState(false);
+    const [selectedItemCommentsError, setSelectedItemCommentsError] = useState("");
+    const [selectedItemCommentDraft, setSelectedItemCommentDraft] = useState("");
+    const [isItemInteractionSaving, setIsItemInteractionSaving] = useState(false);
+    const [itemInteractionStatus, setItemInteractionStatus] = useState("");
+    const [itemInteractionError, setItemInteractionError] = useState("");
+    const [selectedItemLikeCount, setSelectedItemLikeCount] = useState(0);
+    const [selectedItemShareCount, setSelectedItemShareCount] = useState(0);
     const [selectedContributorId, setSelectedContributorId] = useState(null);
     const [isContributorPanelOpen, setIsContributorPanelOpen] = useState(false);
     const [floodAlerts, setFloodAlerts] = useState([]);
@@ -10822,6 +11028,7 @@ function App() {
     const copyShareLinkForItem = async (itemId) => {
         const shareUrl = buildShareItemUrl(itemId);
         if (!shareUrl) return;
+        let shouldRecordShare = false;
 
         if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
             try {
@@ -10843,6 +11050,10 @@ function App() {
                     setShareCopyStatus("");
                     shareCopyTimeoutRef.current = null;
                 }, 2400);
+                shouldRecordShare = true;
+                if (shouldRecordShare) {
+                    void recordItemShareInteraction(itemId);
+                }
 
                 return;
             } catch (error) {
@@ -10869,9 +11080,14 @@ function App() {
 
             setCopiedShareItemId(itemId);
             setShareCopyStatus("Share link copied.");
+            shouldRecordShare = true;
         } catch {
             setCopiedShareItemId(itemId);
             setShareCopyStatus("Could not copy automatically.");
+        }
+
+        if (shouldRecordShare) {
+            void recordItemShareInteraction(itemId);
         }
 
         if (shareCopyTimeoutRef.current) {
@@ -14427,6 +14643,100 @@ function App() {
         };
     }, [selectedHistoricalPoi?.id, hasSupabaseConfig]);
 
+    useEffect(() => {
+        if (!selectedContributor?.id || !hasSupabaseConfig) {
+            setSelectedContributorComments([]);
+            setSelectedContributorCommentsError("");
+            setIsSelectedContributorCommentsLoading(false);
+            setSelectedContributorCommentDraft("");
+            setContributorInteractionStatus("");
+            setContributorInteractionError("");
+            setSelectedContributorLikeCount(0);
+            setSelectedContributorShareCount(0);
+            return;
+        }
+
+        let isMounted = true;
+        setIsSelectedContributorCommentsLoading(true);
+        setSelectedContributorCommentsError("");
+
+        void (async () => {
+            const [commentsResult, countsResult] = await Promise.all([
+                listCommentsForTarget("contributor", selectedContributor.id),
+                getInteractionCountsForTarget("contributor", selectedContributor.id),
+            ]);
+
+            if (!isMounted) return;
+
+            if (commentsResult.error) {
+                setSelectedContributorComments([]);
+                setSelectedContributorCommentsError("Could not load comments.");
+                setIsSelectedContributorCommentsLoading(false);
+                return;
+            }
+
+            setSelectedContributorComments(
+                Array.isArray(commentsResult.comments)
+                    ? commentsResult.comments.filter((entry) => entry.status === "approved")
+                    : [],
+            );
+            setSelectedContributorLikeCount(Number.isFinite(Number(countsResult.likeCount)) ? Number(countsResult.likeCount) : 0);
+            setSelectedContributorShareCount(Number.isFinite(Number(countsResult.shareCount)) ? Number(countsResult.shareCount) : 0);
+            setIsSelectedContributorCommentsLoading(false);
+        })();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [selectedContributor?.id, hasSupabaseConfig]);
+
+    useEffect(() => {
+        if (!selectedItem?.id || !hasSupabaseConfig) {
+            setSelectedItemComments([]);
+            setSelectedItemCommentsError("");
+            setIsSelectedItemCommentsLoading(false);
+            setSelectedItemCommentDraft("");
+            setItemInteractionStatus("");
+            setItemInteractionError("");
+            setSelectedItemLikeCount(0);
+            setSelectedItemShareCount(0);
+            return;
+        }
+
+        let isMounted = true;
+        setIsSelectedItemCommentsLoading(true);
+        setSelectedItemCommentsError("");
+
+        void (async () => {
+            const [commentsResult, countsResult] = await Promise.all([
+                listCommentsForTarget("item", selectedItem.id),
+                getInteractionCountsForTarget("item", selectedItem.id),
+            ]);
+
+            if (!isMounted) return;
+
+            if (commentsResult.error) {
+                setSelectedItemComments([]);
+                setSelectedItemCommentsError("Could not load comments.");
+                setIsSelectedItemCommentsLoading(false);
+                return;
+            }
+
+            setSelectedItemComments(
+                Array.isArray(commentsResult.comments)
+                    ? commentsResult.comments.filter((entry) => entry.status === "approved")
+                    : [],
+            );
+            setSelectedItemLikeCount(Number.isFinite(Number(countsResult.likeCount)) ? Number(countsResult.likeCount) : 0);
+            setSelectedItemShareCount(Number.isFinite(Number(countsResult.shareCount)) ? Number(countsResult.shareCount) : 0);
+            setIsSelectedItemCommentsLoading(false);
+        })();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [selectedItem?.id, hasSupabaseConfig]);
+
     const editingHistoricalPoi = useMemo(
         () =>
             editingHistoricalPoiId === null
@@ -14550,6 +14860,164 @@ function App() {
         setSelectedPoiCommentDraft("");
         setPoiInteractionStatus("Comment submitted for admin approval.");
         setIsPoiInteractionSaving(false);
+    }
+
+    async function handleContributorLike(contributor) {
+        if (!currentUser?.id || !hasSupabaseConfig || !contributor?.id) {
+            setContributorInteractionError("Sign in to like contributors.");
+            return;
+        }
+
+        setIsContributorInteractionSaving(true);
+        setContributorInteractionError("");
+        setContributorInteractionStatus("");
+
+        const { interaction, error } = await submitLike("contributor", contributor.id, {
+            name: contributor.name || "",
+        });
+
+        if (error) {
+            setContributorInteractionError("Could not save your like.");
+            setIsContributorInteractionSaving(false);
+            return;
+        }
+
+        if (interaction?.created) {
+            setContributorInteractionStatus(`Liked. +${interaction?.points_awarded || 0} points.`);
+            setSelectedContributorLikeCount((prev) => prev + 1);
+        } else {
+            setContributorInteractionStatus("You already liked this contributor.");
+        }
+
+        setIsContributorInteractionSaving(false);
+    }
+
+    async function handleContributorShare(contributor) {
+        if (!currentUser?.id || !hasSupabaseConfig || !contributor?.id) {
+            return;
+        }
+
+        const { interaction, error } = await submitShare("contributor", contributor.id, {
+            name: contributor.name || "",
+        });
+
+        if (error) {
+            setContributorInteractionError("Share worked, but points could not be recorded.");
+            return;
+        }
+
+        if (interaction?.created) {
+            setContributorInteractionStatus(`Share recorded. +${interaction?.points_awarded || 0} points.`);
+            setSelectedContributorShareCount((prev) => prev + 1);
+        } else {
+            setContributorInteractionStatus("Share already counted for this contributor.");
+        }
+    }
+
+    async function handleContributorCommentSubmit(contributor) {
+        if (!currentUser?.id || !hasSupabaseConfig || !contributor?.id) {
+            setContributorInteractionError("Sign in to comment.");
+            return;
+        }
+
+        const body = String(selectedContributorCommentDraft || "").trim();
+        if (!body) {
+            setContributorInteractionError("Write a comment before submitting.");
+            return;
+        }
+
+        setIsContributorInteractionSaving(true);
+        setContributorInteractionError("");
+        setContributorInteractionStatus("");
+
+        const { error } = await submitCommentForReview("contributor", contributor.id, body);
+
+        if (error) {
+            setContributorInteractionError("Could not submit comment for review.");
+            setIsContributorInteractionSaving(false);
+            return;
+        }
+
+        setSelectedContributorCommentDraft("");
+        setContributorInteractionStatus("Comment submitted for admin approval.");
+        setIsContributorInteractionSaving(false);
+    }
+
+    async function handleItemLike(itemId) {
+        if (!currentUser?.id || !hasSupabaseConfig || !itemId) {
+            setItemInteractionError("Sign in to like items.");
+            return;
+        }
+
+        setIsItemInteractionSaving(true);
+        setItemInteractionError("");
+        setItemInteractionStatus("");
+
+        const { interaction, error } = await submitLike("item", itemId, {});
+
+        if (error) {
+            setItemInteractionError("Could not save your like.");
+            setIsItemInteractionSaving(false);
+            return;
+        }
+
+        if (interaction?.created) {
+            setItemInteractionStatus(`Liked. +${interaction?.points_awarded || 0} points.`);
+            setSelectedItemLikeCount((prev) => prev + 1);
+        } else {
+            setItemInteractionStatus("You already liked this item.");
+        }
+
+        setIsItemInteractionSaving(false);
+    }
+
+    async function recordItemShareInteraction(itemId) {
+        if (!currentUser?.id || !hasSupabaseConfig || !itemId) {
+            return;
+        }
+
+        const { interaction, error } = await submitShare("item", itemId, {});
+
+        if (error) {
+            setItemInteractionError("Share worked, but points could not be recorded.");
+            return;
+        }
+
+        if (interaction?.created) {
+            setItemInteractionStatus(`Share recorded. +${interaction?.points_awarded || 0} points.`);
+            setSelectedItemShareCount((prev) => prev + 1);
+        } else {
+            setItemInteractionStatus("Share already counted for this item.");
+        }
+    }
+
+    async function handleItemCommentSubmit(itemId) {
+        if (!currentUser?.id || !hasSupabaseConfig || !itemId) {
+            setItemInteractionError("Sign in to comment.");
+            return;
+        }
+
+        const body = String(selectedItemCommentDraft || "").trim();
+        if (!body) {
+            setItemInteractionError("Write a comment before submitting.");
+            return;
+        }
+
+        setIsItemInteractionSaving(true);
+        setItemInteractionError("");
+        setItemInteractionStatus("");
+
+        const { error } = await submitCommentForReview("item", itemId, body);
+
+        if (error) {
+            setItemInteractionError("Could not submit comment for review.");
+            setIsItemInteractionSaving(false);
+            return;
+        }
+
+        setSelectedItemCommentDraft("");
+        setItemInteractionStatus("Comment submitted for admin approval.");
+        setIsItemInteractionSaving(false);
     }
     const readyCustomHistoricOverlayLayers = useMemo(
         () => historicOverlayDrafts
@@ -16813,6 +17281,19 @@ function App() {
                 <ContributorMobileSheet
                     contributor={selectedContributor}
                     mapsUrl={selectedContributorMapsUrl}
+                    onLike={handleContributorLike}
+                    onShareRecorded={handleContributorShare}
+                    onSubmitComment={handleContributorCommentSubmit}
+                    commentDraft={selectedContributorCommentDraft}
+                    onCommentDraftChange={setSelectedContributorCommentDraft}
+                    comments={selectedContributorComments}
+                    likeCount={selectedContributorLikeCount}
+                    shareCount={selectedContributorShareCount}
+                    isSubmittingInteraction={isContributorInteractionSaving}
+                    interactionStatus={contributorInteractionStatus}
+                    interactionError={contributorInteractionError}
+                    isLoadingComments={isSelectedContributorCommentsLoading}
+                    commentsError={selectedContributorCommentsError}
                     onClose={() => setSelectedContributorId(null)}
                 />
             ) : null}
@@ -16896,6 +17377,18 @@ function App() {
                     onCopyShareLink={copyShareLinkForItem}
                     copiedShareItemId={copiedShareItemId}
                     shareCopyStatus={shareCopyStatus}
+                    onLikeItem={handleItemLike}
+                    itemLikeCount={selectedItemLikeCount}
+                    itemShareCount={selectedItemShareCount}
+                    itemInteractionStatus={itemInteractionStatus}
+                    itemInteractionError={itemInteractionError}
+                    itemCommentDraft={selectedItemCommentDraft}
+                    onItemCommentDraftChange={setSelectedItemCommentDraft}
+                    onSubmitItemComment={handleItemCommentSubmit}
+                    itemComments={selectedItemComments}
+                    isLoadingItemComments={isSelectedItemCommentsLoading}
+                    itemCommentsError={selectedItemCommentsError}
+                    isSubmittingItemInteraction={isItemInteractionSaving}
                     TYPE_LABELS={TYPE_LABELS}
                     normalizeType={normalizeType}
                     formatTimeInRiver={formatTimeInRiver}

@@ -48,6 +48,18 @@ export default function SelectedItemDrawer({
     onCopyShareLink,
     copiedShareItemId,
     shareCopyStatus,
+    onLikeItem,
+    itemLikeCount,
+    itemShareCount,
+    itemInteractionStatus,
+    itemInteractionError,
+    itemCommentDraft,
+    onItemCommentDraftChange,
+    onSubmitItemComment,
+    itemComments,
+    isLoadingItemComments,
+    itemCommentsError,
+    isSubmittingItemInteraction,
     TYPE_LABELS,
     normalizeType,
     formatTimeInRiver,
@@ -71,7 +83,11 @@ export default function SelectedItemDrawer({
     const imagePanelHeight = useCompactLayout ? "min(23svh, 180px)" : "208px";
     const itemTypeLabel = TYPE_LABELS[normalizeType(selectedItem.type)];
     const itemStatusLabel = selectedCounts.isRecovered ? "Recovered" : "In Water";
-    const shareButtonLabel = copiedShareItemId === selectedItem.id && shareCopyStatus ? "Copied" : "Share";
+    const shareCountLabel = Number.isFinite(Number(itemShareCount)) ? Number(itemShareCount) : 0;
+    const likeCountLabel = Number.isFinite(Number(itemLikeCount)) ? Number(itemLikeCount) : 0;
+    const shareButtonLabel = copiedShareItemId === selectedItem.id && shareCopyStatus
+        ? `Copied (${shareCountLabel})`
+        : `Share (${shareCountLabel})`;
     const useDenseDesktopCard = !useBottomSheet && !isEditingThisItem;
     const timeInRiverLabel = formatTimeInRiver(
         selectedStory?.knownSinceDate,
@@ -219,6 +235,32 @@ export default function SelectedItemDrawer({
                         </div>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+                        {typeof onLikeItem === "function" ? (
+                            <button
+                                onClick={() => onLikeItem(selectedItem.id)}
+                                disabled={Boolean(isSubmittingItemInteraction)}
+                                style={{
+                                    border: "1px solid #86efac",
+                                    background: "#dcfce7",
+                                    color: "#166534",
+                                    borderRadius: "999px",
+                                    height: "34px",
+                                    padding: "0 14px",
+                                    fontWeight: 700,
+                                    fontSize: "0.84rem",
+                                    letterSpacing: "0.01em",
+                                    cursor: Boolean(isSubmittingItemInteraction) ? "not-allowed" : "pointer",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    gap: "7px",
+                                    boxShadow: "0 10px 18px rgba(22,163,74,0.14)",
+                                    opacity: Boolean(isSubmittingItemInteraction) ? 0.7 : 1,
+                                }}
+                            >
+                                Like ({likeCountLabel})
+                            </button>
+                        ) : null}
                         {onCopyShareLink ? (
                             <button
                                 onClick={() => onCopyShareLink(selectedItem.id)}
@@ -472,7 +514,100 @@ export default function SelectedItemDrawer({
                                     {shareCopyStatus}
                                 </div>
                             ) : null}
+
+                            {itemInteractionStatus ? (
+                                <div style={{ marginTop: "4px", color: "#155e75", fontWeight: 600, fontSize: "0.78rem" }}>
+                                    {itemInteractionStatus}
+                                </div>
+                            ) : null}
+
+                            {itemInteractionError ? (
+                                <div style={{ marginTop: "4px", color: "#991b1b", fontWeight: 600, fontSize: "0.78rem" }}>
+                                    {itemInteractionError}
+                                </div>
+                            ) : null}
                         </div>
+
+                        {typeof onSubmitItemComment === "function" ? (
+                            <div
+                                style={{
+                                    display: "grid",
+                                    gap: "8px",
+                                    marginBottom: compactNoScroll ? "8px" : useBottomSheet ? "12px" : "8px",
+                                    padding: compactNoScroll ? "7px 8px" : useBottomSheet ? "9px 10px" : "8px 9px",
+                                    borderRadius: "10px",
+                                    border: "1px solid #e2e8f0",
+                                    background: "#f8fafc",
+                                }}
+                            >
+                                <div style={{ fontSize: "0.74rem", fontWeight: 800, color: "#334155", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                                    Comments
+                                </div>
+                                <textarea
+                                    value={itemCommentDraft || ""}
+                                    onChange={(event) => onItemCommentDraftChange?.(event.target.value)}
+                                    placeholder="Write a comment. It will be reviewed before publishing."
+                                    rows={3}
+                                    disabled={Boolean(isSubmittingItemInteraction)}
+                                    style={{
+                                        width: "100%",
+                                        borderRadius: "8px",
+                                        border: "1px solid #cbd5e1",
+                                        padding: "8px 10px",
+                                        fontSize: "0.82rem",
+                                        resize: "vertical",
+                                        boxSizing: "border-box",
+                                    }}
+                                />
+                                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => onSubmitItemComment(selectedItem.id)}
+                                        disabled={Boolean(isSubmittingItemInteraction)}
+                                        style={{
+                                            border: "1px solid #0f172a",
+                                            background: "#0f172a",
+                                            color: "#fff",
+                                            borderRadius: "8px",
+                                            padding: "8px 12px",
+                                            fontSize: "0.78rem",
+                                            fontWeight: 700,
+                                            cursor: Boolean(isSubmittingItemInteraction) ? "not-allowed" : "pointer",
+                                            opacity: Boolean(isSubmittingItemInteraction) ? 0.7 : 1,
+                                        }}
+                                    >
+                                        {Boolean(isSubmittingItemInteraction) ? "Saving..." : "Submit for review"}
+                                    </button>
+                                </div>
+
+                                {isLoadingItemComments ? (
+                                    <div style={{ fontSize: "0.78rem", color: "#64748b" }}>Loading comments...</div>
+                                ) : itemCommentsError ? (
+                                    <div style={{ fontSize: "0.78rem", color: "#991b1b" }}>{itemCommentsError}</div>
+                                ) : Array.isArray(itemComments) && itemComments.length ? (
+                                    <div style={{ display: "grid", gap: "6px", maxHeight: "180px", overflowY: "auto", paddingRight: "2px" }}>
+                                        {itemComments.slice(0, 8).map((comment) => (
+                                            <div
+                                                key={comment.id}
+                                                style={{
+                                                    border: "1px solid #e2e8f0",
+                                                    borderRadius: "8px",
+                                                    padding: "8px",
+                                                    background: "#ffffff",
+                                                }}
+                                            >
+                                                <div style={{ fontSize: "0.8rem", color: "#334155", whiteSpace: "pre-wrap" }}>{comment.body}</div>
+                                                <div style={{ marginTop: "4px", fontSize: "0.7rem", color: "#64748b" }}>
+                                                    {new Date(comment.created_at).toLocaleDateString("en-GB")}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div style={{ fontSize: "0.78rem", color: "#64748b" }}>No approved comments yet.</div>
+                                )}
+                            </div>
+                        ) : null}
 
                         {!canManageItems ? (
                             <div style={{
