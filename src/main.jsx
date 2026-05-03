@@ -15,9 +15,24 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { hasSupabaseConfig, supabase } from "./supabaseClient";
 import {
+    approveCommentForAdmin,
+    banProfileForAdmin,
     cancelAccountDeletion,
     ensureProfileForUser,
+    listAdminAuditLogs,
+    listBansForAdmin,
+    listCommentsForTarget,
+    getInteractionCountsForTarget,
+    listPendingCommentsForAdmin,
+    listPointEventsForProfile,
     listProfilesForAdmin,
+    recordBmacContributionAmount,
+    rejectCommentForAdmin,
+    setFacebookGroupMembershipWithBonus,
+    submitCommentForReview,
+    submitLike,
+    submitShare,
+    unbanProfileForAdmin,
     requestAccountDeletion,
     updateProfileForAdmin,
     updateProfileForUser,
@@ -5204,7 +5219,7 @@ function AuthProviderModal({
     return (
         <ModalShell isMobile={isMobile} title="Sign in" onClose={onClose}>
             <p style={{ margin: 0, fontSize: "0.84rem", color: "#334155", lineHeight: 1.45 }}>
-                Choose the account provider you want to use for this device.
+                Pick how you want to sign in.
             </p>
             <div style={{ marginTop: "10px", display: "grid", gap: "8px", justifyItems: isMobile ? "center" : "stretch" }}>
                 <button
@@ -5270,6 +5285,28 @@ function ProfilePanel({
     savingAdminProfileId,
     onAdminProfileFieldChange,
     onAdminSaveProfile,
+    adminPendingComments,
+    isAdminPendingCommentsLoading,
+    adminPendingCommentsError,
+    onApprovePendingComment,
+    onRejectPendingComment,
+    adminAuditLogs,
+    isAdminAuditLogsLoading,
+    adminAuditLogsError,
+    adminBans,
+    isAdminBansLoading,
+    adminBansError,
+    onAdminBanReasonChange,
+    onBanProfile,
+    onUnbanProfile,
+    onAdminBmacAmountPenceChange,
+    onAdminBmacNoteChange,
+    onRecordAdminBmacContribution,
+    onLoadPointHistoryForAdminProfile,
+    adminPointEventsByProfileId,
+    isAdminPointHistoryLoadingByProfileId,
+    adminActionError,
+    adminActionStatus,
     isProfileLoading,
     isSavingProfile,
     profileError,
@@ -5501,11 +5538,259 @@ function ProfilePanel({
                                                 {isSavingThisProfile ? "Saving..." : "Save"}
                                             </button>
                                         </div>
+
+                                        <div style={{ display: "grid", gap: "8px", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0,1fr))" }}>
+                                            <label style={{ display: "grid", gap: "4px" }}>
+                                                <span style={{ fontSize: "0.72rem", color: "#57534e", fontWeight: 700 }}>BMAC amount (pence)</span>
+                                                <input
+                                                    type="number"
+                                                    min={1}
+                                                    placeholder="e.g. 500"
+                                                    onChange={(event) => onAdminBmacAmountPenceChange(profile.id, event.target.value)}
+                                                    style={{
+                                                        width: "100%",
+                                                        minHeight: "34px",
+                                                        borderRadius: "10px",
+                                                        border: "1px solid #d6d3d1",
+                                                        padding: "0 10px",
+                                                        fontSize: "0.82rem",
+                                                        boxSizing: "border-box",
+                                                    }}
+                                                />
+                                            </label>
+                                            <label style={{ display: "grid", gap: "4px" }}>
+                                                <span style={{ fontSize: "0.72rem", color: "#57534e", fontWeight: 700 }}>BMAC note</span>
+                                                <input
+                                                    type="text"
+                                                    placeholder="Optional reference"
+                                                    onChange={(event) => onAdminBmacNoteChange(profile.id, event.target.value)}
+                                                    style={{
+                                                        width: "100%",
+                                                        minHeight: "34px",
+                                                        borderRadius: "10px",
+                                                        border: "1px solid #d6d3d1",
+                                                        padding: "0 10px",
+                                                        fontSize: "0.82rem",
+                                                        boxSizing: "border-box",
+                                                    }}
+                                                />
+                                            </label>
+                                        </div>
+
+                                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                                            <button
+                                                type="button"
+                                                onClick={() => onRecordAdminBmacContribution(profile.id)}
+                                                style={{
+                                                    minHeight: "32px",
+                                                    borderRadius: "8px",
+                                                    border: "1px solid #166534",
+                                                    background: "#dcfce7",
+                                                    color: "#166534",
+                                                    padding: "0 10px",
+                                                    fontSize: "0.76rem",
+                                                    fontWeight: 700,
+                                                    cursor: "pointer",
+                                                }}
+                                            >
+                                                Award BMAC points
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => onLoadPointHistoryForAdminProfile(profile.id)}
+                                                disabled={Boolean(isAdminPointHistoryLoadingByProfileId?.[profile.id])}
+                                                style={{
+                                                    minHeight: "32px",
+                                                    borderRadius: "8px",
+                                                    border: "1px solid #334155",
+                                                    background: "#f8fafc",
+                                                    color: "#334155",
+                                                    padding: "0 10px",
+                                                    fontSize: "0.76rem",
+                                                    fontWeight: 700,
+                                                    cursor: Boolean(isAdminPointHistoryLoadingByProfileId?.[profile.id]) ? "not-allowed" : "pointer",
+                                                }}
+                                            >
+                                                {Boolean(isAdminPointHistoryLoadingByProfileId?.[profile.id]) ? "Loading..." : "Load points history"}
+                                            </button>
+                                        </div>
+
+                                        <div style={{ display: "grid", gap: "6px", gridTemplateColumns: isMobile ? "1fr" : "minmax(0,1fr) auto auto" }}>
+                                            <input
+                                                type="text"
+                                                placeholder="Ban reason (required)"
+                                                onChange={(event) => onAdminBanReasonChange(profile.id, event.target.value)}
+                                                style={{
+                                                    width: "100%",
+                                                    minHeight: "34px",
+                                                    borderRadius: "10px",
+                                                    border: "1px solid #fecaca",
+                                                    padding: "0 10px",
+                                                    fontSize: "0.82rem",
+                                                    boxSizing: "border-box",
+                                                }}
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => onBanProfile(profile.id)}
+                                                style={{
+                                                    minHeight: "34px",
+                                                    borderRadius: "10px",
+                                                    border: "1px solid #b91c1c",
+                                                    background: "#fee2e2",
+                                                    color: "#991b1b",
+                                                    padding: "0 12px",
+                                                    fontSize: "0.76rem",
+                                                    fontWeight: 700,
+                                                    cursor: "pointer",
+                                                }}
+                                            >
+                                                Ban
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => onUnbanProfile(profile.id)}
+                                                style={{
+                                                    minHeight: "34px",
+                                                    borderRadius: "10px",
+                                                    border: "1px solid #0f766e",
+                                                    background: "#ccfbf1",
+                                                    color: "#115e59",
+                                                    padding: "0 12px",
+                                                    fontSize: "0.76rem",
+                                                    fontWeight: 700,
+                                                    cursor: "pointer",
+                                                }}
+                                            >
+                                                Unban
+                                            </button>
+                                        </div>
+
+                                        {Array.isArray(adminPointEventsByProfileId?.[profile.id]) && adminPointEventsByProfileId[profile.id].length ? (
+                                            <details>
+                                                <summary style={{ cursor: "pointer", fontSize: "0.75rem", fontWeight: 700, color: "#334155" }}>
+                                                    Reveal points events ({adminPointEventsByProfileId[profile.id].length})
+                                                </summary>
+                                                <div style={{ marginTop: "8px", display: "grid", gap: "6px", maxHeight: "180px", overflowY: "auto", paddingRight: "2px" }}>
+                                                    {adminPointEventsByProfileId[profile.id].map((eventRow) => (
+                                                        <div key={eventRow.id} style={{ border: "1px solid #e2e8f0", borderRadius: "8px", padding: "6px 8px", background: "#f8fafc" }}>
+                                                            <div style={{ fontSize: "0.76rem", fontWeight: 700, color: "#0f172a" }}>
+                                                                {eventRow.action_code} ({eventRow.points_delta >= 0 ? "+" : ""}{eventRow.points_delta})
+                                                            </div>
+                                                            <div style={{ fontSize: "0.7rem", color: "#64748b" }}>
+                                                                Balance: {eventRow.balance_after} • {new Date(eventRow.created_at).toLocaleString("en-GB")}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </details>
+                                        ) : null}
                                     </div>
                                 );
                             })}
                         </div>
                     )}
+
+                    {adminActionStatus ? (
+                        <div style={{ marginTop: "8px", color: "#166534", fontSize: "0.76rem", fontWeight: 700 }}>{adminActionStatus}</div>
+                    ) : null}
+
+                    {adminActionError ? (
+                        <div style={{ marginTop: "8px", color: "#b91c1c", fontSize: "0.76rem", fontWeight: 700 }}>{adminActionError}</div>
+                    ) : null}
+
+                    <details style={{ marginTop: "10px" }}>
+                        <summary style={{ cursor: "pointer", fontSize: "0.76rem", fontWeight: 800, color: "#7c2d12", letterSpacing: "0.03em", textTransform: "uppercase" }}>
+                            Reveal moderation queue
+                        </summary>
+                        {adminPendingCommentsError ? (
+                            <div style={{ marginTop: "8px", fontSize: "0.75rem", color: "#b91c1c" }}>{adminPendingCommentsError}</div>
+                        ) : null}
+                        {isAdminPendingCommentsLoading ? (
+                            <div style={{ marginTop: "8px", fontSize: "0.75rem", color: "#57534e" }}>Loading pending comments...</div>
+                        ) : (
+                            <div style={{ marginTop: "8px", display: "grid", gap: "8px", maxHeight: "220px", overflowY: "auto", paddingRight: "2px" }}>
+                                {adminPendingComments.length ? adminPendingComments.map((comment) => (
+                                    <div key={comment.id} style={{ border: "1px solid #fde68a", borderRadius: "10px", padding: "8px", background: "#fffbeb" }}>
+                                        <div style={{ fontSize: "0.78rem", color: "#334155", whiteSpace: "pre-wrap" }}>{comment.body}</div>
+                                        <div style={{ marginTop: "4px", fontSize: "0.7rem", color: "#78716c" }}>
+                                            {comment.target_entity_type}:{comment.target_entity_id}
+                                        </div>
+                                        <div style={{ marginTop: "6px", display: "flex", gap: "6px" }}>
+                                            <button
+                                                type="button"
+                                                onClick={() => onApprovePendingComment(comment.id)}
+                                                style={{ border: "1px solid #16a34a", background: "#dcfce7", color: "#166534", borderRadius: "7px", padding: "5px 9px", fontSize: "0.74rem", fontWeight: 700, cursor: "pointer" }}
+                                            >
+                                                Approve
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => onRejectPendingComment(comment.id)}
+                                                style={{ border: "1px solid #dc2626", background: "#fee2e2", color: "#991b1b", borderRadius: "7px", padding: "5px 9px", fontSize: "0.74rem", fontWeight: 700, cursor: "pointer" }}
+                                            >
+                                                Reject
+                                            </button>
+                                        </div>
+                                    </div>
+                                )) : (
+                                    <div style={{ fontSize: "0.75rem", color: "#57534e" }}>No pending comments.</div>
+                                )}
+                            </div>
+                        )}
+                    </details>
+
+                    <details style={{ marginTop: "10px" }}>
+                        <summary style={{ cursor: "pointer", fontSize: "0.76rem", fontWeight: 800, color: "#7c2d12", letterSpacing: "0.03em", textTransform: "uppercase" }}>
+                            Reveal ban records
+                        </summary>
+                        {adminBansError ? (
+                            <div style={{ marginTop: "8px", fontSize: "0.75rem", color: "#b91c1c" }}>{adminBansError}</div>
+                        ) : null}
+                        {isAdminBansLoading ? (
+                            <div style={{ marginTop: "8px", fontSize: "0.75rem", color: "#57534e" }}>Loading ban records...</div>
+                        ) : (
+                            <div style={{ marginTop: "8px", display: "grid", gap: "6px", maxHeight: "180px", overflowY: "auto", paddingRight: "2px" }}>
+                                {adminBans.length ? adminBans.map((ban) => (
+                                    <div key={ban.id} style={{ border: "1px solid #fecaca", borderRadius: "8px", padding: "7px", background: "#fff1f2" }}>
+                                        <div style={{ fontSize: "0.76rem", fontWeight: 700, color: "#7f1d1d" }}>
+                                            {ban.profile_id} {ban.is_active ? "(active)" : "(inactive)"}
+                                        </div>
+                                        <div style={{ fontSize: "0.7rem", color: "#991b1b" }}>{ban.reason}</div>
+                                    </div>
+                                )) : (
+                                    <div style={{ fontSize: "0.75rem", color: "#57534e" }}>No ban records yet.</div>
+                                )}
+                            </div>
+                        )}
+                    </details>
+
+                    <details style={{ marginTop: "10px" }}>
+                        <summary style={{ cursor: "pointer", fontSize: "0.76rem", fontWeight: 800, color: "#7c2d12", letterSpacing: "0.03em", textTransform: "uppercase" }}>
+                            Reveal admin audit logs
+                        </summary>
+                        {adminAuditLogsError ? (
+                            <div style={{ marginTop: "8px", fontSize: "0.75rem", color: "#b91c1c" }}>{adminAuditLogsError}</div>
+                        ) : null}
+                        {isAdminAuditLogsLoading ? (
+                            <div style={{ marginTop: "8px", fontSize: "0.75rem", color: "#57534e" }}>Loading audit logs...</div>
+                        ) : (
+                            <div style={{ marginTop: "8px", display: "grid", gap: "6px", maxHeight: "220px", overflowY: "auto", paddingRight: "2px" }}>
+                                {adminAuditLogs.length ? adminAuditLogs.slice(0, 100).map((log) => (
+                                    <div key={log.id} style={{ border: "1px solid #d6d3d1", borderRadius: "8px", padding: "7px", background: "#fafaf9" }}>
+                                        <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#334155" }}>
+                                            {log.action_type} • {log.target_table}:{log.target_id}
+                                        </div>
+                                        <div style={{ fontSize: "0.7rem", color: "#57534e" }}>
+                                            {new Date(log.created_at).toLocaleString("en-GB")}
+                                        </div>
+                                    </div>
+                                )) : (
+                                    <div style={{ fontSize: "0.75rem", color: "#57534e" }}>No audit logs yet.</div>
+                                )}
+                            </div>
+                        )}
+                    </details>
                 </SurfaceCard>
             ) : null}
 
@@ -10335,6 +10620,22 @@ function App() {
     const [adminProfilesError, setAdminProfilesError] = useState("");
     const [adminProfilesStatus, setAdminProfilesStatus] = useState("");
     const [savingAdminProfileId, setSavingAdminProfileId] = useState("");
+    const [adminPendingComments, setAdminPendingComments] = useState([]);
+    const [isAdminPendingCommentsLoading, setIsAdminPendingCommentsLoading] = useState(false);
+    const [adminPendingCommentsError, setAdminPendingCommentsError] = useState("");
+    const [adminAuditLogs, setAdminAuditLogs] = useState([]);
+    const [isAdminAuditLogsLoading, setIsAdminAuditLogsLoading] = useState(false);
+    const [adminAuditLogsError, setAdminAuditLogsError] = useState("");
+    const [adminBans, setAdminBans] = useState([]);
+    const [isAdminBansLoading, setIsAdminBansLoading] = useState(false);
+    const [adminBansError, setAdminBansError] = useState("");
+    const [adminActionError, setAdminActionError] = useState("");
+    const [adminActionStatus, setAdminActionStatus] = useState("");
+    const [adminPointEventsByProfileId, setAdminPointEventsByProfileId] = useState({});
+    const [isAdminPointHistoryLoadingByProfileId, setIsAdminPointHistoryLoadingByProfileId] = useState({});
+    const [adminBmacAmountPenceByProfileId, setAdminBmacAmountPenceByProfileId] = useState({});
+    const [adminBmacNoteByProfileId, setAdminBmacNoteByProfileId] = useState({});
+    const [adminBanReasonByProfileId, setAdminBanReasonByProfileId] = useState({});
     const [isAuthProviderModalOpen, setIsAuthProviderModalOpen] = useState(false);
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
     const [localCounts, setLocalCounts] = useState(() => startupStoredState.counts);
@@ -10381,6 +10682,15 @@ function App() {
     const [isPoiPanelOpen, setIsPoiPanelOpen] = useState(false);
     const [selectedHistoricalPoiId, setSelectedHistoricalPoiId] = useState(null);
     const [editingHistoricalPoiId, setEditingHistoricalPoiId] = useState(null);
+    const [selectedPoiComments, setSelectedPoiComments] = useState([]);
+    const [isSelectedPoiCommentsLoading, setIsSelectedPoiCommentsLoading] = useState(false);
+    const [selectedPoiCommentsError, setSelectedPoiCommentsError] = useState("");
+    const [selectedPoiCommentDraft, setSelectedPoiCommentDraft] = useState("");
+    const [isPoiInteractionSaving, setIsPoiInteractionSaving] = useState(false);
+    const [poiInteractionStatus, setPoiInteractionStatus] = useState("");
+    const [poiInteractionError, setPoiInteractionError] = useState("");
+    const [selectedPoiLikeCount, setSelectedPoiLikeCount] = useState(0);
+    const [selectedPoiShareCount, setSelectedPoiShareCount] = useState(0);
     const [selectedContributorId, setSelectedContributorId] = useState(null);
     const [isContributorPanelOpen, setIsContributorPanelOpen] = useState(false);
     const [floodAlerts, setFloodAlerts] = useState([]);
@@ -11374,29 +11684,74 @@ function App() {
         if (!isProfileModalOpen || !canManageItems || !hasSupabaseConfig) {
             if (!isProfileModalOpen) {
                 setAdminProfiles([]);
+                setAdminPendingComments([]);
+                setAdminBans([]);
+                setAdminAuditLogs([]);
+                setAdminPointEventsByProfileId({});
             }
             return undefined;
         }
 
         let isMounted = true;
         setIsAdminProfilesLoading(true);
+        setIsAdminPendingCommentsLoading(true);
+        setIsAdminBansLoading(true);
+        setIsAdminAuditLogsLoading(true);
         setAdminProfilesError("");
+        setAdminPendingCommentsError("");
+        setAdminBansError("");
+        setAdminAuditLogsError("");
         setAdminProfilesStatus("");
+        setAdminActionError("");
+        setAdminActionStatus("");
 
         void (async () => {
-            const { profiles, error } = await listProfilesForAdmin();
+            const [
+                profilesResult,
+                pendingCommentsResult,
+                bansResult,
+                auditLogsResult,
+            ] = await Promise.all([
+                listProfilesForAdmin(),
+                listPendingCommentsForAdmin(),
+                listBansForAdmin(),
+                listAdminAuditLogs(),
+            ]);
 
             if (!isMounted) return;
 
-            if (error) {
+            if (profilesResult.error) {
                 setAdminProfiles([]);
                 setAdminProfilesError("Unable to load profile admin tools right now.");
-                setIsAdminProfilesLoading(false);
-                return;
+            } else {
+                setAdminProfiles(profilesResult.profiles || []);
             }
 
-            setAdminProfiles(profiles);
+            if (pendingCommentsResult.error) {
+                setAdminPendingComments([]);
+                setAdminPendingCommentsError("Unable to load pending comments.");
+            } else {
+                setAdminPendingComments(pendingCommentsResult.comments || []);
+            }
+
+            if (bansResult.error) {
+                setAdminBans([]);
+                setAdminBansError("Unable to load ban records.");
+            } else {
+                setAdminBans(bansResult.bans || []);
+            }
+
+            if (auditLogsResult.error) {
+                setAdminAuditLogs([]);
+                setAdminAuditLogsError("Unable to load admin audit logs.");
+            } else {
+                setAdminAuditLogs(auditLogsResult.logs || []);
+            }
+
             setIsAdminProfilesLoading(false);
+            setIsAdminPendingCommentsLoading(false);
+            setIsAdminBansLoading(false);
+            setIsAdminAuditLogsLoading(false);
         })();
 
         return () => {
@@ -12622,12 +12977,179 @@ function App() {
             return;
         }
 
-        setAdminProfiles((prev) => prev.map((entry) => (entry.id === profileId ? profile : entry)));
-        if (currentProfile?.id === profileId) {
-            setCurrentProfile(profile || null);
+        const { profile: membershipProfile, error: membershipError } = await setFacebookGroupMembershipWithBonus(
+            profileId,
+            Boolean(targetProfile.is_facebook_group_member),
+            String(targetProfile.supporter_note || "").trim(),
+        );
+
+        if (membershipError) {
+            setAdminProfilesError("Saved base profile fields, but could not apply facebook group bonus logic.");
         }
-        setAdminProfilesStatus(`Saved ${getProfileDisplayName(profile, null)}`);
+
+        const nextProfile = membershipProfile || profile;
+
+        setAdminProfiles((prev) => prev.map((entry) => (entry.id === profileId ? nextProfile : entry)));
+        if (currentProfile?.id === profileId) {
+            setCurrentProfile(nextProfile || null);
+        }
+        setAdminProfilesStatus(`Saved ${getProfileDisplayName(nextProfile, null)}`);
         setSavingAdminProfileId("");
+    }
+
+    async function loadPointHistoryForAdminProfile(profileId) {
+        if (!canManageItems || !hasSupabaseConfig || !profileId) return;
+
+        setIsAdminPointHistoryLoadingByProfileId((prev) => ({
+            ...prev,
+            [profileId]: true,
+        }));
+        setAdminActionError("");
+
+        const { events, error } = await listPointEventsForProfile(profileId, 50);
+
+        if (error) {
+            setAdminActionError("Could not load points history for that profile.");
+            setIsAdminPointHistoryLoadingByProfileId((prev) => ({
+                ...prev,
+                [profileId]: false,
+            }));
+            return;
+        }
+
+        setAdminPointEventsByProfileId((prev) => ({
+            ...prev,
+            [profileId]: events,
+        }));
+        setIsAdminPointHistoryLoadingByProfileId((prev) => ({
+            ...prev,
+            [profileId]: false,
+        }));
+    }
+
+    async function recordAdminBmacContribution(profileId) {
+        if (!canManageItems || !hasSupabaseConfig || !profileId) return;
+
+        const amountRaw = String(adminBmacAmountPenceByProfileId?.[profileId] || "").trim();
+        const amountPence = Number.parseInt(amountRaw, 10);
+        if (!Number.isFinite(amountPence) || amountPence <= 0) {
+            setAdminActionError("Enter a BMAC contribution in pence greater than 0.");
+            return;
+        }
+
+        const note = String(adminBmacNoteByProfileId?.[profileId] || "").trim();
+        setAdminActionError("");
+        setAdminActionStatus("");
+
+        const { contribution, error } = await recordBmacContributionAmount(profileId, amountPence, note);
+
+        if (error) {
+            setAdminActionError("Could not record BMAC contribution points.");
+            return;
+        }
+
+        const { profiles } = await listProfilesForAdmin();
+        setAdminProfiles(profiles || []);
+        if (currentProfile?.id === profileId) {
+            const updatedCurrent = (profiles || []).find((entry) => entry.id === profileId);
+            if (updatedCurrent) {
+                setCurrentProfile(updatedCurrent);
+            }
+        }
+
+        setAdminActionStatus(`Recorded BMAC contribution (${contribution?.amount_pence || amountPence}p).`);
+        setAdminBmacAmountPenceByProfileId((prev) => ({ ...prev, [profileId]: "" }));
+    }
+
+    async function approvePendingComment(commentId) {
+        if (!canManageItems || !hasSupabaseConfig || !commentId) return;
+
+        setAdminActionError("");
+        setAdminActionStatus("");
+
+        const { comment, error } = await approveCommentForAdmin(commentId, "Approved by owner tools");
+
+        if (error) {
+            setAdminActionError("Could not approve comment.");
+            return;
+        }
+
+        setAdminPendingComments((prev) => prev.filter((entry) => entry.id !== commentId));
+        setAdminActionStatus("Comment approved and points awarded.");
+
+        const { logs } = await listAdminAuditLogs();
+        setAdminAuditLogs(logs || []);
+
+        if (comment?.profile_id) {
+            await loadPointHistoryForAdminProfile(comment.profile_id);
+        }
+    }
+
+    async function rejectPendingComment(commentId) {
+        if (!canManageItems || !hasSupabaseConfig || !commentId) return;
+
+        setAdminActionError("");
+        setAdminActionStatus("");
+
+        const { error } = await rejectCommentForAdmin(commentId, "Rejected by owner tools");
+
+        if (error) {
+            setAdminActionError("Could not reject comment.");
+            return;
+        }
+
+        setAdminPendingComments((prev) => prev.filter((entry) => entry.id !== commentId));
+        setAdminActionStatus("Comment rejected.");
+
+        const { logs } = await listAdminAuditLogs();
+        setAdminAuditLogs(logs || []);
+    }
+
+    async function banProfileFromAdmin(profileId) {
+        if (!canManageItems || !hasSupabaseConfig || !profileId) return;
+
+        const reason = String(adminBanReasonByProfileId?.[profileId] || "").trim();
+        if (!reason) {
+            setAdminActionError("Ban reason is required.");
+            return;
+        }
+
+        setAdminActionError("");
+        setAdminActionStatus("");
+
+        const { ban, error } = await banProfileForAdmin(profileId, reason);
+
+        if (error) {
+            setAdminActionError("Could not ban this profile.");
+            return;
+        }
+
+        setAdminBans((prev) => {
+            const remaining = prev.filter((entry) => entry.profile_id !== profileId || !entry.is_active);
+            return [ban, ...remaining];
+        });
+        setAdminActionStatus("Profile banned.");
+    }
+
+    async function unbanProfileFromAdmin(profileId) {
+        if (!canManageItems || !hasSupabaseConfig || !profileId) return;
+
+        setAdminActionError("");
+        setAdminActionStatus("");
+
+        const { error } = await unbanProfileForAdmin(profileId, "Unbanned by owner tools");
+
+        if (error) {
+            setAdminActionError("Could not unban this profile.");
+            return;
+        }
+
+        setAdminBans((prev) => prev.map((entry) => (
+            entry.profile_id === profileId && entry.is_active
+                ? { ...entry, is_active: false, lifted_at: new Date().toISOString() }
+                : entry
+        )));
+        setAdminActionStatus("Profile unbanned.");
     }
 
     async function handleRequestAccountDeletion() {
@@ -13857,6 +14379,54 @@ function App() {
 
         return `${window.location.origin}${import.meta.env.BASE_URL}poi/${encodeURIComponent(slug)}/`;
     }, [selectedHistoricalPoi]);
+
+    useEffect(() => {
+        if (!selectedHistoricalPoi?.id || !hasSupabaseConfig) {
+            setSelectedPoiComments([]);
+            setSelectedPoiCommentsError("");
+            setIsSelectedPoiCommentsLoading(false);
+            setSelectedPoiCommentDraft("");
+            setPoiInteractionStatus("");
+            setPoiInteractionError("");
+            setSelectedPoiLikeCount(0);
+            setSelectedPoiShareCount(0);
+            return;
+        }
+
+        let isMounted = true;
+        setIsSelectedPoiCommentsLoading(true);
+        setSelectedPoiCommentsError("");
+
+        void (async () => {
+            const [commentsResult, countsResult] = await Promise.all([
+                listCommentsForTarget("poi", selectedHistoricalPoi.id),
+                getInteractionCountsForTarget("poi", selectedHistoricalPoi.id),
+            ]);
+
+            if (!isMounted) return;
+
+            if (commentsResult.error) {
+                setSelectedPoiComments([]);
+                setSelectedPoiCommentsError("Could not load comments.");
+                setIsSelectedPoiCommentsLoading(false);
+                return;
+            }
+
+            setSelectedPoiComments(
+                Array.isArray(commentsResult.comments)
+                    ? commentsResult.comments.filter((entry) => entry.status === "approved")
+                    : [],
+            );
+            setSelectedPoiLikeCount(Number.isFinite(Number(countsResult.likeCount)) ? Number(countsResult.likeCount) : 0);
+            setSelectedPoiShareCount(Number.isFinite(Number(countsResult.shareCount)) ? Number(countsResult.shareCount) : 0);
+            setIsSelectedPoiCommentsLoading(false);
+        })();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [selectedHistoricalPoi?.id, hasSupabaseConfig]);
+
     const editingHistoricalPoi = useMemo(
         () =>
             editingHistoricalPoiId === null
@@ -13900,6 +14470,87 @@ function App() {
         setIsPoiPanelOpen(false);
         setEditingHistoricalPoiId(null);
     };
+
+    async function handlePoiLike(poi) {
+        if (!currentUser?.id || !hasSupabaseConfig || !poi?.id) {
+            setPoiInteractionError("Sign in to like places.");
+            return;
+        }
+
+        setIsPoiInteractionSaving(true);
+        setPoiInteractionError("");
+        setPoiInteractionStatus("");
+
+        const { interaction, error } = await submitLike("poi", poi.id, {
+            slug: poi.slug || "",
+        });
+
+        if (error) {
+            setPoiInteractionError("Could not save your like.");
+            setIsPoiInteractionSaving(false);
+            return;
+        }
+
+        if (interaction?.created) {
+            setPoiInteractionStatus(`Liked. +${interaction?.points_awarded || 0} points.`);
+            setSelectedPoiLikeCount((prev) => prev + 1);
+        } else {
+            setPoiInteractionStatus("You already liked this POI.");
+        }
+
+        setIsPoiInteractionSaving(false);
+    }
+
+    async function handlePoiShare(poi) {
+        if (!currentUser?.id || !hasSupabaseConfig || !poi?.id) {
+            return;
+        }
+
+        const { interaction, error } = await submitShare("poi", poi.id, {
+            slug: poi.slug || "",
+        });
+
+        if (error) {
+            setPoiInteractionError("Share worked, but points could not be recorded.");
+            return;
+        }
+
+        if (interaction?.created) {
+            setPoiInteractionStatus(`Share recorded. +${interaction?.points_awarded || 0} points.`);
+            setSelectedPoiShareCount((prev) => prev + 1);
+        } else {
+            setPoiInteractionStatus("Share already counted for this POI.");
+        }
+    }
+
+    async function handlePoiCommentSubmit(poi) {
+        if (!currentUser?.id || !hasSupabaseConfig || !poi?.id) {
+            setPoiInteractionError("Sign in to comment.");
+            return;
+        }
+
+        const body = String(selectedPoiCommentDraft || "").trim();
+        if (!body) {
+            setPoiInteractionError("Write a comment before submitting.");
+            return;
+        }
+
+        setIsPoiInteractionSaving(true);
+        setPoiInteractionError("");
+        setPoiInteractionStatus("");
+
+        const { error } = await submitCommentForReview("poi", poi.id, body);
+
+        if (error) {
+            setPoiInteractionError("Could not submit comment for review.");
+            setIsPoiInteractionSaving(false);
+            return;
+        }
+
+        setSelectedPoiCommentDraft("");
+        setPoiInteractionStatus("Comment submitted for admin approval.");
+        setIsPoiInteractionSaving(false);
+    }
     const readyCustomHistoricOverlayLayers = useMemo(
         () => historicOverlayDrafts
             .map((draft) => {
@@ -16032,6 +16683,34 @@ function App() {
                         setAdminProfilesStatus("");
                     }}
                     onAdminSaveProfile={saveAdminProfile}
+                    adminPendingComments={adminPendingComments}
+                    isAdminPendingCommentsLoading={isAdminPendingCommentsLoading}
+                    adminPendingCommentsError={adminPendingCommentsError}
+                    onApprovePendingComment={approvePendingComment}
+                    onRejectPendingComment={rejectPendingComment}
+                    adminAuditLogs={adminAuditLogs}
+                    isAdminAuditLogsLoading={isAdminAuditLogsLoading}
+                    adminAuditLogsError={adminAuditLogsError}
+                    adminBans={adminBans}
+                    isAdminBansLoading={isAdminBansLoading}
+                    adminBansError={adminBansError}
+                    onAdminBanReasonChange={(profileId, value) => {
+                        setAdminBanReasonByProfileId((prev) => ({ ...prev, [profileId]: value }));
+                    }}
+                    onBanProfile={banProfileFromAdmin}
+                    onUnbanProfile={unbanProfileFromAdmin}
+                    onAdminBmacAmountPenceChange={(profileId, value) => {
+                        setAdminBmacAmountPenceByProfileId((prev) => ({ ...prev, [profileId]: value }));
+                    }}
+                    onAdminBmacNoteChange={(profileId, value) => {
+                        setAdminBmacNoteByProfileId((prev) => ({ ...prev, [profileId]: value }));
+                    }}
+                    onRecordAdminBmacContribution={recordAdminBmacContribution}
+                    onLoadPointHistoryForAdminProfile={loadPointHistoryForAdminProfile}
+                    adminPointEventsByProfileId={adminPointEventsByProfileId}
+                    isAdminPointHistoryLoadingByProfileId={isAdminPointHistoryLoadingByProfileId}
+                    adminActionError={adminActionError}
+                    adminActionStatus={adminActionStatus}
                     isProfileLoading={isProfileLoading}
                     isSavingProfile={isSavingProfile}
                     profileError={profileError}
@@ -16171,6 +16850,19 @@ function App() {
                     isMobile={isMobile}
                     canManage={canManageItems}
                     shareUrl={selectedHistoricalPoiPublicUrl}
+                    onLike={handlePoiLike}
+                    onShareRecorded={handlePoiShare}
+                    onSubmitComment={handlePoiCommentSubmit}
+                    commentDraft={selectedPoiCommentDraft}
+                    onCommentDraftChange={setSelectedPoiCommentDraft}
+                    comments={selectedPoiComments}
+                    likeCount={selectedPoiLikeCount}
+                    shareCount={selectedPoiShareCount}
+                    isSubmittingInteraction={isPoiInteractionSaving}
+                    interactionStatus={poiInteractionStatus}
+                    interactionError={poiInteractionError}
+                    isLoadingComments={isSelectedPoiCommentsLoading}
+                    commentsError={selectedPoiCommentsError}
                     isTidePlannerCollapsed={isTidePlannerCollapsed}
                 />
             ) : null}

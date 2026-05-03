@@ -10,6 +10,19 @@ export default function PoiCard({
     isMobile,
     canManage,
     shareUrl,
+    onLike,
+    onShareRecorded,
+    onSubmitComment,
+    commentDraft = "",
+    onCommentDraftChange,
+    comments = [],
+    likeCount = 0,
+    shareCount = 0,
+    isSubmittingInteraction = false,
+    interactionStatus = "",
+    interactionError = "",
+    isLoadingComments = false,
+    commentsError = "",
     isTidePlannerCollapsed = true,
 }) {
     const cardRef = useRef(null);
@@ -69,6 +82,9 @@ export default function PoiCard({
                 });
 
                 setShareStatusWithTimeout("Share sheet opened.");
+                if (typeof onShareRecorded === "function") {
+                    await onShareRecorded(poi);
+                }
                 return;
             } catch (error) {
                 if (error?.name === "AbortError") {
@@ -93,6 +109,9 @@ export default function PoiCard({
             }
 
             setShareStatusWithTimeout("Share link copied.");
+            if (typeof onShareRecorded === "function") {
+                await onShareRecorded(poi);
+            }
         } catch {
             setShareStatusWithTimeout("Could not copy automatically.");
         }
@@ -113,6 +132,8 @@ export default function PoiCard({
     const hasImages = poi.poi_images && poi.poi_images.length > 0;
     const statusColor = poi.status === "published" ? "#059669" : "#d97706";
     const statusBg = poi.status === "published" ? "#d1fae5" : "#fef3c7";
+    const likeCountLabel = Number.isFinite(Number(likeCount)) ? Number(likeCount) : 0;
+    const shareCountLabel = Number.isFinite(Number(shareCount)) ? Number(shareCount) : 0;
 
     const cardStyle = isMobileView
         ? {
@@ -329,7 +350,31 @@ export default function PoiCard({
                                 }}
                                 aria-label="Share point of interest"
                             >
-                                Share
+                                Share ({shareCountLabel})
+                            </button>
+                        ) : null}
+                        {typeof onLike === "function" ? (
+                            <button
+                                type="button"
+                                onClick={() => onLike(poi)}
+                                disabled={isSubmittingInteraction}
+                                style={{
+                                    padding: "5px 9px",
+                                    border: "1px solid #bbf7d0",
+                                    background: "#dcfce7",
+                                    color: "#166534",
+                                    borderRadius: "6px",
+                                    cursor: isSubmittingInteraction ? "not-allowed" : "pointer",
+                                    fontSize: "0.74rem",
+                                    fontWeight: 700,
+                                    lineHeight: 1.1,
+                                    flex: "0 0 auto",
+                                    whiteSpace: "nowrap",
+                                    opacity: isSubmittingInteraction ? 0.65 : 1,
+                                }}
+                                aria-label="Like point of interest"
+                            >
+                                Like ({likeCountLabel})
                             </button>
                         ) : null}
                         <button
@@ -365,6 +410,36 @@ export default function PoiCard({
                         }}
                     >
                         {shareStatus}
+                    </div>
+                ) : null}
+
+                {interactionStatus ? (
+                    <div
+                        style={{
+                            padding: "6px 12px",
+                            background: "#ecfeff",
+                            borderBottom: "1px solid #a5f3fc",
+                            color: "#155e75",
+                            fontSize: "0.78rem",
+                            fontWeight: 600,
+                        }}
+                    >
+                        {interactionStatus}
+                    </div>
+                ) : null}
+
+                {interactionError ? (
+                    <div
+                        style={{
+                            padding: "6px 12px",
+                            background: "#fef2f2",
+                            borderBottom: "1px solid #fecaca",
+                            color: "#991b1b",
+                            fontSize: "0.78rem",
+                            fontWeight: 600,
+                        }}
+                    >
+                        {interactionError}
                     </div>
                 ) : null}
 
@@ -583,6 +658,77 @@ export default function PoiCard({
                             )}
                         </div>
                     )}
+
+                    {typeof onSubmitComment === "function" ? (
+                        <div style={{ display: "grid", gap: "8px", borderTop: "1px solid #e2e8f0", paddingTop: "8px" }}>
+                            <div style={{ fontSize: "0.78rem", fontWeight: 800, color: "#334155", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                                Comments
+                            </div>
+                            <textarea
+                                value={commentDraft}
+                                onChange={(event) => onCommentDraftChange?.(event.target.value)}
+                                placeholder="Write a comment. It will be reviewed before publishing."
+                                rows={3}
+                                disabled={isSubmittingInteraction}
+                                style={{
+                                    width: "100%",
+                                    borderRadius: "8px",
+                                    border: "1px solid #cbd5e1",
+                                    padding: "8px 10px",
+                                    fontSize: "0.82rem",
+                                    resize: "vertical",
+                                    boxSizing: "border-box",
+                                }}
+                            />
+                            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                                <button
+                                    type="button"
+                                    onClick={() => onSubmitComment(poi)}
+                                    disabled={isSubmittingInteraction}
+                                    style={{
+                                        border: "1px solid #0f172a",
+                                        background: "#0f172a",
+                                        color: "#fff",
+                                        borderRadius: "8px",
+                                        padding: "8px 12px",
+                                        fontSize: "0.78rem",
+                                        fontWeight: 700,
+                                        cursor: isSubmittingInteraction ? "not-allowed" : "pointer",
+                                        opacity: isSubmittingInteraction ? 0.65 : 1,
+                                    }}
+                                >
+                                    {isSubmittingInteraction ? "Saving..." : "Submit for review"}
+                                </button>
+                            </div>
+
+                            {isLoadingComments ? (
+                                <div style={{ fontSize: "0.78rem", color: "#64748b" }}>Loading comments...</div>
+                            ) : commentsError ? (
+                                <div style={{ fontSize: "0.78rem", color: "#991b1b" }}>{commentsError}</div>
+                            ) : comments.length ? (
+                                <div style={{ display: "grid", gap: "6px" }}>
+                                    {comments.slice(0, 8).map((comment) => (
+                                        <div
+                                            key={comment.id}
+                                            style={{
+                                                border: "1px solid #e2e8f0",
+                                                borderRadius: "8px",
+                                                padding: "8px",
+                                                background: "#f8fafc",
+                                            }}
+                                        >
+                                            <div style={{ fontSize: "0.8rem", color: "#334155", whiteSpace: "pre-wrap" }}>{comment.body}</div>
+                                            <div style={{ marginTop: "4px", fontSize: "0.7rem", color: "#64748b" }}>
+                                                {new Date(comment.created_at).toLocaleDateString("en-GB")}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div style={{ fontSize: "0.78rem", color: "#64748b" }}>No approved comments yet.</div>
+                            )}
+                        </div>
+                    ) : null}
                 </div>
             </div>
         </>
