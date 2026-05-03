@@ -3,7 +3,25 @@ import { supabase } from "./supabaseClient";
 const EMPTY_PROFILE = {
     display_name: "",
     avatar_url: "",
+    is_facebook_group_member: false,
+    is_bmc_supporter: false,
+    supporter_points: 0,
+    supporter_note: "",
+    supporter_verified_at: null,
 };
+
+const PROFILE_SELECT_FIELDS = [
+    "id",
+    "display_name",
+    "avatar_url",
+    "is_facebook_group_member",
+    "is_bmc_supporter",
+    "supporter_points",
+    "supporter_note",
+    "supporter_verified_at",
+    "created_at",
+    "updated_at",
+].join(", ");
 
 function normalizeText(value) {
     if (typeof value !== "string") return "";
@@ -55,7 +73,7 @@ export async function ensureProfileForUser(user) {
         error: existingProfileError,
     } = await supabase
         .from("profiles")
-        .select("id, display_name, avatar_url, created_at, updated_at")
+        .select(PROFILE_SELECT_FIELDS)
         .eq("id", user.id)
         .single();
 
@@ -71,7 +89,7 @@ export async function ensureProfileForUser(user) {
     const { data, error } = await supabase
         .from("profiles")
         .insert(seed)
-        .select("id, display_name, avatar_url, created_at, updated_at")
+        .select(PROFILE_SELECT_FIELDS)
         .single();
 
     if (error) {
@@ -91,7 +109,59 @@ export async function updateProfileForUser(userId, updates) {
         .from("profiles")
         .update(safeUpdates)
         .eq("id", userId)
-        .select("id, display_name, avatar_url, created_at, updated_at")
+        .select(PROFILE_SELECT_FIELDS)
+        .single();
+
+    if (error) {
+        return { profile: null, error };
+    }
+
+    return {
+        profile: {
+            ...EMPTY_PROFILE,
+            ...(data || {}),
+        },
+        error: null,
+    };
+}
+
+export async function listProfilesForAdmin() {
+    const { data, error } = await supabase
+        .from("profiles")
+        .select(PROFILE_SELECT_FIELDS)
+        .order("updated_at", { ascending: false });
+
+    if (error) {
+        return { profiles: [], error };
+    }
+
+    return {
+        profiles: Array.isArray(data)
+            ? data.map((profile) => ({
+                ...EMPTY_PROFILE,
+                ...profile,
+            }))
+            : [],
+        error: null,
+    };
+}
+
+export async function updateProfileForAdmin(profileId, updates) {
+    const safeUpdates = {
+        is_facebook_group_member: Boolean(updates?.is_facebook_group_member),
+        is_bmc_supporter: Boolean(updates?.is_bmc_supporter),
+        supporter_points: Number.isFinite(Number(updates?.supporter_points))
+            ? Number(updates.supporter_points)
+            : 0,
+        supporter_note: normalizeText(updates?.supporter_note),
+        supporter_verified_at: updates?.supporter_verified_at || new Date().toISOString(),
+    };
+
+    const { data, error } = await supabase
+        .from("profiles")
+        .update(safeUpdates)
+        .eq("id", profileId)
+        .select(PROFILE_SELECT_FIELDS)
         .single();
 
     if (error) {

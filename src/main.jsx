@@ -14,7 +14,12 @@ import {
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { hasSupabaseConfig, supabase } from "./supabaseClient";
-import { ensureProfileForUser, updateProfileForUser } from "./profileApi";
+import {
+    ensureProfileForUser,
+    listProfilesForAdmin,
+    updateProfileForAdmin,
+    updateProfileForUser,
+} from "./profileApi";
 import { normalizeW3WWords, resolveW3WFromCoords } from "./w3w";
 import ContributorBusinessPanel from "./components/panels/ContributorBusinessPanel";
 import PoiPanel from "./components/panels/PoiPanel";
@@ -4186,6 +4191,7 @@ function AppTopBar({
     isSticky,
     authReady,
     currentUser,
+    currentProfile,
     canManageItems,
     isAuthActionLoading,
     onOpenAuthModal,
@@ -4200,6 +4206,8 @@ function AppTopBar({
     children,
 }) {
     const signedIn = Boolean(currentUser);
+    const profileDisplayName = getProfileDisplayName(currentProfile, currentUser);
+    const profileAvatarUrl = getProfileAvatarUrl(currentProfile, currentUser);
     const syncLabel = isLoadingItems ? "Syncing" : "Up to date";
     const showMobileStatsToggle = isMobile && typeof onToggleStats === "function";
     const showStatsInline = !showMobileStatsToggle || isStatsExpanded;
@@ -4678,7 +4686,9 @@ function AppTopBar({
                                             cursor: "pointer",
                                         }}
                                     >
-                                        <span aria-hidden="true" style={{ fontSize: "1rem", textAlign: "center", color: "#1d4ed8" }}>👤</span>
+                                        <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                                            <ProfileAvatar imageUrl={profileAvatarUrl} label={profileDisplayName} size={24} />
+                                        </span>
                                         <span style={{ display: "grid", gap: "2px", minWidth: 0 }}>
                                             <span style={{ fontSize: "0.84rem", fontWeight: 800, color: "#0f172a" }}>Profile</span>
                                             <span style={{ fontSize: "0.74rem", color: "#475569" }}>
@@ -4878,9 +4888,15 @@ function AppTopBar({
                                 fontWeight: 700,
                                 opacity: !authReady || isAuthActionLoading ? 0.65 : 1,
                                 cursor: !authReady || isAuthActionLoading ? "not-allowed" : "pointer",
+                                gap: signedIn ? "8px" : undefined,
                             }}
                         >
-                            {signedIn ? "Sign Out" : "Sign In"}
+                            {signedIn ? (
+                                <>
+                                    <ProfileAvatar imageUrl={profileAvatarUrl} label={profileDisplayName} size={22} />
+                                    <span>Sign Out</span>
+                                </>
+                            ) : "Sign In"}
                         </button>
                     </div>
                 )}
@@ -4949,6 +4965,99 @@ function AppTopBar({
                 </div>
             ) : null}
         </div>
+    );
+}
+
+function getProfileDisplayName(profile, user) {
+    const candidates = [
+        profile?.display_name,
+        user?.user_metadata?.full_name,
+        user?.user_metadata?.name,
+        user?.user_metadata?.preferred_username,
+        user?.user_metadata?.user_name,
+        user?.user_metadata?.username,
+        user?.user_metadata?.login,
+    ];
+
+    const firstMatch = candidates.find((value) => typeof value === "string" && value.trim());
+    if (firstMatch) return firstMatch.trim();
+
+    if (typeof user?.email === "string" && user.email.trim()) {
+        return user.email.trim();
+    }
+
+    return "Cleanup supporter";
+}
+
+function getProfileAvatarUrl(profile, user) {
+    const candidates = [
+        profile?.avatar_url,
+        user?.user_metadata?.avatar_url,
+        user?.user_metadata?.picture,
+    ];
+
+    const firstMatch = candidates.find((value) => typeof value === "string" && value.trim());
+    return firstMatch ? firstMatch.trim() : "";
+}
+
+function getProfileInitials(label) {
+    if (typeof label !== "string") return "?";
+
+    const segments = label
+        .split(/\s+/)
+        .map((segment) => segment.trim())
+        .filter(Boolean);
+
+    if (!segments.length) return "?";
+    if (segments.length === 1) return segments[0].slice(0, 2).toUpperCase();
+
+    return `${segments[0][0] || ""}${segments[1][0] || ""}`.toUpperCase();
+}
+
+function ProfileAvatar({ imageUrl, label, size = 28 }) {
+    const initials = getProfileInitials(label);
+
+    if (imageUrl) {
+        return (
+            <img
+                src={imageUrl}
+                alt={label}
+                style={{
+                    width: `${size}px`,
+                    height: `${size}px`,
+                    borderRadius: "999px",
+                    objectFit: "cover",
+                    display: "block",
+                    border: "1px solid rgba(148,163,184,0.35)",
+                    background: "#fff",
+                    flexShrink: 0,
+                }}
+            />
+        );
+    }
+
+    return (
+        <span
+            aria-hidden="true"
+            style={{
+                width: `${size}px`,
+                height: `${size}px`,
+                borderRadius: "999px",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "linear-gradient(135deg, #1d4ed8, #0ea5e9)",
+                color: "#fff",
+                fontSize: size <= 22 ? "0.6rem" : "0.7rem",
+                fontWeight: 800,
+                letterSpacing: "0.04em",
+                border: "1px solid rgba(147,197,253,0.65)",
+                boxSizing: "border-box",
+                flexShrink: 0,
+            }}
+        >
+            {initials}
+        </span>
     );
 }
 
@@ -5092,9 +5201,18 @@ function AuthProviderModal({
 
 function ProfilePanel({
     currentUser,
+    currentProfile,
+    canManageItems,
     profileForm,
     onProfileFieldChange,
     onSaveProfile,
+    adminProfiles,
+    adminProfilesError,
+    adminProfilesStatus,
+    isAdminProfilesLoading,
+    savingAdminProfileId,
+    onAdminProfileFieldChange,
+    onAdminSaveProfile,
     isProfileLoading,
     isSavingProfile,
     profileError,
@@ -5108,19 +5226,227 @@ function ProfilePanel({
     const providerLabel = provider
         ? `${provider.charAt(0).toUpperCase()}${provider.slice(1)}`
         : "OAuth";
+    const profileDisplayName = getProfileDisplayName(currentProfile, currentUser);
+    const profileAvatarUrl = getProfileAvatarUrl(currentProfile, currentUser);
+    const profileEmail = typeof currentUser?.email === "string" ? currentUser.email.trim() : "";
+    const profileBadges = [
+        currentProfile?.is_facebook_group_member
+            ? { label: "Facebook Group Member", tone: "blue" }
+            : null,
+        currentProfile?.is_bmc_supporter
+            ? { label: "Cleanup Supporter", tone: "amber" }
+            : null,
+    ].filter(Boolean);
+    const pointsLabel = Number.isFinite(Number(currentProfile?.supporter_points))
+        ? Number(currentProfile.supporter_points)
+        : 0;
 
     return (
         <ModalShell isMobile={isMobile} title="Your profile" onClose={onClose} width="min(560px, calc(100vw - 32px))">
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", flexWrap: "wrap" }}>
-                <div>
+            <div
+                style={{
+                    display: "flex",
+                    alignItems: isMobile ? "flex-start" : "center",
+                    gap: "12px",
+                    flexWrap: "wrap",
+                    padding: "0 0 10px",
+                    borderBottom: "1px solid rgba(191,219,254,0.72)",
+                    marginBottom: "10px",
+                }}
+            >
+                <ProfileAvatar imageUrl={profileAvatarUrl} label={profileDisplayName} size={56} />
+                <div style={{ minWidth: 0, display: "grid", gap: "3px", flex: "1 1 220px" }}>
+                    <div style={{ fontSize: "0.95rem", fontWeight: 800, color: "#0f172a" }}>{profileDisplayName}</div>
+                    {profileEmail ? (
+                        <div style={{ fontSize: "0.78rem", color: "#475569" }}>{profileEmail}</div>
+                    ) : null}
                     <div style={{ fontSize: "0.74rem", color: "#64748b" }}>
                         Signed in with {providerLabel}
                     </div>
+                </div>
+                <div style={{ display: "grid", gap: "6px", justifyItems: isMobile ? "flex-start" : "end" }}>
+                    <div style={{ fontSize: "0.72rem", color: "#0369a1", fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                        Points
+                    </div>
+                    <div style={{ fontSize: "1rem", fontWeight: 800, color: "#0f172a" }}>{pointsLabel}</div>
+                </div>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", flexWrap: "wrap" }}>
+                <div>
+                    <div style={{ fontSize: "0.74rem", color: "#64748b" }}>Profile details and supporter badges</div>
                 </div>
                 {profileStatus ? (
                     <span style={{ fontSize: "0.74rem", color: "#166534", fontWeight: 700 }}>{profileStatus}</span>
                 ) : null}
             </div>
+
+            {profileBadges.length ? (
+                <div style={{ marginTop: "10px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                    {profileBadges.map((badge) => (
+                        <span
+                            key={badge.label}
+                            style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                borderRadius: "999px",
+                                padding: "5px 10px",
+                                fontSize: "0.74rem",
+                                fontWeight: 700,
+                                border: badge.tone === "amber" ? "1px solid #f59e0b" : "1px solid #60a5fa",
+                                background: badge.tone === "amber" ? "#fef3c7" : "#eff6ff",
+                                color: badge.tone === "amber" ? "#92400e" : "#1d4ed8",
+                            }}
+                        >
+                            {badge.label}
+                        </span>
+                    ))}
+                </div>
+            ) : null}
+
+            {canManageItems ? (
+                <SurfaceCard
+                    style={{
+                        marginTop: "12px",
+                        padding: "12px",
+                        borderColor: "rgba(245,158,11,0.35)",
+                        background: "linear-gradient(180deg, #fffaf0, #ffffff)",
+                    }}
+                >
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", flexWrap: "wrap" }}>
+                        <div>
+                            <div style={{ fontSize: "0.8rem", fontWeight: 800, color: "#92400e", letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                                Owner Tools
+                            </div>
+                            <div style={{ fontSize: "0.76rem", color: "#57534e", marginTop: "2px" }}>
+                                Manage supporter flags and points for signed-in profiles.
+                            </div>
+                        </div>
+                        {adminProfilesStatus ? (
+                            <span style={{ fontSize: "0.74rem", fontWeight: 700, color: "#166534" }}>{adminProfilesStatus}</span>
+                        ) : null}
+                    </div>
+
+                    {adminProfilesError ? (
+                        <div style={{ marginTop: "8px", color: "#b91c1c", fontSize: "0.76rem" }}>{adminProfilesError}</div>
+                    ) : null}
+
+                    {isAdminProfilesLoading ? (
+                        <div style={{ marginTop: "10px", fontSize: "0.78rem", color: "#57534e" }}>Loading profiles...</div>
+                    ) : (
+                        <div style={{ marginTop: "10px", display: "grid", gap: "10px", maxHeight: isMobile ? "42vh" : "320px", overflowY: "auto", paddingRight: "2px" }}>
+                            {adminProfiles.map((profile) => {
+                                const adminDisplayName = getProfileDisplayName(profile, null);
+                                const adminAvatarUrl = getProfileAvatarUrl(profile, null);
+                                const isSavingThisProfile = savingAdminProfileId === profile.id;
+                                return (
+                                    <div
+                                        key={profile.id}
+                                        style={{
+                                            border: "1px solid rgba(251,191,36,0.35)",
+                                            borderRadius: "12px",
+                                            padding: "10px",
+                                            background: "rgba(255,255,255,0.94)",
+                                            display: "grid",
+                                            gap: "8px",
+                                        }}
+                                    >
+                                        <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
+                                            <ProfileAvatar imageUrl={adminAvatarUrl} label={adminDisplayName} size={34} />
+                                            <div style={{ minWidth: 0, flex: "1 1 auto" }}>
+                                                <div style={{ fontSize: "0.82rem", fontWeight: 800, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                                    {adminDisplayName}
+                                                </div>
+                                                <div style={{ fontSize: "0.7rem", color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                                    {profile.id}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                                            <label style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "0.76rem", color: "#334155", fontWeight: 700 }}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={Boolean(profile.is_facebook_group_member)}
+                                                    onChange={(event) => onAdminProfileFieldChange(profile.id, "is_facebook_group_member", event.target.checked)}
+                                                />
+                                                Facebook group
+                                            </label>
+                                            <label style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "0.76rem", color: "#334155", fontWeight: 700 }}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={Boolean(profile.is_bmc_supporter)}
+                                                    onChange={(event) => onAdminProfileFieldChange(profile.id, "is_bmc_supporter", event.target.checked)}
+                                                />
+                                                BMC supporter
+                                            </label>
+                                        </div>
+
+                                        <div style={{ display: "grid", gap: "8px", gridTemplateColumns: isMobile ? "1fr" : "120px minmax(0,1fr) auto" }}>
+                                            <label style={{ display: "grid", gap: "4px" }}>
+                                                <span style={{ fontSize: "0.72rem", color: "#57534e", fontWeight: 700 }}>Points</span>
+                                                <input
+                                                    type="number"
+                                                    value={profile.supporter_points ?? 0}
+                                                    onChange={(event) => onAdminProfileFieldChange(profile.id, "supporter_points", event.target.value)}
+                                                    style={{
+                                                        width: "100%",
+                                                        minHeight: "34px",
+                                                        borderRadius: "10px",
+                                                        border: "1px solid #d6d3d1",
+                                                        padding: "0 10px",
+                                                        fontSize: "0.82rem",
+                                                        boxSizing: "border-box",
+                                                    }}
+                                                />
+                                            </label>
+                                            <label style={{ display: "grid", gap: "4px" }}>
+                                                <span style={{ fontSize: "0.72rem", color: "#57534e", fontWeight: 700 }}>Note</span>
+                                                <input
+                                                    type="text"
+                                                    value={profile.supporter_note || ""}
+                                                    onChange={(event) => onAdminProfileFieldChange(profile.id, "supporter_note", event.target.value)}
+                                                    placeholder="Optional admin note"
+                                                    style={{
+                                                        width: "100%",
+                                                        minHeight: "34px",
+                                                        borderRadius: "10px",
+                                                        border: "1px solid #d6d3d1",
+                                                        padding: "0 10px",
+                                                        fontSize: "0.82rem",
+                                                        boxSizing: "border-box",
+                                                    }}
+                                                />
+                                            </label>
+                                            <button
+                                                type="button"
+                                                onClick={() => onAdminSaveProfile(profile.id)}
+                                                disabled={isSavingThisProfile}
+                                                style={{
+                                                    minHeight: "34px",
+                                                    alignSelf: isMobile ? "stretch" : "end",
+                                                    borderRadius: "10px",
+                                                    border: "1px solid #9a3412",
+                                                    background: "#9a3412",
+                                                    color: "#fff",
+                                                    padding: "0 12px",
+                                                    fontSize: "0.78rem",
+                                                    fontWeight: 700,
+                                                    cursor: isSavingThisProfile ? "not-allowed" : "pointer",
+                                                    opacity: isSavingThisProfile ? 0.7 : 1,
+                                                }}
+                                            >
+                                                {isSavingThisProfile ? "Saving..." : "Save"}
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </SurfaceCard>
+            ) : null}
 
             <div style={{ marginTop: "10px", display: "grid", gap: "8px", gridTemplateColumns: isMobile ? "1fr" : "minmax(0,1fr) minmax(0,1fr) auto" }}>
                 <label style={{ display: "grid", gap: "4px", minWidth: 0 }}>
@@ -9861,10 +10187,16 @@ function App() {
         display_name: "",
         avatar_url: "",
     });
+    const [currentProfile, setCurrentProfile] = useState(null);
     const [isProfileLoading, setIsProfileLoading] = useState(false);
     const [isSavingProfile, setIsSavingProfile] = useState(false);
     const [profileError, setProfileError] = useState("");
     const [profileStatus, setProfileStatus] = useState("");
+    const [adminProfiles, setAdminProfiles] = useState([]);
+    const [isAdminProfilesLoading, setIsAdminProfilesLoading] = useState(false);
+    const [adminProfilesError, setAdminProfilesError] = useState("");
+    const [adminProfilesStatus, setAdminProfilesStatus] = useState("");
+    const [savingAdminProfileId, setSavingAdminProfileId] = useState("");
     const [isAuthProviderModalOpen, setIsAuthProviderModalOpen] = useState(false);
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
     const [localCounts, setLocalCounts] = useState(() => startupStoredState.counts);
@@ -10009,12 +10341,16 @@ function App() {
     const openProfileModal = () => {
         setProfileError("");
         setProfileStatus("");
+        setAdminProfilesError("");
+        setAdminProfilesStatus("");
         setIsAuthProviderModalOpen(false);
         setIsProfileModalOpen(true);
     };
     const closeProfileModal = () => {
         setProfileError("");
         setProfileStatus("");
+        setAdminProfilesError("");
+        setAdminProfilesStatus("");
         setIsProfileModalOpen(false);
     };
     const floatingMapButtonStyle = {
@@ -10842,6 +11178,7 @@ function App() {
         let isMounted = true;
 
         if (!currentUser || !hasSupabaseConfig) {
+            setCurrentProfile(null);
             setProfileForm({ display_name: "", avatar_url: "" });
             setProfileError("");
             setProfileStatus("");
@@ -10861,11 +11198,13 @@ function App() {
             if (!isMounted) return;
 
             if (error) {
+                setCurrentProfile(null);
                 setProfileError("Unable to load your profile right now.");
                 setIsProfileLoading(false);
                 return;
             }
 
+            setCurrentProfile(profile || null);
             setProfileForm({
                 display_name: profile?.display_name || "",
                 avatar_url: profile?.avatar_url || "",
@@ -10892,6 +11231,40 @@ function App() {
             window.removeEventListener("keydown", handleKeyDown);
         };
     }, [isAuthProviderModalOpen, isProfileModalOpen]);
+
+    useEffect(() => {
+        if (!isProfileModalOpen || !canManageItems || !hasSupabaseConfig) {
+            if (!isProfileModalOpen) {
+                setAdminProfiles([]);
+            }
+            return undefined;
+        }
+
+        let isMounted = true;
+        setIsAdminProfilesLoading(true);
+        setAdminProfilesError("");
+        setAdminProfilesStatus("");
+
+        void (async () => {
+            const { profiles, error } = await listProfilesForAdmin();
+
+            if (!isMounted) return;
+
+            if (error) {
+                setAdminProfiles([]);
+                setAdminProfilesError("Unable to load profile admin tools right now.");
+                setIsAdminProfilesLoading(false);
+                return;
+            }
+
+            setAdminProfiles(profiles);
+            setIsAdminProfilesLoading(false);
+        })();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [isProfileModalOpen, canManageItems]);
 
     useEffect(() => {
         localStorage.setItem(ITEMS_STORAGE_KEY, JSON.stringify(items));
@@ -12075,7 +12448,7 @@ function App() {
         setProfileError("");
         setProfileStatus("");
 
-        const { error } = await updateProfileForUser(currentUser.id, profileForm);
+        const { profile, error } = await updateProfileForUser(currentUser.id, profileForm);
 
         if (error) {
             setProfileError("Profile save failed. Please try again.");
@@ -12083,8 +12456,40 @@ function App() {
             return;
         }
 
+        setCurrentProfile(profile || null);
         setProfileStatus("Saved");
         setIsSavingProfile(false);
+    }
+
+    async function saveAdminProfile(profileId) {
+        if (!canManageItems || !hasSupabaseConfig) return;
+
+        const targetProfile = adminProfiles.find((profile) => profile.id === profileId);
+        if (!targetProfile) return;
+
+        setSavingAdminProfileId(profileId);
+        setAdminProfilesError("");
+        setAdminProfilesStatus("");
+
+        const { profile, error } = await updateProfileForAdmin(profileId, {
+            is_facebook_group_member: targetProfile.is_facebook_group_member,
+            is_bmc_supporter: targetProfile.is_bmc_supporter,
+            supporter_points: targetProfile.supporter_points,
+            supporter_note: targetProfile.supporter_note,
+        });
+
+        if (error) {
+            setAdminProfilesError("Admin profile save failed. Check owner account RLS setup and try again.");
+            setSavingAdminProfileId("");
+            return;
+        }
+
+        setAdminProfiles((prev) => prev.map((entry) => (entry.id === profileId ? profile : entry)));
+        if (currentProfile?.id === profileId) {
+            setCurrentProfile(profile || null);
+        }
+        setAdminProfilesStatus(`Saved ${getProfileDisplayName(profile, null)}`);
+        setSavingAdminProfileId("");
     }
 
     // Click handler to add new items to SQL
@@ -13706,6 +14111,7 @@ function App() {
                     isSticky={!isMobile}
                     authReady={authReady}
                     currentUser={currentUser}
+                    currentProfile={currentProfile}
                     canManageItems={canManageItems}
                     isAuthActionLoading={isAuthActionLoading}
                     onOpenAuthModal={openAuthProviderModal}
@@ -15416,6 +15822,8 @@ function App() {
             {isProfileModalOpen ? (
                 <ProfilePanel
                     currentUser={currentUser}
+                    currentProfile={currentProfile}
+                    canManageItems={canManageItems}
                     profileForm={profileForm}
                     onProfileFieldChange={(field, value) => {
                         setProfileForm((prev) => ({
@@ -15425,6 +15833,24 @@ function App() {
                         setProfileStatus("");
                     }}
                     onSaveProfile={saveProfile}
+                    adminProfiles={adminProfiles}
+                    adminProfilesError={adminProfilesError}
+                    adminProfilesStatus={adminProfilesStatus}
+                    isAdminProfilesLoading={isAdminProfilesLoading}
+                    savingAdminProfileId={savingAdminProfileId}
+                    onAdminProfileFieldChange={(profileId, field, value) => {
+                        setAdminProfiles((prev) => prev.map((profile) => {
+                            if (profile.id !== profileId) return profile;
+                            return {
+                                ...profile,
+                                [field]: field === "supporter_points"
+                                    ? value
+                                    : value,
+                            };
+                        }));
+                        setAdminProfilesStatus("");
+                    }}
+                    onAdminSaveProfile={saveAdminProfile}
                     isProfileLoading={isProfileLoading}
                     isSavingProfile={isSavingProfile}
                     profileError={profileError}
