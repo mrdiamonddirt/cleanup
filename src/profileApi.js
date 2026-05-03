@@ -81,6 +81,24 @@ const USER_BAN_SELECT_FIELDS = [
     "metadata",
 ].join(", ");
 
+const BMAC_UNMATCHED_EVENT_SELECT_FIELDS = [
+    "id",
+    "event_type",
+    "source_type",
+    "source_key",
+    "supporter_email",
+    "supporter_name",
+    "amount_pence",
+    "note",
+    "payload",
+    "status",
+    "matched_profile_id",
+    "resolved_contribution_id",
+    "created_at",
+    "updated_at",
+    "resolved_at",
+].join(", ");
+
 function normalizeText(value) {
     if (typeof value !== "string") return "";
     return value.trim();
@@ -447,6 +465,33 @@ export async function recordBmacContributionAmount(profileId, amountPence, note 
         p_profile_id: profileId,
         p_amount_pence: Number.isFinite(parsedAmountPence) ? parsedAmountPence : 0,
         p_note: note,
+    });
+
+    if (error) {
+        return { contribution: null, error };
+    }
+
+    return { contribution: data || null, error: null };
+}
+
+export async function listUnmatchedBmacEventsForAdmin() {
+    const { data, error } = await supabase
+        .from("bmac_unmatched_events")
+        .select(BMAC_UNMATCHED_EVENT_SELECT_FIELDS)
+        .order("created_at", { ascending: false });
+
+    if (error) {
+        return { events: [], error };
+    }
+
+    return { events: Array.isArray(data) ? data : [], error: null };
+}
+
+export async function resolveUnmatchedBmacEventForAdmin(unmatchedEventId, profileId, resolutionNote = "") {
+    const { data, error } = await supabase.rpc("resolve_bmac_unmatched_event", {
+        p_unmatched_event_id: unmatchedEventId,
+        p_profile_id: profileId,
+        p_resolution_note: resolutionNote,
     });
 
     if (error) {

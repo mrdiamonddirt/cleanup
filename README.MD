@@ -131,3 +131,10 @@ If you want to help cover practical cleanup costs (rope, gloves, bags, and dispo
 - https://buymeacoffee.com/rivercleanv
 
 Every donation goes back into getting more rubbish out of the river safely and responsibly.
+
+### BMAC Webhook Ingestion
+- Apply [supabase/migrations/20260504_add_bmac_webhook_ingestion.sql](supabase/migrations/20260504_add_bmac_webhook_ingestion.sql) before enabling webhook automation.
+- Deploy the Supabase Edge Function at [supabase/functions/bmac-webhook/index.ts](supabase/functions/bmac-webhook/index.ts).
+- Set the server-side secret `BMAC_WEBHOOK_SECRET` in Supabase before deploying the function. The function also expects the standard `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` runtime secrets.
+- The webhook ingestion path now matches supporters by normalized auth email stored in a private table, awards points through the existing points ledger when matched, and queues unmatched supporter emails in `public.bmac_unmatched_events` for owner review.
+- Existing exports can be imported later through the same database ingestion path so retries and duplicate webhook deliveries do not create extra points.
