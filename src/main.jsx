@@ -5556,6 +5556,7 @@ function ProfilePanel({
     deletionError,
     onRequestDeletion,
     onCancelDeletion,
+    onSwitchToFacebookAccount,
     isMobile,
     onClose,
 }) {
@@ -5610,6 +5611,26 @@ function ProfilePanel({
                     <div style={{ fontSize: "0.74rem", color: "#64748b" }}>
                         Signed in with {providerLabel}
                     </div>
+                    {canManageItems && provider !== "facebook" ? (
+                        <button
+                            type="button"
+                            onClick={onSwitchToFacebookAccount}
+                            style={{
+                                marginTop: "4px",
+                                border: "1px solid #60a5fa",
+                                background: "#eff6ff",
+                                color: "#1d4ed8",
+                                borderRadius: "999px",
+                                padding: "4px 10px",
+                                fontSize: "0.7rem",
+                                fontWeight: 700,
+                                cursor: "pointer",
+                                width: "fit-content",
+                            }}
+                        >
+                            Switch to Facebook account
+                        </button>
+                    ) : null}
                 </div>
                 <div style={{ display: "grid", gap: "6px", justifyItems: isMobile ? "flex-start" : "end" }}>
                     <div style={{ fontSize: "0.72rem", color: "#0369a1", fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase" }}>
@@ -13485,6 +13506,37 @@ function App() {
         }
     }
 
+    async function switchOwnerAccountToFacebook() {
+        setAuthError("");
+
+        if (!canManageItems) {
+            setAuthError("Only owner accounts can switch to Facebook sign-in.");
+            setIsAuthActionLoading(false);
+            return;
+        }
+
+        setIsAuthActionLoading(true);
+        setIsProfileModalOpen(false);
+
+        if (!hasSupabaseConfig) {
+            setAuthError("Supabase is not configured for this deployment.");
+            setIsAuthActionLoading(false);
+            return;
+        }
+
+        const redirectTo = `${window.location.origin}${window.location.pathname}`;
+        const { error } = await supabase.auth.signInWithOAuth({
+            provider: "facebook",
+            options: { redirectTo },
+        });
+
+        if (error) {
+            setAuthError("Facebook account switch failed. Please try again.");
+            setIsAuthActionLoading(false);
+            return;
+        }
+    }
+
     async function signOut() {
         setAuthError("");
         setIsAuthActionLoading(true);
@@ -17706,6 +17758,7 @@ function App() {
                     deletionError={deletionError}
                     onRequestDeletion={handleRequestAccountDeletion}
                     onCancelDeletion={handleCancelAccountDeletion}
+                    onSwitchToFacebookAccount={switchOwnerAccountToFacebook}
                     isMobile={isMobile}
                     onClose={closeProfileModal}
                 />
