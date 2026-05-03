@@ -14,6 +14,7 @@ import {
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { hasSupabaseConfig, supabase } from "./supabaseClient";
+import { ensureProfileForUser, updateProfileForUser } from "./profileApi";
 import { normalizeW3WWords, resolveW3WFromCoords } from "./w3w";
 import ContributorBusinessPanel from "./components/panels/ContributorBusinessPanel";
 import PoiPanel from "./components/panels/PoiPanel";
@@ -4187,7 +4188,8 @@ function AppTopBar({
     currentUser,
     canManageItems,
     isAuthActionLoading,
-    onSignIn,
+    onOpenAuthModal,
+    onOpenProfile,
     onSignOut,
     isLoadingItems,
     onOpenContributorPanel,
@@ -4276,7 +4278,11 @@ function AppTopBar({
             onSignOut();
             return;
         }
-        onSignIn();
+        onOpenAuthModal();
+    };
+    const handleProfileMenuAction = () => {
+        closeMobileMenu();
+        onOpenProfile();
     };
 
     return (
@@ -4660,6 +4666,29 @@ function AppTopBar({
                                     </button>
                                 ) : null}
 
+                                {signedIn ? (
+                                    <button
+                                        type="button"
+                                        className="app-topbar-menu-item"
+                                        onClick={handleProfileMenuAction}
+                                        style={{
+                                            ...mobileMenuItemBaseStyle,
+                                            borderColor: "rgba(59,130,246,0.3)",
+                                            background: "linear-gradient(180deg, rgba(239,246,255,0.98), rgba(248,250,252,0.96))",
+                                            cursor: "pointer",
+                                        }}
+                                    >
+                                        <span aria-hidden="true" style={{ fontSize: "1rem", textAlign: "center", color: "#1d4ed8" }}>👤</span>
+                                        <span style={{ display: "grid", gap: "2px", minWidth: 0 }}>
+                                            <span style={{ fontSize: "0.84rem", fontWeight: 800, color: "#0f172a" }}>Profile</span>
+                                            <span style={{ fontSize: "0.74rem", color: "#475569" }}>
+                                                Update your display name and avatar.
+                                            </span>
+                                        </span>
+                                        <span aria-hidden="true" style={{ color: "#94a3b8", fontSize: "0.9rem" }}>›</span>
+                                    </button>
+                                ) : null}
+
                                 <button
                                     type="button"
                                     className="app-topbar-menu-item"
@@ -4679,10 +4708,10 @@ function AppTopBar({
                                     <span aria-hidden="true" style={{ fontSize: "0.95rem", textAlign: "center" }}>{signedIn ? "✓" : "↗"}</span>
                                     <span style={{ display: "grid", gap: "2px", minWidth: 0 }}>
                                         <span style={{ fontSize: "0.84rem", fontWeight: 800, color: signedIn ? "#0f172a" : "#fff" }}>
-                                            {signedIn ? "Sign Out" : "Sign In With GitHub"}
+                                            {signedIn ? "Sign Out" : "Sign In"}
                                         </span>
                                         <span style={{ fontSize: "0.74rem", color: signedIn ? "#475569" : "rgba(226,232,240,0.9)" }}>
-                                            {signedIn ? "Leave edit or view mode on this device." : "Sign in to access editing tools if you have permission."}
+                                            {signedIn ? "Leave edit or view mode on this device." : "Choose GitHub or Facebook to continue."}
                                         </span>
                                     </span>
                                     <span aria-hidden="true" style={{ color: signedIn ? "#94a3b8" : "rgba(226,232,240,0.9)", fontSize: "0.9rem" }}>›</span>
@@ -4816,9 +4845,28 @@ function AppTopBar({
                             </button>
                         ) : null}
 
+                        {signedIn ? (
+                            <button
+                                type="button"
+                                onClick={onOpenProfile}
+                                style={{
+                                    ...desktopActionButtonStyle,
+                                    border: "1px solid #bfdbfe",
+                                    background: "#eff6ff",
+                                    color: "#1d4ed8",
+                                    padding: "0 12px",
+                                    fontSize: "0.76rem",
+                                    fontWeight: 700,
+                                    cursor: "pointer",
+                                }}
+                            >
+                                Profile
+                            </button>
+                        ) : null}
+
                         <button
                             type="button"
-                            onClick={signedIn ? onSignOut : onSignIn}
+                            onClick={signedIn ? onSignOut : onOpenAuthModal}
                             disabled={!authReady || isAuthActionLoading}
                             style={{
                                 ...desktopActionButtonStyle,
@@ -4920,6 +4968,226 @@ function SurfaceCard({ as = "div", style = {}, children, ...props }) {
         >
             {children}
         </Component>
+    );
+}
+
+function ModalShell({ isMobile, title, onClose, children, width = "min(440px, calc(100vw - 32px))" }) {
+    return (
+        <>
+            <div
+                onClick={onClose}
+                style={{
+                    position: "fixed",
+                    inset: 0,
+                    background: "rgba(2,6,23,0.42)",
+                    zIndex: 1300,
+                }}
+            />
+            <SurfaceCard
+                role="dialog"
+                aria-modal="true"
+                aria-label={title}
+                style={{
+                    position: "fixed",
+                    zIndex: 1301,
+                    left: isMobile ? "10px" : "50%",
+                    right: isMobile ? "10px" : "auto",
+                    top: isMobile ? "auto" : "50%",
+                    bottom: isMobile ? "calc(env(safe-area-inset-bottom, 0px) + 10px)" : "auto",
+                    transform: isMobile ? "none" : "translate(-50%, -50%)",
+                    width: isMobile ? "auto" : width,
+                    padding: isMobile ? "12px" : "14px",
+                    borderColor: "#93c5fd",
+                    background: "linear-gradient(180deg, #ffffff 0%, #eff6ff 100%)",
+                    boxShadow: "0 20px 44px rgba(15,23,42,0.24)",
+                }}
+            >
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "10px", marginBottom: "10px" }}>
+                    <div style={{ fontSize: "1rem", fontWeight: 800, color: "#0f172a" }}>{title}</div>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        style={{
+                            border: "1px solid #cbd5e1",
+                            background: "#fff",
+                            color: "#475569",
+                            borderRadius: "8px",
+                            padding: "6px 10px",
+                            fontSize: "0.78rem",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                        }}
+                    >
+                        Close
+                    </button>
+                </div>
+                {children}
+            </SurfaceCard>
+        </>
+    );
+}
+
+function AuthProviderModal({
+    isMobile,
+    isOpen,
+    authError,
+    isAuthActionLoading,
+    onClose,
+    onSignInWithGitHub,
+    onSignInWithFacebook,
+}) {
+    if (!isOpen) return null;
+
+    return (
+        <ModalShell isMobile={isMobile} title="Sign in" onClose={onClose}>
+            <p style={{ margin: 0, fontSize: "0.84rem", color: "#334155", lineHeight: 1.45 }}>
+                Choose the account provider you want to use for this device.
+            </p>
+            <div style={{ marginTop: "10px", display: "grid", gap: "8px" }}>
+                <button
+                    type="button"
+                    onClick={onSignInWithGitHub}
+                    disabled={isAuthActionLoading}
+                    style={{
+                        border: "1px solid #0f172a",
+                        background: "#111827",
+                        color: "#fff",
+                        borderRadius: "10px",
+                        padding: "10px 12px",
+                        fontSize: "0.84rem",
+                        fontWeight: 700,
+                        cursor: isAuthActionLoading ? "not-allowed" : "pointer",
+                        opacity: isAuthActionLoading ? 0.7 : 1,
+                        textAlign: "left",
+                    }}
+                >
+                    Sign in with GitHub
+                </button>
+                <button
+                    type="button"
+                    onClick={onSignInWithFacebook}
+                    disabled={isAuthActionLoading}
+                    style={{
+                        border: "1px solid #1877f2",
+                        background: "#1877f2",
+                        color: "#fff",
+                        borderRadius: "10px",
+                        padding: "10px 12px",
+                        fontSize: "0.84rem",
+                        fontWeight: 700,
+                        cursor: isAuthActionLoading ? "not-allowed" : "pointer",
+                        opacity: isAuthActionLoading ? 0.7 : 1,
+                        textAlign: "left",
+                    }}
+                >
+                    Sign in with Facebook
+                </button>
+            </div>
+            {authError ? (
+                <div style={{ marginTop: "8px", color: "#b91c1c", fontSize: "0.76rem" }}>{authError}</div>
+            ) : null}
+        </ModalShell>
+    );
+}
+
+function ProfilePanel({
+    currentUser,
+    profileForm,
+    onProfileFieldChange,
+    onSaveProfile,
+    isProfileLoading,
+    isSavingProfile,
+    profileError,
+    profileStatus,
+    isMobile,
+    onClose,
+}) {
+    if (!currentUser) return null;
+
+    const provider = String(currentUser?.app_metadata?.provider || "").trim();
+    const providerLabel = provider
+        ? `${provider.charAt(0).toUpperCase()}${provider.slice(1)}`
+        : "OAuth";
+
+    return (
+        <ModalShell isMobile={isMobile} title="Your profile" onClose={onClose} width="min(560px, calc(100vw - 32px))">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", flexWrap: "wrap" }}>
+                <div>
+                    <div style={{ fontSize: "0.74rem", color: "#64748b" }}>
+                        Signed in with {providerLabel}
+                    </div>
+                </div>
+                {profileStatus ? (
+                    <span style={{ fontSize: "0.74rem", color: "#166534", fontWeight: 700 }}>{profileStatus}</span>
+                ) : null}
+            </div>
+
+            <div style={{ marginTop: "10px", display: "grid", gap: "8px", gridTemplateColumns: isMobile ? "1fr" : "minmax(0,1fr) minmax(0,1fr) auto" }}>
+                <label style={{ display: "grid", gap: "4px", minWidth: 0 }}>
+                    <span style={{ fontSize: "0.72rem", color: "#334155", fontWeight: 700 }}>Display name</span>
+                    <input
+                        type="text"
+                        value={profileForm.display_name}
+                        onChange={(event) => onProfileFieldChange("display_name", event.target.value)}
+                        placeholder="How your name should appear"
+                        disabled={isProfileLoading || isSavingProfile}
+                        style={{
+                            width: "100%",
+                            minHeight: "34px",
+                            borderRadius: "10px",
+                            border: "1px solid #cbd5e1",
+                            padding: "0 10px",
+                            fontSize: "0.82rem",
+                            boxSizing: "border-box",
+                        }}
+                    />
+                </label>
+
+                <label style={{ display: "grid", gap: "4px", minWidth: 0 }}>
+                    <span style={{ fontSize: "0.72rem", color: "#334155", fontWeight: 700 }}>Avatar URL</span>
+                    <input
+                        type="url"
+                        value={profileForm.avatar_url}
+                        onChange={(event) => onProfileFieldChange("avatar_url", event.target.value)}
+                        placeholder="https://..."
+                        disabled={isProfileLoading || isSavingProfile}
+                        style={{
+                            width: "100%",
+                            minHeight: "34px",
+                            borderRadius: "10px",
+                            border: "1px solid #cbd5e1",
+                            padding: "0 10px",
+                            fontSize: "0.82rem",
+                            boxSizing: "border-box",
+                        }}
+                    />
+                </label>
+
+                <button
+                    type="button"
+                    onClick={onSaveProfile}
+                    disabled={isProfileLoading || isSavingProfile}
+                    style={{
+                        minHeight: "34px",
+                        borderRadius: "10px",
+                        border: "1px solid #0f172a",
+                        background: "#0f172a",
+                        color: "#fff",
+                        padding: "0 12px",
+                        fontSize: "0.78rem",
+                        fontWeight: 700,
+                        cursor: isProfileLoading || isSavingProfile ? "not-allowed" : "pointer",
+                        opacity: isProfileLoading || isSavingProfile ? 0.7 : 1,
+                    }}
+                >
+                    {isSavingProfile ? "Saving..." : "Save profile"}
+                </button>
+            </div>
+
+            {profileError ? (
+                <div style={{ marginTop: "8px", color: "#b91c1c", fontSize: "0.76rem" }}>{profileError}</div>
+            ) : null}
+        </ModalShell>
     );
 }
 
@@ -9589,6 +9857,16 @@ function App() {
     const [currentUser, setCurrentUser] = useState(null);
     const [isAuthActionLoading, setIsAuthActionLoading] = useState(false);
     const [authError, setAuthError] = useState("");
+    const [profileForm, setProfileForm] = useState({
+        display_name: "",
+        avatar_url: "",
+    });
+    const [isProfileLoading, setIsProfileLoading] = useState(false);
+    const [isSavingProfile, setIsSavingProfile] = useState(false);
+    const [profileError, setProfileError] = useState("");
+    const [profileStatus, setProfileStatus] = useState("");
+    const [isAuthProviderModalOpen, setIsAuthProviderModalOpen] = useState(false);
+    const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
     const [localCounts, setLocalCounts] = useState(() => startupStoredState.counts);
     const [localGps, setLocalGps] = useState(() => startupStoredState.gps);
     const [localWeights, setLocalWeights] = useState(() => startupStoredState.weights);
@@ -9723,6 +10001,22 @@ function App() {
         if (typeof window === "undefined") return "";
         return `${window.location.origin}${window.location.pathname}`;
     }, []);
+    const openAuthProviderModal = () => {
+        setIsProfileModalOpen(false);
+        setIsAuthProviderModalOpen(true);
+    };
+    const closeAuthProviderModal = () => setIsAuthProviderModalOpen(false);
+    const openProfileModal = () => {
+        setProfileError("");
+        setProfileStatus("");
+        setIsAuthProviderModalOpen(false);
+        setIsProfileModalOpen(true);
+    };
+    const closeProfileModal = () => {
+        setProfileError("");
+        setProfileStatus("");
+        setIsProfileModalOpen(false);
+    };
     const floatingMapButtonStyle = {
         position: "absolute",
         zIndex: 900,
@@ -10543,6 +10837,61 @@ function App() {
             subscription.unsubscribe();
         };
     }, []);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        if (!currentUser || !hasSupabaseConfig) {
+            setProfileForm({ display_name: "", avatar_url: "" });
+            setProfileError("");
+            setProfileStatus("");
+            setIsProfileLoading(false);
+            return () => {
+                isMounted = false;
+            };
+        }
+
+        setIsProfileLoading(true);
+        setProfileError("");
+        setProfileStatus("");
+
+        void (async () => {
+            const { profile, error } = await ensureProfileForUser(currentUser);
+
+            if (!isMounted) return;
+
+            if (error) {
+                setProfileError("Unable to load your profile right now.");
+                setIsProfileLoading(false);
+                return;
+            }
+
+            setProfileForm({
+                display_name: profile?.display_name || "",
+                avatar_url: profile?.avatar_url || "",
+            });
+            setIsProfileLoading(false);
+        })();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [currentUser]);
+
+    useEffect(() => {
+        if (!isAuthProviderModalOpen && !isProfileModalOpen) return undefined;
+
+        const handleKeyDown = (event) => {
+            if (event.key !== "Escape") return;
+            setIsAuthProviderModalOpen(false);
+            setIsProfileModalOpen(false);
+        };
+
+        window.addEventListener("keydown", handleKeyDown);
+        return () => {
+            window.removeEventListener("keydown", handleKeyDown);
+        };
+    }, [isAuthProviderModalOpen, isProfileModalOpen]);
 
     useEffect(() => {
         localStorage.setItem(ITEMS_STORAGE_KEY, JSON.stringify(items));
@@ -11653,6 +12002,7 @@ function App() {
     async function signInWithGitHub() {
         setAuthError("");
         setIsAuthActionLoading(true);
+        setIsAuthProviderModalOpen(false);
 
         if (!hasSupabaseConfig) {
             setAuthError("Supabase is not configured for this deployment.");
@@ -11668,6 +12018,30 @@ function App() {
 
         if (error) {
             setAuthError("GitHub sign-in failed. Please try again.");
+            setIsAuthActionLoading(false);
+            return;
+        }
+    }
+
+    async function signInWithFacebook() {
+        setAuthError("");
+        setIsAuthActionLoading(true);
+        setIsAuthProviderModalOpen(false);
+
+        if (!hasSupabaseConfig) {
+            setAuthError("Supabase is not configured for this deployment.");
+            setIsAuthActionLoading(false);
+            return;
+        }
+
+        const redirectTo = `${window.location.origin}${window.location.pathname}`;
+        const { error } = await supabase.auth.signInWithOAuth({
+            provider: "facebook",
+            options: { redirectTo },
+        });
+
+        if (error) {
+            setAuthError("Facebook sign-in failed. Please try again.");
             setIsAuthActionLoading(false);
             return;
         }
@@ -11690,6 +12064,27 @@ function App() {
         }
 
         setIsAuthActionLoading(false);
+    }
+
+    async function saveProfile() {
+        if (!currentUser || !hasSupabaseConfig || isProfileLoading) {
+            return;
+        }
+
+        setIsSavingProfile(true);
+        setProfileError("");
+        setProfileStatus("");
+
+        const { error } = await updateProfileForUser(currentUser.id, profileForm);
+
+        if (error) {
+            setProfileError("Profile save failed. Please try again.");
+            setIsSavingProfile(false);
+            return;
+        }
+
+        setProfileStatus("Saved");
+        setIsSavingProfile(false);
     }
 
     // Click handler to add new items to SQL
@@ -13313,7 +13708,8 @@ function App() {
                     currentUser={currentUser}
                     canManageItems={canManageItems}
                     isAuthActionLoading={isAuthActionLoading}
-                    onSignIn={signInWithGitHub}
+                    onOpenAuthModal={openAuthProviderModal}
+                    onOpenProfile={openProfileModal}
                     onSignOut={signOut}
                     isLoadingItems={isLoadingItems}
                     onOpenContributorPanel={() => setIsContributorPanelOpen(true)}
@@ -15005,6 +15401,37 @@ function App() {
                         </div>
                     </SurfaceCard>
                 </>
+            ) : null}
+
+            <AuthProviderModal
+                isMobile={isMobile}
+                isOpen={isAuthProviderModalOpen}
+                authError={authError}
+                isAuthActionLoading={isAuthActionLoading}
+                onClose={closeAuthProviderModal}
+                onSignInWithGitHub={signInWithGitHub}
+                onSignInWithFacebook={signInWithFacebook}
+            />
+
+            {isProfileModalOpen ? (
+                <ProfilePanel
+                    currentUser={currentUser}
+                    profileForm={profileForm}
+                    onProfileFieldChange={(field, value) => {
+                        setProfileForm((prev) => ({
+                            ...prev,
+                            [field]: value,
+                        }));
+                        setProfileStatus("");
+                    }}
+                    onSaveProfile={saveProfile}
+                    isProfileLoading={isProfileLoading}
+                    isSavingProfile={isSavingProfile}
+                    profileError={profileError}
+                    profileStatus={profileStatus}
+                    isMobile={isMobile}
+                    onClose={closeProfileModal}
+                />
             ) : null}
 
             {isMobile && isFilterSheetOpen ? (

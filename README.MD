@@ -98,10 +98,15 @@ set github_login = excluded.github_login,
 
 - If your live Supabase project already has conflicting `items` policies and you want a clean reset instead of an incremental fix, run [supabase/migrations/20260409_reset_items_rls_clean.sql](supabase/migrations/20260409_reset_items_rls_clean.sql). This script drops every existing policy on `public.items`, reapplies grants, recreates the owner helper, and seeds the current owner account used in this repo.
 
-## 🔐 Auth (GitHub + Owner Write Access)
-- Sign-in uses Supabase Auth with the GitHub provider.
+## 🔐 Auth (GitHub/Facebook + Owner Write Access)
+- Sign-in uses Supabase Auth with GitHub and Facebook OAuth providers.
 - Everyone can view the map data.
 - Only owner accounts can add, edit, or delete locations.
+
+Supabase provider setup:
+- Enable GitHub and Facebook in Supabase Auth providers.
+- Add each provider's App ID/client key and secret in Supabase.
+- Ensure the OAuth callback URL in each provider app matches your Supabase Auth callback URL.
 
 Configure allowlists with Vite env vars:
 
@@ -112,6 +117,12 @@ VITE_OWNER_SUPABASE_IDS=
 ```
 
 You can set one or more values in each variable as comma-separated lists. This keeps the current single-owner setup simple while leaving room to expand to additional maintainers later.
+
+### Profile System (display name + avatar)
+- Apply [supabase/migrations/20260503_create_profiles.sql](supabase/migrations/20260503_create_profiles.sql).
+- This migration creates `public.profiles`, enables RLS, and auto-creates a profile row when a new auth user signs in.
+- Existing auth users are backfilled into `public.profiles` during migration.
+- The app now shows a simple signed-in profile editor for `display_name` and `avatar_url`.
 
 ## ❤️ Support The Cleanup
 If you want to help cover practical cleanup costs (rope, gloves, bags, and disposal trips), you can support the project here:
