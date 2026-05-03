@@ -5596,30 +5596,85 @@ function LeaderboardModal({
         { id: "pois", label: "POIs" },
         { id: "contributors", label: "Contributors" },
     ];
+    const isInteractiveScope = scope === "items" || scope === "pois" || scope === "contributors";
+    const mobileNameMaxWidth = isMobile ? "170px" : "280px";
+    const getRankStyle = (rank) => {
+        if (rank === 1) {
+            return {
+                rowBackground: "linear-gradient(90deg, #fff9e8 0%, #fffbeb 100%)",
+                borderColor: "#fbbf24",
+                badgeBackground: "#f59e0b",
+                badgeColor: "#ffffff",
+                totalColor: "#92400e",
+            };
+        }
+
+        if (rank === 2) {
+            return {
+                rowBackground: "linear-gradient(90deg, #f8fafc 0%, #f1f5f9 100%)",
+                borderColor: "#94a3b8",
+                badgeBackground: "#64748b",
+                badgeColor: "#ffffff",
+                totalColor: "#1e293b",
+            };
+        }
+
+        if (rank === 3) {
+            return {
+                rowBackground: "linear-gradient(90deg, #fff4ec 0%, #fff7ed 100%)",
+                borderColor: "#c2410c",
+                badgeBackground: "#b45309",
+                badgeColor: "#ffffff",
+                totalColor: "#9a3412",
+            };
+        }
+
+        return {
+            rowBackground: "#ffffff",
+            borderColor: "#e2e8f0",
+            badgeBackground: "#e2e8f0",
+            badgeColor: "#334155",
+            totalColor: "#0f766e",
+        };
+    };
+    const activateRow = (row) => {
+        if (!isInteractiveScope || typeof onRowActivate !== "function") return;
+        onRowActivate(scope, row);
+    };
+    const handleRowKeyDown = (event, row) => {
+        if (!isInteractiveScope) return;
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        activateRow(row);
+    };
 
     return (
         <ModalShell isMobile={isMobile} title="Leaderboards" onClose={onClose} width="min(760px, calc(100vw - 32px))">
-            <p style={{ margin: 0, fontSize: "0.82rem", color: "#334155", lineHeight: 1.45 }}>
+            <p style={{ margin: 0, fontSize: isMobile ? "0.88rem" : "0.82rem", color: "#334155", lineHeight: 1.45 }}>
                 Ranked by total engagement (likes + shares).
             </p>
 
-            <div style={{ marginTop: "10px", display: "flex", flexWrap: "wrap", gap: "6px" }}>
+            <div style={{ marginTop: "12px", display: "flex", flexWrap: "wrap", gap: "8px" }}>
                 {scopeOptions.map((option) => {
                     const isActive = scope === option.id;
                     return (
                         <button
                             key={option.id}
                             type="button"
+                            className="leaderboard-scope-button"
                             onClick={() => onScopeChange(option.id)}
                             style={{
                                 border: isActive ? "1px solid #0e7490" : "1px solid #cbd5e1",
-                                background: isActive ? "#ecfeff" : "#ffffff",
-                                color: isActive ? "#155e75" : "#475569",
+                                background: isActive ? "linear-gradient(140deg, #ecfeff 0%, #cffafe 100%)" : "#ffffff",
+                                color: isActive ? "#0f766e" : "#334155",
                                 borderRadius: "999px",
-                                padding: "6px 11px",
-                                fontSize: "0.76rem",
+                                padding: isMobile ? "8px 12px" : "7px 12px",
+                                minHeight: isMobile ? "36px" : "32px",
+                                fontSize: isMobile ? "0.82rem" : "0.76rem",
                                 fontWeight: 700,
                                 cursor: "pointer",
+                                transition: "transform 140ms ease, box-shadow 140ms ease",
+                                boxShadow: isActive ? "0 8px 16px rgba(15, 118, 110, 0.12)" : "none",
                             }}
                         >
                             {option.label}
@@ -5630,68 +5685,154 @@ function LeaderboardModal({
 
             <div style={{ marginTop: "10px" }}>
                 {isLoading ? (
-                    <div style={{ fontSize: "0.8rem", color: "#64748b" }}>Loading leaderboard...</div>
+                    <div
+                        style={{
+                            border: "1px solid #dbeafe",
+                            borderRadius: "12px",
+                            background: "#f8fbff",
+                            padding: isMobile ? "14px" : "12px",
+                            fontSize: isMobile ? "0.9rem" : "0.84rem",
+                            color: "#475569",
+                            fontWeight: 600,
+                        }}
+                    >
+                        Loading leaderboard...
+                    </div>
                 ) : error ? (
-                    <div style={{ fontSize: "0.8rem", color: "#b91c1c" }}>{error}</div>
+                    <div
+                        style={{
+                            border: "1px solid #fecaca",
+                            borderRadius: "12px",
+                            background: "#fff1f2",
+                            padding: isMobile ? "14px" : "12px",
+                            fontSize: isMobile ? "0.9rem" : "0.84rem",
+                            color: "#b91c1c",
+                            fontWeight: 600,
+                        }}
+                    >
+                        {error}
+                    </div>
                 ) : !Array.isArray(rows) || rows.length === 0 ? (
-                    <div style={{ fontSize: "0.8rem", color: "#64748b" }}>No leaderboard entries yet.</div>
+                    <div
+                        style={{
+                            border: "1px solid #dbeafe",
+                            borderRadius: "12px",
+                            background: "#f8fbff",
+                            padding: isMobile ? "14px" : "12px",
+                            fontSize: isMobile ? "0.9rem" : "0.84rem",
+                            color: "#475569",
+                            fontWeight: 600,
+                        }}
+                    >
+                        No leaderboard entries yet.
+                    </div>
                 ) : (
-                    <div style={{ overflowX: "auto", border: "1px solid #dbeafe", borderRadius: "10px", background: "#fff" }}>
-                        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "520px" }}>
+                    <div style={{ overflowX: "auto", border: "1px solid #dbeafe", borderRadius: "12px", background: "#fff" }}>
+                        <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, tableLayout: "fixed" }}>
+                            <colgroup>
+                                <col style={{ width: isMobile ? "56px" : "64px" }} />
+                                <col style={{ width: "auto" }} />
+                                <col style={{ width: isMobile ? "62px" : "78px" }} />
+                                <col style={{ width: isMobile ? "62px" : "78px" }} />
+                                <col style={{ width: isMobile ? "66px" : "86px" }} />
+                            </colgroup>
                             <thead>
                                 <tr>
-                                    <th style={{ textAlign: "left", padding: "8px", borderBottom: "1px solid #dbeafe", fontSize: "0.74rem", color: "#334155" }}>#</th>
-                                    <th style={{ textAlign: "left", padding: "8px", borderBottom: "1px solid #dbeafe", fontSize: "0.74rem", color: "#334155" }}>Name</th>
-                                    <th style={{ textAlign: "right", padding: "8px", borderBottom: "1px solid #dbeafe", fontSize: "0.74rem", color: "#334155" }}>Likes</th>
-                                    <th style={{ textAlign: "right", padding: "8px", borderBottom: "1px solid #dbeafe", fontSize: "0.74rem", color: "#334155" }}>Shares</th>
-                                    <th style={{ textAlign: "right", padding: "8px", borderBottom: "1px solid #dbeafe", fontSize: "0.74rem", color: "#334155" }}>Total</th>
+                                    <th style={{ textAlign: "left", padding: isMobile ? "10px 8px" : "10px 10px", borderBottom: "1px solid #dbeafe", fontSize: isMobile ? "0.72rem" : "0.74rem", color: "#334155", letterSpacing: "0.02em", textTransform: "uppercase" }}>Rank</th>
+                                    <th style={{ textAlign: "left", padding: isMobile ? "10px 8px" : "10px 10px", borderBottom: "1px solid #dbeafe", fontSize: isMobile ? "0.72rem" : "0.74rem", color: "#334155", letterSpacing: "0.02em", textTransform: "uppercase" }}>Name</th>
+                                    <th style={{ textAlign: "right", padding: isMobile ? "10px 8px" : "10px 10px", borderBottom: "1px solid #dbeafe", fontSize: isMobile ? "0.72rem" : "0.74rem", color: "#334155", letterSpacing: "0.02em", textTransform: "uppercase" }}>Likes</th>
+                                    <th style={{ textAlign: "right", padding: isMobile ? "10px 8px" : "10px 10px", borderBottom: "1px solid #dbeafe", fontSize: isMobile ? "0.72rem" : "0.74rem", color: "#334155", letterSpacing: "0.02em", textTransform: "uppercase" }}>Shares</th>
+                                    <th style={{ textAlign: "right", padding: isMobile ? "10px 8px" : "10px 10px", borderBottom: "1px solid #dbeafe", fontSize: isMobile ? "0.72rem" : "0.74rem", color: "#334155", letterSpacing: "0.02em", textTransform: "uppercase" }}>Total</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {rows.map((row, index) => (
-                                    <tr key={`${row.id}-${index}`}>
-                                        <td style={{ padding: "8px", borderBottom: "1px solid #eff6ff", fontSize: "0.78rem", color: "#0f172a", fontWeight: 700 }}>{index + 1}</td>
-                                        <td style={{ padding: "8px", borderBottom: "1px solid #eff6ff", fontSize: "0.78rem", color: "#0f172a" }}>
+                                    (() => {
+                                        const rank = Number.isFinite(Number(row?.rank)) ? Number(row.rank) : index + 1;
+                                        const rankStyle = getRankStyle(rank);
+
+                                        return (
+                                            <tr
+                                                key={`${row.id}-${index}`}
+                                                className={isInteractiveScope ? "leaderboard-row leaderboard-row-interactive" : "leaderboard-row"}
+                                                tabIndex={isInteractiveScope ? 0 : undefined}
+                                                role={isInteractiveScope ? "button" : undefined}
+                                                aria-label={isInteractiveScope ? `Open ${scope.slice(0, -1)} ${String(row?.label || "")}` : undefined}
+                                                onClick={isInteractiveScope ? () => activateRow(row) : undefined}
+                                                onKeyDown={isInteractiveScope ? (event) => handleRowKeyDown(event, row) : undefined}
+                                                style={{
+                                                    cursor: isInteractiveScope ? "pointer" : "default",
+                                                    transition: "background 150ms ease",
+                                                }}
+                                            >
+                                                <td
+                                                    style={{
+                                                        padding: isMobile ? "10px 8px" : "10px",
+                                                        borderBottom: "1px solid #eff6ff",
+                                                        borderLeft: rank <= 3 ? `3px solid ${rankStyle.borderColor}` : "3px solid transparent",
+                                                        background: rankStyle.rowBackground,
+                                                    }}
+                                                >
+                                                    <span
+                                                        style={{
+                                                            display: "inline-grid",
+                                                            placeItems: "center",
+                                                            minWidth: isMobile ? "28px" : "30px",
+                                                            height: isMobile ? "28px" : "30px",
+                                                            padding: "0 6px",
+                                                            borderRadius: "999px",
+                                                            fontSize: isMobile ? "0.77rem" : "0.8rem",
+                                                            fontWeight: 800,
+                                                            color: rankStyle.badgeColor,
+                                                            background: rankStyle.badgeBackground,
+                                                            boxShadow: rank <= 3 ? "0 8px 14px rgba(15, 23, 42, 0.14)" : "none",
+                                                        }}
+                                                    >
+                                                        #{rank}
+                                                    </span>
+                                                </td>
+                                                <td style={{ padding: isMobile ? "10px 8px" : "10px", borderBottom: "1px solid #eff6ff", fontSize: isMobile ? "0.84rem" : "0.8rem", color: "#0f172a", background: rankStyle.rowBackground }}>
                                             {scope === "users" ? (
                                                 <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
                                                     <ProfileAvatar
                                                         imageUrl={String(row?.avatarUrl || "")}
                                                         label={String(row?.label || "User")}
-                                                        size={24}
+                                                        size={isMobile ? 26 : 24}
                                                     />
                                                     <div style={{ display: "grid", minWidth: 0 }}>
-                                                        <span style={{ color: "#0f172a", fontWeight: 700, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: isMobile ? "190px" : "280px" }}>
+                                                        <span style={{ color: "#0f172a", fontWeight: 800, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: mobileNameMaxWidth }}>
                                                             {String(row?.label || "User")}
                                                         </span>
-                                                        <span style={{ color: "#64748b", fontSize: "0.68rem", lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: isMobile ? "190px" : "280px" }}>
+                                                        <span style={{ color: "#64748b", fontSize: isMobile ? "0.72rem" : "0.68rem", lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: mobileNameMaxWidth }}>
                                                             {String(row?.socialLabel || "GitHub supporter")}
                                                         </span>
                                                     </div>
                                                 </div>
                                             ) : (
-                                                <a
-                                                    href="#"
-                                                    onClick={(event) => {
-                                                        event.preventDefault();
-                                                        if (typeof onRowActivate === "function") {
-                                                            onRowActivate(scope, row);
-                                                        }
-                                                    }}
+                                                <span
                                                     style={{
+                                                        display: "inline-block",
                                                         color: "#0f4bbd",
                                                         textDecoration: "underline",
                                                         textUnderlineOffset: "2px",
-                                                        fontWeight: 600,
+                                                        fontWeight: 700,
+                                                        lineHeight: 1.3,
+                                                        whiteSpace: "nowrap",
+                                                        overflow: "hidden",
+                                                        textOverflow: "ellipsis",
+                                                        maxWidth: mobileNameMaxWidth,
                                                     }}
                                                 >
                                                     {String(row?.label || "-")}
-                                                </a>
+                                                </span>
                                             )}
-                                        </td>
-                                        <td style={{ padding: "8px", borderBottom: "1px solid #eff6ff", textAlign: "right", fontSize: "0.78rem", color: "#334155" }}>{row.likes}</td>
-                                        <td style={{ padding: "8px", borderBottom: "1px solid #eff6ff", textAlign: "right", fontSize: "0.78rem", color: "#334155" }}>{row.shares}</td>
-                                        <td style={{ padding: "8px", borderBottom: "1px solid #eff6ff", textAlign: "right", fontSize: "0.78rem", color: "#0f766e", fontWeight: 700 }}>{row.total}</td>
-                                    </tr>
+                                                </td>
+                                                <td style={{ padding: isMobile ? "10px 8px" : "10px", borderBottom: "1px solid #eff6ff", textAlign: "right", fontSize: isMobile ? "0.81rem" : "0.78rem", color: "#334155", fontWeight: 600, background: rankStyle.rowBackground }}>{row.likes}</td>
+                                                <td style={{ padding: isMobile ? "10px 8px" : "10px", borderBottom: "1px solid #eff6ff", textAlign: "right", fontSize: isMobile ? "0.81rem" : "0.78rem", color: "#334155", fontWeight: 600, background: rankStyle.rowBackground }}>{row.shares}</td>
+                                                <td style={{ padding: isMobile ? "10px 8px" : "10px", borderBottom: "1px solid #eff6ff", textAlign: "right", fontSize: isMobile ? "0.88rem" : "0.82rem", color: rankStyle.totalColor, fontWeight: 800, background: rankStyle.rowBackground }}>{row.total}</td>
+                                            </tr>
+                                        );
+                                    })()
                                 ))}
                             </tbody>
                         </table>
@@ -15317,8 +15458,9 @@ function App() {
             if (right.shares !== left.shares) return right.shares - left.shares;
             return String(left.label).localeCompare(String(right.label), undefined, { sensitivity: "base" });
         });
+        const withRanks = (rows) => rows.map((row, index) => ({ ...row, rank: index + 1 }));
 
-        const contributorsRows = sortRows(
+        const contributorsRows = withRanks(sortRows(
             contributors.map((contributor) => {
                 const totals = leaderboardTotalsByEntityKey[`contributor:${String(contributor?.id || "")}`] || {};
                 return {
@@ -15329,9 +15471,9 @@ function App() {
                     total: Number.isFinite(Number(totals?.total)) ? Number(totals.total) : 0,
                 };
             }),
-        );
+        ));
 
-        const itemRows = sortRows(
+        const itemRows = withRanks(sortRows(
             items.map((item) => {
                 const totals = leaderboardTotalsByEntityKey[`item:${String(item?.id || "")}`] || {};
                 const itemType = TYPE_LABELS[normalizeType(item?.type)] || TYPE_LABELS.misc;
@@ -15343,9 +15485,9 @@ function App() {
                     total: Number.isFinite(Number(totals?.total)) ? Number(totals.total) : 0,
                 };
             }),
-        );
+        ));
 
-        const poiRows = sortRows(
+        const poiRows = withRanks(sortRows(
             historicalPois.map((poi) => {
                 const totals = leaderboardTotalsByEntityKey[`poi:${String(poi?.id || "")}`] || {};
                 const poiLabel = String(poi?.title || poi?.name || poi?.slug || poi?.id || "POI");
@@ -15357,9 +15499,9 @@ function App() {
                     total: Number.isFinite(Number(totals?.total)) ? Number(totals.total) : 0,
                 };
             }),
-        );
+        ));
 
-        const userRows = sortRows(
+        const userRows = withRanks(sortRows(
             leaderboardProfiles.map((profile) => {
                 const profileId = String(profile?.id || "");
                 const totals = leaderboardTotalsByEntityKey[`user:${profileId}`] || {};
@@ -15374,7 +15516,7 @@ function App() {
                     total: Number.isFinite(Number(totals?.total)) ? Number(totals.total) : 0,
                 };
             }),
-        );
+        ));
 
         return {
             contributors: contributorsRows,
@@ -15574,9 +15716,8 @@ function App() {
         const entityId = String(row?.id || "").trim();
         if (!entityId) return;
 
-        setIsLeaderboardModalOpen(false);
-
         if (rowScope === "items") {
+            setIsLeaderboardModalOpen(false);
             setIsContributorPanelOpen(false);
             setSelectedContributorId(null);
             setIsPoiPanelOpen(false);
@@ -15588,6 +15729,7 @@ function App() {
         }
 
         if (rowScope === "pois") {
+            setIsLeaderboardModalOpen(false);
             setIsContributorPanelOpen(false);
             setSelectedContributorId(null);
             setEditingItemId(null);
@@ -15599,6 +15741,7 @@ function App() {
         }
 
         if (rowScope === "contributors") {
+            setIsLeaderboardModalOpen(false);
             setEditingItemId(null);
             setSelectedItemId(null);
             setIsPoiPanelOpen(false);
