@@ -5082,6 +5082,51 @@ function SurfaceCard({ as = "div", style = {}, children, ...props }) {
     );
 }
 
+const LEGAL_POLICY_LINKS = [
+    { label: "Privacy Policy", href: "/legal/privacy-policy/" },
+    { label: "Terms of Service", href: "/legal/terms-of-service/" },
+    { label: "Data Deletion", href: "/legal/data-deletion/" },
+];
+
+function LegalNoticeFooter({ message }) {
+    return (
+        <div
+            style={{
+                marginTop: "10px",
+                paddingTop: "9px",
+                borderTop: "1px solid rgba(148,163,184,0.32)",
+                display: "grid",
+                gap: "5px",
+            }}
+        >
+            <div style={{ fontSize: "0.72rem", lineHeight: 1.45, color: "#64748b" }}>{message}</div>
+            <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "5px 8px" }}>
+                {LEGAL_POLICY_LINKS.map((link, index) => (
+                    <React.Fragment key={link.href}>
+                        <a
+                            href={link.href}
+                            aria-label={link.label}
+                            style={{
+                                fontSize: "0.72rem",
+                                color: "#1e40af",
+                                textDecoration: "none",
+                                fontWeight: 700,
+                            }}
+                        >
+                            {link.label}
+                        </a>
+                        {index < LEGAL_POLICY_LINKS.length - 1 ? (
+                            <span style={{ fontSize: "0.62rem", color: "#94a3b8" }} aria-hidden="true">
+                                •
+                            </span>
+                        ) : null}
+                    </React.Fragment>
+                ))}
+            </div>
+        </div>
+    );
+}
+
 function ModalShell({ isMobile, title, onClose, children, width = "min(440px, calc(100vw - 32px))" }) {
     return (
         <>
@@ -5197,6 +5242,7 @@ function AuthProviderModal({
             {authError ? (
                 <div style={{ marginTop: "8px", color: "#b91c1c", fontSize: "0.76rem" }}>{authError}</div>
             ) : null}
+            <LegalNoticeFooter message="By signing in, you agree to our Terms and Privacy Policy." />
         </ModalShell>
     );
 }
@@ -5592,6 +5638,8 @@ function ProfilePanel({
                     <div style={{ fontSize: "0.76rem", color: "#b91c1c" }}>{deletionError}</div>
                 ) : null}
             </div>
+
+            <LegalNoticeFooter message="Review your rights and data controls at any time." />
         </ModalShell>
     );
 }
