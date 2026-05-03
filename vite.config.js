@@ -3,7 +3,12 @@ import react from "@vitejs/plugin-react";
 import { fileURLToPath, URL } from "node:url";
 
 const SEO_ROUTE_PATTERN = /^\/(poi|share)\/[^/]+\/?$/;
-const STATIC_INDEX_ROUTES = new Map([[/^\/links\/?$/, "/links/index.html"]]);
+const STATIC_INDEX_ROUTES = new Map([
+    [/^\/links\/?$/, "/links/index.html"],
+    [/^\/legal\/privacy-policy\/?$/, "/legal/privacy-policy/index.html"],
+    [/^\/legal\/terms-of-service\/?$/, "/legal/terms-of-service/index.html"],
+    [/^\/legal\/data-deletion\/?$/, "/legal/data-deletion/index.html"],
+]);
 
 const rewriteSeoRouteToStaticIndex = (req, _res, next) => {
     const requestUrl = req.url || "/";

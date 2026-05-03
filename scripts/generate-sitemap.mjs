@@ -93,6 +93,9 @@ const main = async () => {
     const urls = [
         `${siteUrl}/`,
         `${siteUrl}/links/`,
+        `${siteUrl}/legal/privacy-policy/`,
+        `${siteUrl}/legal/terms-of-service/`,
+        `${siteUrl}/legal/data-deletion/`,
     ];
 
     if (supabaseUrl && supabaseKey) {

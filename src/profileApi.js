@@ -8,6 +8,7 @@ const EMPTY_PROFILE = {
     supporter_points: 0,
     supporter_note: "",
     supporter_verified_at: null,
+    delete_requested_at: null,
 };
 
 const PROFILE_SELECT_FIELDS = [
@@ -19,6 +20,7 @@ const PROFILE_SELECT_FIELDS = [
     "supporter_points",
     "supporter_note",
     "supporter_verified_at",
+    "delete_requested_at",
     "created_at",
     "updated_at",
 ].join(", ");
@@ -161,6 +163,56 @@ export async function updateProfileForAdmin(profileId, updates) {
         .from("profiles")
         .update(safeUpdates)
         .eq("id", profileId)
+        .select(PROFILE_SELECT_FIELDS)
+        .single();
+
+    if (error) {
+        return { profile: null, error };
+    }
+
+    return {
+        profile: {
+            ...EMPTY_PROFILE,
+            ...(data || {}),
+        },
+        error: null,
+    };
+}
+
+export async function requestAccountDeletion(userId) {
+    if (!userId) {
+        return { profile: null, error: new Error("Missing user id") };
+    }
+
+    const { data, error } = await supabase
+        .from("profiles")
+        .update({ delete_requested_at: new Date().toISOString() })
+        .eq("id", userId)
+        .select(PROFILE_SELECT_FIELDS)
+        .single();
+
+    if (error) {
+        return { profile: null, error };
+    }
+
+    return {
+        profile: {
+            ...EMPTY_PROFILE,
+            ...(data || {}),
+        },
+        error: null,
+    };
+}
+
+export async function cancelAccountDeletion(userId) {
+    if (!userId) {
+        return { profile: null, error: new Error("Missing user id") };
+    }
+
+    const { data, error } = await supabase
+        .from("profiles")
+        .update({ delete_requested_at: null })
+        .eq("id", userId)
         .select(PROFILE_SELECT_FIELDS)
         .single();
 

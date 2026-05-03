@@ -15,8 +15,10 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { hasSupabaseConfig, supabase } from "./supabaseClient";
 import {
+    cancelAccountDeletion,
     ensureProfileForUser,
     listProfilesForAdmin,
+    requestAccountDeletion,
     updateProfileForAdmin,
     updateProfileForUser,
 } from "./profileApi";
@@ -5217,6 +5219,10 @@ function ProfilePanel({
     isSavingProfile,
     profileError,
     profileStatus,
+    isDeletingAccount,
+    deletionError,
+    onRequestDeletion,
+    onCancelDeletion,
     isMobile,
     onClose,
 }) {
@@ -5513,6 +5519,79 @@ function ProfilePanel({
             {profileError ? (
                 <div style={{ marginTop: "8px", color: "#b91c1c", fontSize: "0.76rem" }}>{profileError}</div>
             ) : null}
+
+            {/* Danger zone – account deletion */}
+            <div
+                style={{
+                    marginTop: "18px",
+                    borderTop: "1px solid #fee2e2",
+                    paddingTop: "14px",
+                    display: "grid",
+                    gap: "8px",
+                }}
+            >
+                <div style={{ fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.05em", color: "#b91c1c", fontWeight: 800 }}>
+                    Danger zone
+                </div>
+
+                {currentProfile?.delete_requested_at ? (
+                    <>
+                        <div style={{ fontSize: "0.78rem", color: "#7f1d1d" }}>
+                            Account deletion requested on{" "}
+                            <strong>{new Date(currentProfile.delete_requested_at).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</strong>.
+                            Your account will be permanently deleted 30 days after that date.
+                        </div>
+                        <button
+                            type="button"
+                            onClick={onCancelDeletion}
+                            disabled={isDeletingAccount}
+                            style={{
+                                alignSelf: "start",
+                                border: "1px solid #16a34a",
+                                background: "#f0fdf4",
+                                color: "#15803d",
+                                borderRadius: "8px",
+                                padding: "8px 14px",
+                                fontSize: "0.78rem",
+                                fontWeight: 700,
+                                cursor: isDeletingAccount ? "not-allowed" : "pointer",
+                                opacity: isDeletingAccount ? 0.7 : 1,
+                            }}
+                        >
+                            {isDeletingAccount ? "Cancelling..." : "Cancel account deletion"}
+                        </button>
+                    </>
+                ) : (
+                    <>
+                        <div style={{ fontSize: "0.78rem", color: "#64748b" }}>
+                            Request permanent deletion of your account and all associated data. You will have a 30-day window to cancel before deletion is carried out.
+                        </div>
+                        <button
+                            type="button"
+                            onClick={onRequestDeletion}
+                            disabled={isDeletingAccount || isProfileLoading}
+                            style={{
+                                alignSelf: "start",
+                                border: "1px solid #dc2626",
+                                background: "#fff1f2",
+                                color: "#b91c1c",
+                                borderRadius: "8px",
+                                padding: "8px 14px",
+                                fontSize: "0.78rem",
+                                fontWeight: 700,
+                                cursor: isDeletingAccount || isProfileLoading ? "not-allowed" : "pointer",
+                                opacity: isDeletingAccount || isProfileLoading ? 0.7 : 1,
+                            }}
+                        >
+                            {isDeletingAccount ? "Processing..." : "Request account deletion"}
+                        </button>
+                    </>
+                )}
+
+                {deletionError ? (
+                    <div style={{ fontSize: "0.76rem", color: "#b91c1c" }}>{deletionError}</div>
+                ) : null}
+            </div>
         </ModalShell>
     );
 }
@@ -10192,6 +10271,8 @@ function App() {
     const [isSavingProfile, setIsSavingProfile] = useState(false);
     const [profileError, setProfileError] = useState("");
     const [profileStatus, setProfileStatus] = useState("");
+    const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+    const [deletionError, setDeletionError] = useState("");
     const [adminProfiles, setAdminProfiles] = useState([]);
     const [isAdminProfilesLoading, setIsAdminProfilesLoading] = useState(false);
     const [adminProfilesError, setAdminProfilesError] = useState("");
@@ -12490,6 +12571,49 @@ function App() {
         }
         setAdminProfilesStatus(`Saved ${getProfileDisplayName(profile, null)}`);
         setSavingAdminProfileId("");
+    }
+
+    async function handleRequestAccountDeletion() {
+        if (!currentUser || !hasSupabaseConfig || isDeletingAccount) return;
+
+        const confirmed = window.confirm(
+            "Are you sure you want to request account deletion? Your account and all associated data will be permanently deleted after a 30-day grace period. You can cancel before then.",
+        );
+        if (!confirmed) return;
+
+        setIsDeletingAccount(true);
+        setDeletionError("");
+        setProfileStatus("");
+
+        const { profile, error } = await requestAccountDeletion(currentUser.id);
+
+        if (error) {
+            setDeletionError("Could not schedule account deletion. Please try again.");
+            setIsDeletingAccount(false);
+            return;
+        }
+
+        setCurrentProfile(profile || null);
+        setIsDeletingAccount(false);
+    }
+
+    async function handleCancelAccountDeletion() {
+        if (!currentUser || !hasSupabaseConfig || isDeletingAccount) return;
+
+        setIsDeletingAccount(true);
+        setDeletionError("");
+        setProfileStatus("");
+
+        const { profile, error } = await cancelAccountDeletion(currentUser.id);
+
+        if (error) {
+            setDeletionError("Could not cancel account deletion. Please try again.");
+            setIsDeletingAccount(false);
+            return;
+        }
+
+        setCurrentProfile(profile || null);
+        setIsDeletingAccount(false);
     }
 
     // Click handler to add new items to SQL
@@ -15855,6 +15979,10 @@ function App() {
                     isSavingProfile={isSavingProfile}
                     profileError={profileError}
                     profileStatus={profileStatus}
+                    isDeletingAccount={isDeletingAccount}
+                    deletionError={deletionError}
+                    onRequestDeletion={handleRequestAccountDeletion}
+                    onCancelDeletion={handleCancelAccountDeletion}
                     isMobile={isMobile}
                     onClose={closeProfileModal}
                 />
