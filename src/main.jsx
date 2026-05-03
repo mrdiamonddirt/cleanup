@@ -10992,13 +10992,34 @@ function App() {
         setIsAuthProviderModalOpen(true);
     };
     const closeAuthProviderModal = () => setIsAuthProviderModalOpen(false);
-    const openProfileModal = () => {
+    const openProfileModal = async () => {
         setProfileError("");
         setProfileStatus("");
         setAdminProfilesError("");
         setAdminProfilesStatus("");
         setIsAuthProviderModalOpen(false);
         setIsProfileModalOpen(true);
+
+        if (!currentUser || !hasSupabaseConfig) {
+            return;
+        }
+
+        setIsProfileLoading(true);
+
+        const { profile, error } = await ensureProfileForUser(currentUser);
+
+        if (error) {
+            setProfileError("Unable to refresh your profile right now.");
+            setIsProfileLoading(false);
+            return;
+        }
+
+        setCurrentProfile(profile || null);
+        setProfileForm({
+            display_name: profile?.display_name || "",
+            avatar_url: profile?.avatar_url || "",
+        });
+        setIsProfileLoading(false);
     };
     const closeProfileModal = () => {
         setProfileError("");
