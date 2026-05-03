@@ -73,6 +73,7 @@ export default function ContributorBusinessPanel({
     isOpen,
     onClose,
     contributors,
+    interactionTotalsByEntityKey,
     supabase,
     canManageItems,
     onContributorAdded,
@@ -121,12 +122,26 @@ export default function ContributorBusinessPanel({
     const sortedContributors = useMemo(() => {
         if (!Array.isArray(contributors)) return [];
 
+        const safeTotals = interactionTotalsByEntityKey && typeof interactionTotalsByEntityKey === "object"
+            ? interactionTotalsByEntityKey
+            : {};
+
+        const getTotalForContributor = (contributor) => {
+            const contributorId = String(contributor?.id || "");
+            if (!contributorId) return 0;
+            const row = safeTotals[`contributor:${contributorId}`];
+            return Number.isFinite(Number(row?.total)) ? Number(row.total) : 0;
+        };
+
         return [...contributors].sort((a, b) => {
+            const totalDelta = getTotalForContributor(b) - getTotalForContributor(a);
+            if (totalDelta !== 0) return totalDelta;
+
             const aName = String(a?.name || "").toLowerCase();
             const bName = String(b?.name || "").toLowerCase();
             return aName.localeCompare(bName);
         });
-    }, [contributors]);
+    }, [contributors, interactionTotalsByEntityKey]);
 
     if (!isOpen) return null;
 
@@ -400,6 +415,10 @@ export default function ContributorBusinessPanel({
                             {sortedContributors.length ? (
                                 sortedContributors.map((contributor) => {
                                     const contributorMapsUrl = resolveContributorMapsUrl(contributor);
+                                    const contributorTotals = interactionTotalsByEntityKey?.[`contributor:${String(contributor?.id || "")}`] || null;
+                                    const likeCount = Number.isFinite(Number(contributorTotals?.likes)) ? Number(contributorTotals.likes) : 0;
+                                    const shareCount = Number.isFinite(Number(contributorTotals?.shares)) ? Number(contributorTotals.shares) : 0;
+                                    const totalCount = Number.isFinite(Number(contributorTotals?.total)) ? Number(contributorTotals.total) : likeCount + shareCount;
 
                                     return (
                                     <div
@@ -484,6 +503,24 @@ export default function ContributorBusinessPanel({
                                                     }}
                                                 >
                                                     Contributed
+                                                </span>
+                                                <span
+                                                    style={{
+                                                        display: "inline-flex",
+                                                        width: "fit-content",
+                                                        alignItems: "center",
+                                                        justifyContent: "center",
+                                                        padding: "2px 6px",
+                                                        borderRadius: "999px",
+                                                        border: "1px solid #bfdbfe",
+                                                        background: "#eff6ff",
+                                                        color: "#1e40af",
+                                                        fontSize: "0.64rem",
+                                                        fontWeight: 700,
+                                                        letterSpacing: "0.01em",
+                                                    }}
+                                                >
+                                                    {`Total ${totalCount} (Likes ${likeCount} • Shares ${shareCount})`}
                                                 </span>
                                             </div>
                                         </div>

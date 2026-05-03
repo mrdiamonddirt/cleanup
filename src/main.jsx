@@ -19,6 +19,7 @@ import {
     banProfileForAdmin,
     cancelAccountDeletion,
     ensureProfileForUser,
+    listSocialLeaderboardTotals,
     listAdminAuditLogs,
     listBansForAdmin,
     listCommentsForTarget,
@@ -4216,6 +4217,7 @@ function AppTopBar({
     onSignOut,
     isLoadingItems,
     onOpenContributorPanel,
+    onOpenLeaderboard,
     onOpenPoiPanel,
     isStatsExpanded,
     onToggleStats,
@@ -4292,6 +4294,10 @@ function AppTopBar({
     const handleContributorMenuAction = () => {
         closeMobileMenu();
         onOpenContributorPanel();
+    };
+    const handleLeaderboardMenuAction = () => {
+        closeMobileMenu();
+        onOpenLeaderboard();
     };
     const handlePoiMenuAction = () => {
         closeMobileMenu();
@@ -4670,6 +4676,25 @@ function AppTopBar({
                                     <span aria-hidden="true" style={{ color: "#94a3b8", fontSize: "0.9rem" }}>›</span>
                                 </button>
 
+                                <button
+                                    type="button"
+                                    className="app-topbar-menu-item"
+                                    onClick={handleLeaderboardMenuAction}
+                                    style={{
+                                        ...mobileMenuItemBaseStyle,
+                                        borderColor: "rgba(14,116,144,0.34)",
+                                        background: "linear-gradient(180deg, #ecfeff, #f0f9ff)",
+                                        cursor: "pointer",
+                                    }}
+                                >
+                                    <span aria-hidden="true" style={{ fontSize: "1rem", textAlign: "center", color: "#0e7490" }}>#</span>
+                                    <span style={{ display: "grid", gap: "2px", minWidth: 0 }}>
+                                        <span style={{ fontSize: "0.84rem", fontWeight: 800, color: "#0f172a" }}>Leaderboard</span>
+                                        <span style={{ fontSize: "0.74rem", color: "#475569" }}>Top users, items, POIs, and contributors.</span>
+                                    </span>
+                                    <span aria-hidden="true" style={{ color: "#94a3b8", fontSize: "0.9rem" }}>›</span>
+                                </button>
+
                                 {canManageItems ? (
                                     <button
                                         type="button"
@@ -4850,6 +4875,24 @@ function AppTopBar({
                             aria-label={canManageItems ? "Open contributor manager" : "Open contributors list"}
                         >
                             ★ Contributors
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={onOpenLeaderboard}
+                            style={{
+                                ...desktopActionButtonStyle,
+                                border: "1px solid #0e7490",
+                                background: "#ecfeff",
+                                color: "#155e75",
+                                padding: "0 11px",
+                                fontSize: "0.76rem",
+                                fontWeight: 700,
+                                cursor: "pointer",
+                            }}
+                            aria-label="Open leaderboard"
+                        >
+                            # Leaderboard
                         </button>
 
                         {canManageItems ? (
@@ -5267,6 +5310,94 @@ function AuthProviderModal({
                 <div style={{ marginTop: "8px", color: "#b91c1c", fontSize: "0.76rem" }}>{authError}</div>
             ) : null}
             <LegalNoticeFooter message="By signing in, you agree to our Terms and Privacy Policy." />
+        </ModalShell>
+    );
+}
+
+function LeaderboardModal({
+    isOpen,
+    isMobile,
+    onClose,
+    scope,
+    onScopeChange,
+    rows,
+    isLoading,
+    error,
+}) {
+    if (!isOpen) return null;
+
+    const scopeOptions = [
+        { id: "users", label: "Users" },
+        { id: "items", label: "Items" },
+        { id: "pois", label: "POIs" },
+        { id: "contributors", label: "Contributors" },
+    ];
+
+    return (
+        <ModalShell isMobile={isMobile} title="Leaderboard" onClose={onClose} width="min(760px, calc(100vw - 32px))">
+            <p style={{ margin: 0, fontSize: "0.82rem", color: "#334155", lineHeight: 1.45 }}>
+                Ranked by total engagement (likes + shares).
+            </p>
+
+            <div style={{ marginTop: "10px", display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                {scopeOptions.map((option) => {
+                    const isActive = scope === option.id;
+                    return (
+                        <button
+                            key={option.id}
+                            type="button"
+                            onClick={() => onScopeChange(option.id)}
+                            style={{
+                                border: isActive ? "1px solid #0e7490" : "1px solid #cbd5e1",
+                                background: isActive ? "#ecfeff" : "#ffffff",
+                                color: isActive ? "#155e75" : "#475569",
+                                borderRadius: "999px",
+                                padding: "6px 11px",
+                                fontSize: "0.76rem",
+                                fontWeight: 700,
+                                cursor: "pointer",
+                            }}
+                        >
+                            {option.label}
+                        </button>
+                    );
+                })}
+            </div>
+
+            <div style={{ marginTop: "10px" }}>
+                {isLoading ? (
+                    <div style={{ fontSize: "0.8rem", color: "#64748b" }}>Loading leaderboard...</div>
+                ) : error ? (
+                    <div style={{ fontSize: "0.8rem", color: "#b91c1c" }}>{error}</div>
+                ) : !Array.isArray(rows) || rows.length === 0 ? (
+                    <div style={{ fontSize: "0.8rem", color: "#64748b" }}>No leaderboard entries yet.</div>
+                ) : (
+                    <div style={{ overflowX: "auto", border: "1px solid #dbeafe", borderRadius: "10px", background: "#fff" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "520px" }}>
+                            <thead>
+                                <tr>
+                                    <th style={{ textAlign: "left", padding: "8px", borderBottom: "1px solid #dbeafe", fontSize: "0.74rem", color: "#334155" }}>#</th>
+                                    <th style={{ textAlign: "left", padding: "8px", borderBottom: "1px solid #dbeafe", fontSize: "0.74rem", color: "#334155" }}>Name</th>
+                                    <th style={{ textAlign: "right", padding: "8px", borderBottom: "1px solid #dbeafe", fontSize: "0.74rem", color: "#334155" }}>Likes</th>
+                                    <th style={{ textAlign: "right", padding: "8px", borderBottom: "1px solid #dbeafe", fontSize: "0.74rem", color: "#334155" }}>Shares</th>
+                                    <th style={{ textAlign: "right", padding: "8px", borderBottom: "1px solid #dbeafe", fontSize: "0.74rem", color: "#334155" }}>Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {rows.map((row, index) => (
+                                    <tr key={`${row.id}-${index}`}>
+                                        <td style={{ padding: "8px", borderBottom: "1px solid #eff6ff", fontSize: "0.78rem", color: "#0f172a", fontWeight: 700 }}>{index + 1}</td>
+                                        <td style={{ padding: "8px", borderBottom: "1px solid #eff6ff", fontSize: "0.78rem", color: "#0f172a" }}>{row.label}</td>
+                                        <td style={{ padding: "8px", borderBottom: "1px solid #eff6ff", textAlign: "right", fontSize: "0.78rem", color: "#334155" }}>{row.likes}</td>
+                                        <td style={{ padding: "8px", borderBottom: "1px solid #eff6ff", textAlign: "right", fontSize: "0.78rem", color: "#334155" }}>{row.shares}</td>
+                                        <td style={{ padding: "8px", borderBottom: "1px solid #eff6ff", textAlign: "right", fontSize: "0.78rem", color: "#0f766e", fontWeight: 700 }}>{row.total}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
         </ModalShell>
     );
 }
@@ -10864,6 +10995,12 @@ function App() {
     const [isRegionalFlowStationsVisible, setIsRegionalFlowStationsVisible] = useState(true);
     const [isContributorsVisible, setIsContributorsVisible] = useState(true);
     const [contributors, setContributors] = useState([]);
+    const [isLeaderboardModalOpen, setIsLeaderboardModalOpen] = useState(false);
+    const [leaderboardScope, setLeaderboardScope] = useState("contributors");
+    const [leaderboardTotals, setLeaderboardTotals] = useState([]);
+    const [leaderboardProfiles, setLeaderboardProfiles] = useState([]);
+    const [isLeaderboardLoading, setIsLeaderboardLoading] = useState(false);
+    const [leaderboardError, setLeaderboardError] = useState("");
     const [historicalPois, setHistoricalPois] = useState([]);
     const [dbPoiW3wFieldSupport, setDbPoiW3wFieldSupport] = useState(null);
     const [isHistoricalPoisVisible, setIsHistoricalPoisVisible] = useState(true);
@@ -10992,6 +11129,11 @@ function App() {
         setIsAuthProviderModalOpen(true);
     };
     const closeAuthProviderModal = () => setIsAuthProviderModalOpen(false);
+    const openLeaderboardModal = () => {
+        setLeaderboardError("");
+        setIsLeaderboardModalOpen(true);
+    };
+    const closeLeaderboardModal = () => setIsLeaderboardModalOpen(false);
     const openProfileModal = async () => {
         setProfileError("");
         setProfileStatus("");
@@ -11746,6 +11888,16 @@ function App() {
     }, []);
 
     useEffect(() => {
+        if (!isContributorPanelOpen) return;
+        void fetchLeaderboardData();
+    }, [isContributorPanelOpen]);
+
+    useEffect(() => {
+        if (!isLeaderboardModalOpen) return;
+        void fetchLeaderboardData();
+    }, [isLeaderboardModalOpen]);
+
+    useEffect(() => {
         if (!authReady) return;
         void fetchHistoricOverlays();
     }, [authReady, currentUser?.id]);
@@ -12491,6 +12643,44 @@ function App() {
         setContributors(next);
         localStorage.setItem(CONTRIBUTORS_STORAGE_KEY, JSON.stringify(next));
         localStorage.setItem(CONTRIBUTORS_FETCH_TS_KEY, String(Date.now()));
+        return true;
+    }
+
+    async function fetchLeaderboardData() {
+        if (!hasSupabaseConfig) {
+            setLeaderboardTotals([]);
+            setLeaderboardProfiles([]);
+            setLeaderboardError("Supabase is not configured for this deployment.");
+            setIsLeaderboardLoading(false);
+            return false;
+        }
+
+        setIsLeaderboardLoading(true);
+        setLeaderboardError("");
+
+        const [totalsResult, profilesResult] = await Promise.all([
+            listSocialLeaderboardTotals(),
+            supabase
+                .from("profiles")
+                .select("id, display_name, avatar_url")
+                .order("updated_at", { ascending: false }),
+        ]);
+
+        if (totalsResult?.error) {
+            setLeaderboardTotals([]);
+            setLeaderboardError("Could not load leaderboard totals right now.");
+            setIsLeaderboardLoading(false);
+            return false;
+        }
+
+        setLeaderboardTotals(Array.isArray(totalsResult?.rows) ? totalsResult.rows : []);
+        setLeaderboardProfiles(Array.isArray(profilesResult?.data) ? profilesResult.data : []);
+
+        if (profilesResult?.error) {
+            setLeaderboardError("Leaderboard loaded, but user names could not be fetched.");
+        }
+
+        setIsLeaderboardLoading(false);
         return true;
     }
 
@@ -14596,6 +14786,117 @@ function App() {
         () => (selectedContributor ? resolveContributorMapsUrl(selectedContributor) : ""),
         [selectedContributor],
     );
+    const leaderboardTotalsByEntityKey = useMemo(() => {
+        const map = {};
+        if (!Array.isArray(leaderboardTotals)) return map;
+
+        leaderboardTotals.forEach((row) => {
+            const entityType = String(row?.entity_type || "").trim().toLowerCase();
+            const entityId = String(row?.entity_id || "").trim();
+            if (!entityType || !entityId) return;
+
+            const likes = Number.isFinite(Number(row?.like_count)) ? Number(row.like_count) : 0;
+            const shares = Number.isFinite(Number(row?.share_count)) ? Number(row.share_count) : 0;
+            const total = Number.isFinite(Number(row?.total_count))
+                ? Number(row.total_count)
+                : likes + shares;
+
+            map[`${entityType}:${entityId}`] = {
+                likes,
+                shares,
+                total,
+            };
+        });
+
+        return map;
+    }, [leaderboardTotals]);
+    const sortedContributorsByEngagement = useMemo(
+        () => [...contributors].sort((left, right) => {
+            const leftTotals = leaderboardTotalsByEntityKey[`contributor:${String(left?.id || "")}`];
+            const rightTotals = leaderboardTotalsByEntityKey[`contributor:${String(right?.id || "")}`];
+            const leftScore = Number.isFinite(Number(leftTotals?.total)) ? Number(leftTotals.total) : 0;
+            const rightScore = Number.isFinite(Number(rightTotals?.total)) ? Number(rightTotals.total) : 0;
+
+            if (rightScore !== leftScore) {
+                return rightScore - leftScore;
+            }
+
+            return String(left?.name || "").localeCompare(String(right?.name || ""), undefined, {
+                sensitivity: "base",
+            });
+        }),
+        [contributors, leaderboardTotalsByEntityKey],
+    );
+    const leaderboardRowsByScope = useMemo(() => {
+        const sortRows = (rows) => rows.sort((left, right) => {
+            if (right.total !== left.total) return right.total - left.total;
+            if (right.likes !== left.likes) return right.likes - left.likes;
+            if (right.shares !== left.shares) return right.shares - left.shares;
+            return String(left.label).localeCompare(String(right.label), undefined, { sensitivity: "base" });
+        });
+
+        const contributorsRows = sortRows(
+            contributors.map((contributor) => {
+                const totals = leaderboardTotalsByEntityKey[`contributor:${String(contributor?.id || "")}`] || {};
+                return {
+                    id: String(contributor?.id || ""),
+                    label: String(contributor?.name || "Contributor"),
+                    likes: Number.isFinite(Number(totals?.likes)) ? Number(totals.likes) : 0,
+                    shares: Number.isFinite(Number(totals?.shares)) ? Number(totals.shares) : 0,
+                    total: Number.isFinite(Number(totals?.total)) ? Number(totals.total) : 0,
+                };
+            }),
+        );
+
+        const itemRows = sortRows(
+            items.map((item) => {
+                const totals = leaderboardTotalsByEntityKey[`item:${String(item?.id || "")}`] || {};
+                const itemType = TYPE_LABELS[normalizeType(item?.type)] || TYPE_LABELS.misc;
+                return {
+                    id: String(item?.id || ""),
+                    label: `${itemType} (${String(item?.id || "").slice(0, 8)})`,
+                    likes: Number.isFinite(Number(totals?.likes)) ? Number(totals.likes) : 0,
+                    shares: Number.isFinite(Number(totals?.shares)) ? Number(totals.shares) : 0,
+                    total: Number.isFinite(Number(totals?.total)) ? Number(totals.total) : 0,
+                };
+            }),
+        );
+
+        const poiRows = sortRows(
+            historicalPois.map((poi) => {
+                const totals = leaderboardTotalsByEntityKey[`poi:${String(poi?.id || "")}`] || {};
+                const poiLabel = String(poi?.title || poi?.name || poi?.slug || poi?.id || "POI");
+                return {
+                    id: String(poi?.id || ""),
+                    label: poiLabel,
+                    likes: Number.isFinite(Number(totals?.likes)) ? Number(totals.likes) : 0,
+                    shares: Number.isFinite(Number(totals?.shares)) ? Number(totals.shares) : 0,
+                    total: Number.isFinite(Number(totals?.total)) ? Number(totals.total) : 0,
+                };
+            }),
+        );
+
+        const userRows = sortRows(
+            leaderboardProfiles.map((profile) => {
+                const profileId = String(profile?.id || "");
+                const totals = leaderboardTotalsByEntityKey[`user:${profileId}`] || {};
+                return {
+                    id: profileId,
+                    label: String(profile?.display_name || profileId.slice(0, 8) || "User"),
+                    likes: Number.isFinite(Number(totals?.likes)) ? Number(totals.likes) : 0,
+                    shares: Number.isFinite(Number(totals?.shares)) ? Number(totals.shares) : 0,
+                    total: Number.isFinite(Number(totals?.total)) ? Number(totals.total) : 0,
+                };
+            }),
+        );
+
+        return {
+            contributors: contributorsRows,
+            items: itemRows,
+            pois: poiRows,
+            users: userRows,
+        };
+    }, [contributors, historicalPois, items, leaderboardProfiles, leaderboardTotalsByEntityKey]);
     const selectedHistoricalPoi = useMemo(
         () =>
             selectedHistoricalPoiId === null
@@ -14773,6 +15074,7 @@ function App() {
         setEditingItemId(null);
         setSelectedContributorId(null);
         setIsContributorPanelOpen(false);
+        setIsLeaderboardModalOpen(false);
         setReportLocation(null);
         setPendingReportLocation(null);
         setIsReportConsentOpen(false);
@@ -15440,6 +15742,7 @@ function App() {
                     onSignOut={signOut}
                     isLoadingItems={isLoadingItems}
                     onOpenContributorPanel={() => setIsContributorPanelOpen(true)}
+                    onOpenLeaderboard={openLeaderboardModal}
                     onOpenPoiPanel={openPoiCreatePanel}
                     isStatsExpanded={isMobileStatsExpanded}
                     onToggleStats={isMobile ? () => setIsMobileStatsExpanded((prev) => !prev) : undefined}
@@ -16290,7 +16593,7 @@ function App() {
                         : null}
 
                     {isContributorsVisible
-                        ? contributors.map((contributor) => {
+                        ? sortedContributorsByEngagement.map((contributor) => {
                               const lat = Number(contributor?.lat);
                               const lng = Number(contributor?.lng);
                               const contributorMapsUrl =
@@ -17213,6 +17516,17 @@ function App() {
                 />
             ) : null}
 
+            <LeaderboardModal
+                isOpen={isLeaderboardModalOpen}
+                isMobile={isMobile}
+                onClose={closeLeaderboardModal}
+                scope={leaderboardScope}
+                onScopeChange={setLeaderboardScope}
+                rows={leaderboardRowsByScope?.[leaderboardScope] || []}
+                isLoading={isLeaderboardLoading}
+                error={leaderboardError}
+            />
+
             {isMobile && isFilterSheetOpen ? (
                 <>
                     <div
@@ -17323,6 +17637,7 @@ function App() {
                 isOpen={isContributorPanelOpen}
                 onClose={() => setIsContributorPanelOpen(false)}
                 contributors={contributors}
+                interactionTotalsByEntityKey={leaderboardTotalsByEntityKey}
                 supabase={supabase}
                 canManageItems={canManageItems}
                 onContributorAdded={() => fetchContributors({ bypassTtl: true })}

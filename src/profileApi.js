@@ -362,6 +362,16 @@ export async function getInteractionCountsForTarget(targetType, targetId) {
     };
 }
 
+export async function listSocialLeaderboardTotals() {
+    const { data, error } = await supabase.rpc("get_social_leaderboard_counts");
+
+    if (error) {
+        return { rows: [], error };
+    }
+
+    return { rows: Array.isArray(data) ? data : [], error: null };
+}
+
 export async function listCommentsForTarget(targetType, targetId) {
     const { data, error } = await supabase
         .from("comments")
