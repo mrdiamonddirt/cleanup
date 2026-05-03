@@ -907,6 +907,9 @@ const APPLE_ACTIVE = String(import.meta.env.VITE_APPLE_ACTIVE ?? "false")
 const GOOGLE_ACTIVE = String(import.meta.env.VITE_GOOGLE_ACTIVE ?? "false")
     .trim()
     .toLowerCase() !== "false";
+const LINKEDIN_ACTIVE = String(import.meta.env.VITE_LINKEDIN_ACTIVE ?? "false")
+    .trim()
+    .toLowerCase() !== "false";
 const TWITTER_ACTIVE = String(import.meta.env.VITE_TWITTER_ACTIVE ?? "false")
     .trim()
     .toLowerCase() !== "false";
@@ -5335,12 +5338,14 @@ function AuthProviderModal({
     isFacebookActive,
     isAppleActive,
     isGoogleActive,
+    isLinkedInActive,
     isTwitterActive,
     onClose,
     onSignInWithGitHub,
     onSignInWithFacebook,
     onSignInWithApple,
     onSignInWithGoogle,
+    onSignInWithLinkedIn,
     onSignInWithTwitter,
 }) {
     if (!isOpen) return null;
@@ -5348,6 +5353,7 @@ function AuthProviderModal({
     const isFacebookSignInDisabled = isAuthActionLoading || !isFacebookActive;
     const isAppleSignInDisabled = isAuthActionLoading || !isAppleActive;
     const isGoogleSignInDisabled = isAuthActionLoading || !isGoogleActive;
+    const isLinkedInSignInDisabled = isAuthActionLoading || !isLinkedInActive;
     const isTwitterSignInDisabled = isAuthActionLoading || !isTwitterActive;
 
     const providerLogoBaseStyle = {
@@ -5402,6 +5408,17 @@ function AuthProviderModal({
             );
         }
 
+        if (provider === "linkedin") {
+            return (
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" style={providerLogoBaseStyle}>
+                    <path
+                        d="M5.34 8.44H1.94V19.5h3.4V8.44zM3.63 6.95c1.09 0 1.97-.88 1.97-1.97A1.97 1.97 0 0 0 3.63 3a1.97 1.97 0 0 0 0 3.95zM22.06 13.27c0-3.36-1.79-4.92-4.18-4.92-1.93 0-2.8 1.06-3.28 1.8v-1.54h-3.39c.04 1.02 0 10.89 0 10.89h3.39v-6.08c0-.33.02-.65.12-.88.26-.65.85-1.32 1.85-1.32 1.3 0 1.82.99 1.82 2.43v5.86h3.4v-6.24c0-.01 0-.01 0 0z"
+                        fill="currentColor"
+                    />
+                </svg>
+            );
+        }
+
         return (
             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" style={providerLogoBaseStyle}>
                 <path
@@ -5432,6 +5449,7 @@ function AuthProviderModal({
         facebook: { border: "1px solid #1877f2", background: "#1877f2", color: "#ffffff", logoColor: "#ffffff" },
         apple: { border: "1px solid #111827", background: "#111827", color: "#ffffff", logoColor: "#ffffff" },
         google: { border: "1px solid #d0d7de", background: "#ffffff", color: "#111827", logoColor: "#111827" },
+        linkedin: { border: "1px solid #0a66c2", background: "#0a66c2", color: "#ffffff", logoColor: "#ffffff" },
         x: { border: "1px solid #0f172a", background: "#0f172a", color: "#ffffff", logoColor: "#ffffff" },
     };
 
@@ -5553,6 +5571,13 @@ function AuthProviderModal({
                         isDisabled: isGoogleSignInDisabled,
                         isActive: isGoogleActive,
                         onClick: onSignInWithGoogle,
+                    },
+                    {
+                        provider: "linkedin",
+                        label: "LinkedIn",
+                        isDisabled: isLinkedInSignInDisabled,
+                        isActive: isLinkedInActive,
+                        onClick: onSignInWithLinkedIn,
                     },
                     {
                         provider: "x",
@@ -11606,6 +11631,7 @@ function App() {
     const isFacebookSignInActiveForCurrentUser = FACEBOOK_ACTIVE || isOwnerSupabaseUser;
     const isAppleSignInActiveForCurrentUser = APPLE_ACTIVE || isOwnerSupabaseUser;
     const isGoogleSignInActiveForCurrentUser = GOOGLE_ACTIVE || isOwnerSupabaseUser;
+    const isLinkedInSignInActiveForCurrentUser = LINKEDIN_ACTIVE || isOwnerSupabaseUser;
     const isTwitterSignInActiveForCurrentUser = TWITTER_ACTIVE || isOwnerSupabaseUser;
     const hasMessengerTarget = Boolean(FACEBOOK_PAGE_RECIPIENT_ID);
     const hasCommunityEmailTarget = Boolean(COMMUNITY_EMAIL_ACCOUNT);
@@ -13928,6 +13954,37 @@ function App() {
 
         if (error) {
             setAuthError("X sign-in failed. Please try again.");
+            setIsAuthActionLoading(false);
+            return;
+        }
+    }
+
+    async function signInWithLinkedIn() {
+        setAuthError("");
+
+        if (!isLinkedInSignInActiveForCurrentUser) {
+            setAuthError("LinkedIn sign-in is coming soon.");
+            setIsAuthActionLoading(false);
+            return;
+        }
+
+        setIsAuthActionLoading(true);
+        setIsAuthProviderModalOpen(false);
+
+        if (!hasSupabaseConfig) {
+            setAuthError("Supabase is not configured for this deployment.");
+            setIsAuthActionLoading(false);
+            return;
+        }
+
+        const redirectTo = `${window.location.origin}${window.location.pathname}`;
+        const { error } = await supabase.auth.signInWithOAuth({
+            provider: "linkedin_oidc",
+            options: { redirectTo },
+        });
+
+        if (error) {
+            setAuthError("LinkedIn sign-in failed. Please try again.");
             setIsAuthActionLoading(false);
             return;
         }
@@ -18116,12 +18173,14 @@ function App() {
                 isFacebookActive={isFacebookSignInActiveForCurrentUser}
                 isAppleActive={isAppleSignInActiveForCurrentUser}
                 isGoogleActive={isGoogleSignInActiveForCurrentUser}
+                isLinkedInActive={isLinkedInSignInActiveForCurrentUser}
                 isTwitterActive={isTwitterSignInActiveForCurrentUser}
                 onClose={closeAuthProviderModal}
                 onSignInWithGitHub={signInWithGitHub}
                 onSignInWithFacebook={signInWithFacebook}
                 onSignInWithApple={signInWithApple}
                 onSignInWithGoogle={signInWithGoogle}
+                onSignInWithLinkedIn={signInWithLinkedIn}
                 onSignInWithTwitter={signInWithTwitter}
             />
 
