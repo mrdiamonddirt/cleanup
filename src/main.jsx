@@ -5146,16 +5146,21 @@ function ModalShell({ isMobile, title, onClose, children, width = "min(440px, ca
                 style={{
                     position: "fixed",
                     zIndex: 1301,
-                    left: isMobile ? "10px" : "50%",
-                    right: isMobile ? "10px" : "auto",
-                    top: isMobile ? "auto" : "50%",
-                    bottom: isMobile ? "calc(env(safe-area-inset-bottom, 0px) + 10px)" : "auto",
-                    transform: isMobile ? "none" : "translate(-50%, -50%)",
-                    width: isMobile ? "auto" : width,
+                    left: "50%",
+                    right: "auto",
+                    top: "50%",
+                    bottom: "auto",
+                    transform: "translate(-50%, -50%)",
+                    width: isMobile ? "min(560px, calc(100vw - 20px))" : width,
+                    maxHeight: isMobile
+                        ? "calc(100svh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 20px)"
+                        : "min(86vh, calc(100svh - 40px))",
                     padding: isMobile ? "12px" : "14px",
                     borderColor: "#93c5fd",
                     background: "linear-gradient(180deg, #ffffff 0%, #eff6ff 100%)",
                     boxShadow: "0 20px 44px rgba(15,23,42,0.24)",
+                    display: "flex",
+                    flexDirection: "column",
                 }}
             >
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "10px", marginBottom: "10px" }}>
@@ -5177,7 +5182,9 @@ function ModalShell({ isMobile, title, onClose, children, width = "min(440px, ca
                         Close
                     </button>
                 </div>
-                {children}
+                <div style={{ overflowY: "auto", minHeight: 0, paddingRight: isMobile ? "0" : "2px" }}>
+                    {children}
+                </div>
             </SurfaceCard>
         </>
     );
@@ -5199,7 +5206,7 @@ function AuthProviderModal({
             <p style={{ margin: 0, fontSize: "0.84rem", color: "#334155", lineHeight: 1.45 }}>
                 Choose the account provider you want to use for this device.
             </p>
-            <div style={{ marginTop: "10px", display: "grid", gap: "8px" }}>
+            <div style={{ marginTop: "10px", display: "grid", gap: "8px", justifyItems: isMobile ? "center" : "stretch" }}>
                 <button
                     type="button"
                     onClick={onSignInWithGitHub}
@@ -5210,11 +5217,12 @@ function AuthProviderModal({
                         color: "#fff",
                         borderRadius: "10px",
                         padding: "10px 12px",
+                        width: isMobile ? "min(260px, 100%)" : "100%",
                         fontSize: "0.84rem",
                         fontWeight: 700,
                         cursor: isAuthActionLoading ? "not-allowed" : "pointer",
                         opacity: isAuthActionLoading ? 0.7 : 1,
-                        textAlign: "left",
+                        textAlign: "center",
                     }}
                 >
                     Sign in with GitHub
@@ -5229,11 +5237,12 @@ function AuthProviderModal({
                         color: "#fff",
                         borderRadius: "10px",
                         padding: "10px 12px",
+                        width: isMobile ? "min(260px, 100%)" : "100%",
                         fontSize: "0.84rem",
                         fontWeight: 700,
                         cursor: isAuthActionLoading ? "not-allowed" : "pointer",
                         opacity: isAuthActionLoading ? 0.7 : 1,
-                        textAlign: "left",
+                        textAlign: "center",
                     }}
                 >
                     Sign in with Facebook
