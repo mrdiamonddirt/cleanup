@@ -11250,6 +11250,8 @@ function App() {
     const isHistoricOverlayEditorModeEnabled =
         canManageItems && isHistoricOverlayEditorModeRequested;
     const canUsePublicReports = ENABLE_PUBLIC_REPORTS && !canManageItems;
+    const isOwnerSupabaseUser = Boolean(currentUser?.id && OWNER_SUPABASE_IDS.includes(currentUser.id));
+    const isFacebookSignInActiveForCurrentUser = FACEBOOK_ACTIVE || isOwnerSupabaseUser;
     const hasMessengerTarget = Boolean(FACEBOOK_PAGE_RECIPIENT_ID);
     const hasCommunityEmailTarget = Boolean(COMMUNITY_EMAIL_ACCOUNT);
     const messengerThreadUrl = useMemo(
@@ -13455,7 +13457,7 @@ function App() {
     async function signInWithFacebook() {
         setAuthError("");
 
-        if (!FACEBOOK_ACTIVE) {
+        if (!isFacebookSignInActiveForCurrentUser) {
             setAuthError("Facebook sign-in is coming soon.");
             setIsAuthActionLoading(false);
             return;
@@ -17630,7 +17632,7 @@ function App() {
                 isOpen={isAuthProviderModalOpen}
                 authError={authError}
                 isAuthActionLoading={isAuthActionLoading}
-                isFacebookActive={FACEBOOK_ACTIVE}
+                isFacebookActive={isFacebookSignInActiveForCurrentUser}
                 onClose={closeAuthProviderModal}
                 onSignInWithGitHub={signInWithGitHub}
                 onSignInWithFacebook={signInWithFacebook}
