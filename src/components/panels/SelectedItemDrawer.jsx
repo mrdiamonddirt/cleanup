@@ -77,6 +77,7 @@ export default function SelectedItemDrawer({
     const useCompactLayout =
         isMobile || (typeof window !== "undefined" && window.innerWidth <= 1024);
     const useBottomSheet = isMobile;
+    const useCompactDesktop = !useBottomSheet && useCompactLayout;
     const isEditingThisItem = canManageItems && editingItemId === selectedItem.id;
     const compactNoScroll = false;
     const statGridColumns = useCompactLayout ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))";
@@ -133,11 +134,15 @@ export default function SelectedItemDrawer({
                         maxHeight: "calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 18px)",
                         borderRadius: "22px",
                     } : {
-                        top: "50%",
-                        left: "50%",
-                        transform: "translate(-50%, -50%)",
-                        width: "min(700px, calc(100vw - 48px))",
-                        maxHeight: isEditingThisItem ? "min(90vh, 800px)" : "min(88vh, 760px)",
+                        left: useCompactDesktop ? "10px" : "max(14px, env(safe-area-inset-left, 0px) + 8px)",
+                        right: useCompactDesktop ? "10px" : "max(14px, env(safe-area-inset-right, 0px) + 8px)",
+                        top: "max(12px, env(safe-area-inset-top, 0px) + 8px)",
+                        bottom: "max(12px, env(safe-area-inset-bottom, 0px) + 8px)",
+                        width: useCompactDesktop
+                            ? "auto"
+                            : "min(900px, calc(100vw - 36px))",
+                        maxHeight: "none",
+                        margin: useCompactDesktop ? "0" : "0 auto",
                         borderRadius: "18px",
                     }),
                     overflowY: compactNoScroll ? "hidden" : useBottomSheet || isEditingThisItem ? "auto" : "hidden",
@@ -451,10 +456,29 @@ export default function SelectedItemDrawer({
                                 ) : null}
                             </div>
                         ) : null}
+
+                        <div style={{ marginTop: "8px" }}>
+                            <LocationDetailsBlock
+                                gps={selectedGps}
+                                geoLookup={selectedGeoLookup}
+                                isResolving={isResolvingGeoLookup}
+                                mapsUrl={selectedMapsUrl}
+                                compact={compactNoScroll || useDenseDesktopCard}
+                                w3wAddress={selectedItem.w3w_address ?? null}
+                            />
+                        </div>
                     </div>
 
                     {/* Right: details + actions */}
-                    <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", minHeight: 0 }}>
+                    <div style={{
+                        flex: 1,
+                        minWidth: 0,
+                        display: "flex",
+                        flexDirection: "column",
+                        minHeight: 0,
+                        overflowY: useCompactLayout ? "visible" : "auto",
+                        paddingRight: useCompactLayout ? 0 : "2px",
+                    }}>
                         <div style={{
                             display: "grid",
                             gap: compactNoScroll ? "7px" : useBottomSheet ? "8px" : useDenseDesktopCard ? "7px" : "10px",
@@ -500,15 +524,6 @@ export default function SelectedItemDrawer({
                                 </div>
                             ) : null}
 
-                            <LocationDetailsBlock
-                                gps={selectedGps}
-                                geoLookup={selectedGeoLookup}
-                                isResolving={isResolvingGeoLookup}
-                                mapsUrl={selectedMapsUrl}
-                                compact={compactNoScroll || useDenseDesktopCard}
-                                w3wAddress={selectedItem.w3w_address ?? null}
-                            />
-
                             {copiedShareItemId === selectedItem.id && shareCopyStatus ? (
                                 <div style={{ marginTop: "4px", color: "#0f766e", fontWeight: 600, fontSize: "0.78rem" }}>
                                     {shareCopyStatus}
@@ -533,6 +548,8 @@ export default function SelectedItemDrawer({
                                 style={{
                                     display: "grid",
                                     gap: "8px",
+                                    flex: useCompactLayout ? "0 0 auto" : "1 1 auto",
+                                    minHeight: 0,
                                     marginBottom: compactNoScroll ? "8px" : useBottomSheet ? "12px" : "8px",
                                     padding: compactNoScroll ? "7px 8px" : useBottomSheet ? "9px 10px" : "8px 9px",
                                     borderRadius: "10px",
@@ -585,8 +602,14 @@ export default function SelectedItemDrawer({
                                 ) : itemCommentsError ? (
                                     <div style={{ fontSize: "0.78rem", color: "#991b1b" }}>{itemCommentsError}</div>
                                 ) : Array.isArray(itemComments) && itemComments.length ? (
-                                    <div style={{ display: "grid", gap: "6px", maxHeight: "180px", overflowY: "auto", paddingRight: "2px" }}>
-                                        {itemComments.slice(0, 8).map((comment) => (
+                                    <div style={{
+                                        display: "grid",
+                                        gap: "6px",
+                                        maxHeight: useCompactLayout ? "220px" : "min(34vh, 320px)",
+                                        overflowY: "auto",
+                                        paddingRight: "2px",
+                                    }}>
+                                        {itemComments.map((comment) => (
                                             <div
                                                 key={comment.id}
                                                 style={{
@@ -606,20 +629,6 @@ export default function SelectedItemDrawer({
                                 ) : (
                                     <div style={{ fontSize: "0.78rem", color: "#64748b" }}>No approved comments yet.</div>
                                 )}
-                            </div>
-                        ) : null}
-
-                        {!canManageItems ? (
-                            <div style={{
-                                marginBottom: compactNoScroll ? "8px" : useBottomSheet ? "12px" : "8px",
-                                padding: compactNoScroll ? "7px 8px" : useBottomSheet ? "9px 10px" : "8px 9px",
-                                borderRadius: "8px",
-                                border: "1px solid #fde68a",
-                                background: "#fffbeb",
-                                color: "#92400e",
-                                fontSize: compactNoScroll ? "0.74rem" : useBottomSheet ? "0.82rem" : "0.8rem",
-                            }}>
-                                Read-only mode: only authorized GitHub accounts can edit or delete locations.
                             </div>
                         ) : null}
 
