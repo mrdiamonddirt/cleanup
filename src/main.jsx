@@ -5350,6 +5350,27 @@ function AuthProviderModal({
     const isGoogleSignInDisabled = isAuthActionLoading || !isGoogleActive;
     const isTwitterSignInDisabled = isAuthActionLoading || !isTwitterActive;
 
+    const socialButtonBaseStyle = {
+        borderRadius: "10px",
+        padding: "10px 12px",
+        width: isMobile ? "min(260px, 100%)" : "100%",
+        fontSize: "0.84rem",
+        fontWeight: 700,
+        textAlign: "center",
+        position: "relative",
+        overflow: "hidden",
+        isolation: "isolate",
+    };
+
+    const getComingSoonSocialStyle = (brandColor) => ({
+        border: `1px solid ${brandColor}`,
+        background: brandColor,
+        color: "#0f172a",
+        cursor: isAuthActionLoading ? "not-allowed" : "default",
+        opacity: isAuthActionLoading ? 0.7 : 1,
+        boxShadow: "inset 0 0 0 999px rgba(255, 255, 255, 0.62)",
+    });
+
     return (
         <ModalShell isMobile={isMobile} title="Sign in" onClose={onClose}>
             <p style={{ margin: 0, fontSize: "0.84rem", color: "#334155", lineHeight: 1.45 }}>
@@ -5381,80 +5402,64 @@ function AuthProviderModal({
                     onClick={onSignInWithFacebook}
                     disabled={isFacebookSignInDisabled}
                     style={{
-                        border: isFacebookActive ? "1px solid #1877f2" : "1px solid #94a3b8",
-                        background: isFacebookActive ? "#1877f2" : "#cbd5e1",
-                        color: isFacebookActive ? "#fff" : "#475569",
-                        borderRadius: "10px",
-                        padding: "10px 12px",
-                        width: isMobile ? "min(260px, 100%)" : "100%",
-                        fontSize: "0.84rem",
-                        fontWeight: 700,
+                        ...socialButtonBaseStyle,
+                        border: "1px solid #1877f2",
+                        background: "#1877f2",
+                        color: "#fff",
                         cursor: isFacebookSignInDisabled ? "not-allowed" : "pointer",
-                        opacity: isFacebookSignInDisabled ? 0.7 : 1,
-                        textAlign: "center",
+                        opacity: isFacebookSignInDisabled && isFacebookActive ? 0.7 : 1,
+                        ...(isFacebookActive ? null : getComingSoonSocialStyle("#1877f2")),
                     }}
                 >
-                    {isFacebookActive ? "Sign in with Facebook" : "Coming soon"}
+                    {isFacebookActive ? "Sign in with Facebook" : "Facebook coming soon"}
                 </button>
                 <button
                     type="button"
                     onClick={onSignInWithApple}
                     disabled={isAppleSignInDisabled}
                     style={{
-                        border: isAppleActive ? "1px solid #111827" : "1px solid #94a3b8",
-                        background: isAppleActive ? "#111827" : "#cbd5e1",
-                        color: isAppleActive ? "#fff" : "#475569",
-                        borderRadius: "10px",
-                        padding: "10px 12px",
-                        width: isMobile ? "min(260px, 100%)" : "100%",
-                        fontSize: "0.84rem",
-                        fontWeight: 700,
+                        ...socialButtonBaseStyle,
+                        border: "1px solid #111827",
+                        background: "#111827",
+                        color: "#fff",
                         cursor: isAppleSignInDisabled ? "not-allowed" : "pointer",
-                        opacity: isAppleSignInDisabled ? 0.7 : 1,
-                        textAlign: "center",
+                        opacity: isAppleSignInDisabled && isAppleActive ? 0.7 : 1,
+                        ...(isAppleActive ? null : getComingSoonSocialStyle("#111827")),
                     }}
                 >
-                    {isAppleActive ? "Sign in with Apple" : "Coming soon"}
+                    {isAppleActive ? "Sign in with Apple" : "Apple coming soon"}
                 </button>
                 <button
                     type="button"
                     onClick={onSignInWithGoogle}
                     disabled={isGoogleSignInDisabled}
                     style={{
-                        border: isGoogleActive ? "1px solid #2563eb" : "1px solid #94a3b8",
-                        background: isGoogleActive ? "#2563eb" : "#cbd5e1",
-                        color: isGoogleActive ? "#fff" : "#475569",
-                        borderRadius: "10px",
-                        padding: "10px 12px",
-                        width: isMobile ? "min(260px, 100%)" : "100%",
-                        fontSize: "0.84rem",
-                        fontWeight: 700,
+                        ...socialButtonBaseStyle,
+                        border: "1px solid #2563eb",
+                        background: "#2563eb",
+                        color: "#fff",
                         cursor: isGoogleSignInDisabled ? "not-allowed" : "pointer",
-                        opacity: isGoogleSignInDisabled ? 0.7 : 1,
-                        textAlign: "center",
+                        opacity: isGoogleSignInDisabled && isGoogleActive ? 0.7 : 1,
+                        ...(isGoogleActive ? null : getComingSoonSocialStyle("#2563eb")),
                     }}
                 >
-                    {isGoogleActive ? "Sign in with Google" : "Coming soon"}
+                    {isGoogleActive ? "Sign in with Google" : "Google coming soon"}
                 </button>
                 <button
                     type="button"
                     onClick={onSignInWithTwitter}
                     disabled={isTwitterSignInDisabled}
                     style={{
-                        border: isTwitterActive ? "1px solid #1d9bf0" : "1px solid #94a3b8",
-                        background: isTwitterActive ? "#1d9bf0" : "#cbd5e1",
-                        color: isTwitterActive ? "#fff" : "#475569",
-                        borderRadius: "10px",
-                        padding: "10px 12px",
-                        width: isMobile ? "min(260px, 100%)" : "100%",
-                        fontSize: "0.84rem",
-                        fontWeight: 700,
+                        ...socialButtonBaseStyle,
+                        border: "1px solid #1d9bf0",
+                        background: "#1d9bf0",
+                        color: "#fff",
                         cursor: isTwitterSignInDisabled ? "not-allowed" : "pointer",
-                        opacity: isTwitterSignInDisabled ? 0.7 : 1,
-                        textAlign: "center",
+                        opacity: isTwitterSignInDisabled && isTwitterActive ? 0.7 : 1,
+                        ...(isTwitterActive ? null : getComingSoonSocialStyle("#1d9bf0")),
                     }}
                 >
-                    {isTwitterActive ? "Sign in with Twitter" : "Coming soon"}
+                    {isTwitterActive ? "Sign in with Twitter" : "Twitter coming soon"}
                 </button>
             </div>
             {authError ? (
