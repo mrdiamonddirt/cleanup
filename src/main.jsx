@@ -901,6 +901,15 @@ const COMMUNITY_EMAIL_ACCOUNT = (import.meta.env.VITE_COMMUNITY_EMAIL_ACCOUNT ||
 const FACEBOOK_ACTIVE = String(import.meta.env.VITE_FACEBOOK_ACTIVE ?? "true")
     .trim()
     .toLowerCase() !== "false";
+const APPLE_ACTIVE = String(import.meta.env.VITE_APPLE_ACTIVE ?? "false")
+    .trim()
+    .toLowerCase() !== "false";
+const GOOGLE_ACTIVE = String(import.meta.env.VITE_GOOGLE_ACTIVE ?? "false")
+    .trim()
+    .toLowerCase() !== "false";
+const TWITTER_ACTIVE = String(import.meta.env.VITE_TWITTER_ACTIVE ?? "false")
+    .trim()
+    .toLowerCase() !== "false";
 const ENABLE_PUBLIC_REPORTS = String(import.meta.env.VITE_ENABLE_PUBLIC_REPORTS ?? "true")
     .trim()
     .toLowerCase() !== "false";
@@ -5324,13 +5333,22 @@ function AuthProviderModal({
     authError,
     isAuthActionLoading,
     isFacebookActive,
+    isAppleActive,
+    isGoogleActive,
+    isTwitterActive,
     onClose,
     onSignInWithGitHub,
     onSignInWithFacebook,
+    onSignInWithApple,
+    onSignInWithGoogle,
+    onSignInWithTwitter,
 }) {
     if (!isOpen) return null;
 
     const isFacebookSignInDisabled = isAuthActionLoading || !isFacebookActive;
+    const isAppleSignInDisabled = isAuthActionLoading || !isAppleActive;
+    const isGoogleSignInDisabled = isAuthActionLoading || !isGoogleActive;
+    const isTwitterSignInDisabled = isAuthActionLoading || !isTwitterActive;
 
     return (
         <ModalShell isMobile={isMobile} title="Sign in" onClose={onClose}>
@@ -5377,6 +5395,66 @@ function AuthProviderModal({
                     }}
                 >
                     {isFacebookActive ? "Sign in with Facebook" : "Coming soon"}
+                </button>
+                <button
+                    type="button"
+                    onClick={onSignInWithApple}
+                    disabled={isAppleSignInDisabled}
+                    style={{
+                        border: isAppleActive ? "1px solid #111827" : "1px solid #94a3b8",
+                        background: isAppleActive ? "#111827" : "#cbd5e1",
+                        color: isAppleActive ? "#fff" : "#475569",
+                        borderRadius: "10px",
+                        padding: "10px 12px",
+                        width: isMobile ? "min(260px, 100%)" : "100%",
+                        fontSize: "0.84rem",
+                        fontWeight: 700,
+                        cursor: isAppleSignInDisabled ? "not-allowed" : "pointer",
+                        opacity: isAppleSignInDisabled ? 0.7 : 1,
+                        textAlign: "center",
+                    }}
+                >
+                    {isAppleActive ? "Sign in with Apple" : "Coming soon"}
+                </button>
+                <button
+                    type="button"
+                    onClick={onSignInWithGoogle}
+                    disabled={isGoogleSignInDisabled}
+                    style={{
+                        border: isGoogleActive ? "1px solid #2563eb" : "1px solid #94a3b8",
+                        background: isGoogleActive ? "#2563eb" : "#cbd5e1",
+                        color: isGoogleActive ? "#fff" : "#475569",
+                        borderRadius: "10px",
+                        padding: "10px 12px",
+                        width: isMobile ? "min(260px, 100%)" : "100%",
+                        fontSize: "0.84rem",
+                        fontWeight: 700,
+                        cursor: isGoogleSignInDisabled ? "not-allowed" : "pointer",
+                        opacity: isGoogleSignInDisabled ? 0.7 : 1,
+                        textAlign: "center",
+                    }}
+                >
+                    {isGoogleActive ? "Sign in with Google" : "Coming soon"}
+                </button>
+                <button
+                    type="button"
+                    onClick={onSignInWithTwitter}
+                    disabled={isTwitterSignInDisabled}
+                    style={{
+                        border: isTwitterActive ? "1px solid #1d9bf0" : "1px solid #94a3b8",
+                        background: isTwitterActive ? "#1d9bf0" : "#cbd5e1",
+                        color: isTwitterActive ? "#fff" : "#475569",
+                        borderRadius: "10px",
+                        padding: "10px 12px",
+                        width: isMobile ? "min(260px, 100%)" : "100%",
+                        fontSize: "0.84rem",
+                        fontWeight: 700,
+                        cursor: isTwitterSignInDisabled ? "not-allowed" : "pointer",
+                        opacity: isTwitterSignInDisabled ? 0.7 : 1,
+                        textAlign: "center",
+                    }}
+                >
+                    {isTwitterActive ? "Sign in with Twitter" : "Coming soon"}
                 </button>
             </div>
             {authError ? (
@@ -11273,6 +11351,9 @@ function App() {
     const canUsePublicReports = ENABLE_PUBLIC_REPORTS && !canManageItems;
     const isOwnerSupabaseUser = Boolean(currentUser?.id && OWNER_SUPABASE_IDS.includes(currentUser.id));
     const isFacebookSignInActiveForCurrentUser = FACEBOOK_ACTIVE || isOwnerSupabaseUser;
+    const isAppleSignInActiveForCurrentUser = APPLE_ACTIVE || isOwnerSupabaseUser;
+    const isGoogleSignInActiveForCurrentUser = GOOGLE_ACTIVE || isOwnerSupabaseUser;
+    const isTwitterSignInActiveForCurrentUser = TWITTER_ACTIVE || isOwnerSupabaseUser;
     const hasMessengerTarget = Boolean(FACEBOOK_PAGE_RECIPIENT_ID);
     const hasCommunityEmailTarget = Boolean(COMMUNITY_EMAIL_ACCOUNT);
     const messengerThreadUrl = useMemo(
@@ -13501,6 +13582,99 @@ function App() {
 
         if (error) {
             setAuthError("Facebook sign-in failed. Please try again.");
+            setIsAuthActionLoading(false);
+            return;
+        }
+    }
+
+    async function signInWithApple() {
+        setAuthError("");
+
+        if (!isAppleSignInActiveForCurrentUser) {
+            setAuthError("Apple sign-in is coming soon.");
+            setIsAuthActionLoading(false);
+            return;
+        }
+
+        setIsAuthActionLoading(true);
+        setIsAuthProviderModalOpen(false);
+
+        if (!hasSupabaseConfig) {
+            setAuthError("Supabase is not configured for this deployment.");
+            setIsAuthActionLoading(false);
+            return;
+        }
+
+        const redirectTo = `${window.location.origin}${window.location.pathname}`;
+        const { error } = await supabase.auth.signInWithOAuth({
+            provider: "apple",
+            options: { redirectTo },
+        });
+
+        if (error) {
+            setAuthError("Apple sign-in failed. Please try again.");
+            setIsAuthActionLoading(false);
+            return;
+        }
+    }
+
+    async function signInWithGoogle() {
+        setAuthError("");
+
+        if (!isGoogleSignInActiveForCurrentUser) {
+            setAuthError("Google sign-in is coming soon.");
+            setIsAuthActionLoading(false);
+            return;
+        }
+
+        setIsAuthActionLoading(true);
+        setIsAuthProviderModalOpen(false);
+
+        if (!hasSupabaseConfig) {
+            setAuthError("Supabase is not configured for this deployment.");
+            setIsAuthActionLoading(false);
+            return;
+        }
+
+        const redirectTo = `${window.location.origin}${window.location.pathname}`;
+        const { error } = await supabase.auth.signInWithOAuth({
+            provider: "google",
+            options: { redirectTo },
+        });
+
+        if (error) {
+            setAuthError("Google sign-in failed. Please try again.");
+            setIsAuthActionLoading(false);
+            return;
+        }
+    }
+
+    async function signInWithTwitter() {
+        setAuthError("");
+
+        if (!isTwitterSignInActiveForCurrentUser) {
+            setAuthError("Twitter sign-in is coming soon.");
+            setIsAuthActionLoading(false);
+            return;
+        }
+
+        setIsAuthActionLoading(true);
+        setIsAuthProviderModalOpen(false);
+
+        if (!hasSupabaseConfig) {
+            setAuthError("Supabase is not configured for this deployment.");
+            setIsAuthActionLoading(false);
+            return;
+        }
+
+        const redirectTo = `${window.location.origin}${window.location.pathname}`;
+        const { error } = await supabase.auth.signInWithOAuth({
+            provider: "twitter",
+            options: { redirectTo },
+        });
+
+        if (error) {
+            setAuthError("Twitter sign-in failed. Please try again.");
             setIsAuthActionLoading(false);
             return;
         }
@@ -17685,9 +17859,15 @@ function App() {
                 authError={authError}
                 isAuthActionLoading={isAuthActionLoading}
                 isFacebookActive={isFacebookSignInActiveForCurrentUser}
+                isAppleActive={isAppleSignInActiveForCurrentUser}
+                isGoogleActive={isGoogleSignInActiveForCurrentUser}
+                isTwitterActive={isTwitterSignInActiveForCurrentUser}
                 onClose={closeAuthProviderModal}
                 onSignInWithGitHub={signInWithGitHub}
                 onSignInWithFacebook={signInWithFacebook}
+                onSignInWithApple={signInWithApple}
+                onSignInWithGoogle={signInWithGoogle}
+                onSignInWithTwitter={signInWithTwitter}
             />
 
             {isProfileModalOpen ? (
