@@ -65,6 +65,14 @@ textarea {
   font-family: var(--sans);
 }
 
+/* Keep native dropdown text readable even when the OS/browser is in dark mode. */
+select,
+option,
+optgroup {
+  color-scheme: light;
+  color: #0f172a;
+}
+
 .sensor-history-shell {
   box-sizing: border-box;
 }
