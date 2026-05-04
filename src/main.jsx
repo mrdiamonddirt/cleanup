@@ -4079,9 +4079,14 @@ function HeroBanner({
             <div className="hero-banner__top">
                 <div className="hero-banner__content">
                     <div className="hero-banner__badge">
-                        <span>River Lune</span>
-                        <span className="hero-banner__badge-dot">•</span>
-                        <span>Cleanup Tracker</span>
+                        <span className="hero-banner__badge-logo-wrap" aria-hidden="true">
+                            <img
+                                src="/Large_Logo.svg"
+                                alt=""
+                                className="hero-banner__badge-logo"
+                            />
+                        </span>
+                        <span className="hero-banner__badge-text">River Lune Cleanup Tracker</span>
                     </div>
 
                     <h1 className="hero-banner__title">River Lune Cleanup</h1>
@@ -4420,24 +4425,40 @@ function AppTopBar({
                         style={{
                             display: "inline-flex",
                             alignItems: "center",
-                            gap: "7px",
-                            padding: isMobile ? "3px 8px" : "4px 9px",
+                            gap: "8px",
+                            padding: isMobile ? "3px 9px 3px 5px" : "4px 10px 4px 5px",
                             borderRadius: "999px",
-                            border: "1px solid rgba(147,197,253,0.55)",
-                            background: "#dfeaf6",
-                            boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.45)",
+                            border: "1px solid rgba(148,163,184,0.55)",
+                            background: "linear-gradient(180deg, rgba(255,255,255,0.96), rgba(241,245,249,0.92))",
+                            boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.7), 0 5px 10px rgba(15,23,42,0.08)",
                         }}
                     >
                         <span
                             style={{
-                                width: "7px",
-                                height: "7px",
+                                width: isMobile ? "28px" : "30px",
+                                height: isMobile ? "22px" : "24px",
                                 borderRadius: "999px",
-                                background: "#0ea5e9",
-                                boxShadow: "0 0 10px rgba(14,165,233,0.7)",
-                                flexShrink: 0,
+                                background: "linear-gradient(160deg, #ffffff 0%, #e5edf7 100%)",
+                                boxShadow: "inset 0 0 0 1px rgba(148,163,184,0.35), 0 3px 8px rgba(15,23,42,0.14)",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                overflow: "hidden",
+                                flex: "0 0 auto",
                             }}
-                        />
+                            aria-hidden="true"
+                        >
+                            <img
+                                src="/Large_Logo.svg"
+                                alt=""
+                                style={{
+                                    width: isMobile ? "22px" : "24px",
+                                    height: isMobile ? "18px" : "19px",
+                                    objectFit: "contain",
+                                    objectPosition: "center",
+                                }}
+                            />
+                        </span>
                         <span
                             className="river-title-shimmer"
                             style={{

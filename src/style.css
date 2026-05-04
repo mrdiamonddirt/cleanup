@@ -66,21 +66,21 @@ textarea {
 }
 
 .hero-banner {
-  --hero-surface: linear-gradient(144deg, #f9fbfd 0%, #eef4fa 46%, #f7fafc 100%);
-  --hero-border: #cdd9e5;
+  --hero-surface: linear-gradient(146deg, #f8fbff 0%, #edf4fb 45%, #f7fbff 100%);
+  --hero-border: #c8d5e3;
   --hero-ink: #0f172a;
   --hero-brand: #0f172a;
-  --hero-subtle-ink: #475569;
-  --hero-badge-ink: #334155;
-  --hero-pill-bg: rgba(255, 255, 255, 0.88);
+  --hero-subtle-ink: #405167;
+  --hero-badge-ink: #2b3d56;
+  --hero-pill-bg: rgba(255, 255, 255, 0.92);
   position: relative;
   overflow: hidden;
   margin-bottom: 4px;
-  padding: 12px 14px 10px;
-  border-radius: 18px;
+  padding: 13px 15px 11px;
+  border-radius: 20px;
   border: 1px solid var(--hero-border);
   background: var(--hero-surface);
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.75);
 }
 
 .hero-banner::before,
@@ -129,46 +129,68 @@ textarea {
 .hero-banner__badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
+  gap: 9px;
+  padding: 5px 12px 5px 5px;
   border-radius: 999px;
   background: var(--hero-pill-bg);
-  border: 1px solid #c7d2e1;
+  border: 1px solid #c3cfde;
   color: var(--hero-badge-ink);
-  font-size: 0.71rem;
+  font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.055em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
+  box-shadow: 0 5px 10px rgba(15, 23, 42, 0.08);
 }
 
-.hero-banner__badge-dot {
-  color: #94a3b8;
+.hero-banner__badge-logo-wrap {
+  width: 40px;
+  height: 32px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(160deg, #ffffff 0%, #e5edf7 100%);
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.35), 0 3px 8px rgba(15, 23, 42, 0.14);
+}
+
+.hero-banner__badge-logo {
+  width: 30px;
+  height: 24px;
+  object-fit: contain;
+  object-position: center;
+}
+
+.hero-banner__badge-text {
+  line-height: 1;
 }
 
 .hero-banner__title {
-  margin: 8px 0 6px;
+  margin: 8px 0 5px;
   color: var(--hero-brand);
-  font-size: clamp(1.45rem, 2.3vw, 1.84rem);
-  line-height: 1.06;
+  font-size: clamp(1.5rem, 2.45vw, 1.92rem);
+  line-height: 1.04;
   letter-spacing: -0.03em;
-  font-weight: 700;
+  font-weight: 800;
+  text-wrap: balance;
 }
 
 .hero-banner__subtitle {
   margin: 0;
   color: var(--hero-subtle-ink);
-  font-size: 0.9rem;
-  line-height: 1.4;
+  font-size: 0.91rem;
+  line-height: 1.42;
   max-width: 56ch;
 }
 
 .hero-banner__actions {
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 6px;
-  flex: 0 0 auto;
-  min-width: 224px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: 0 1 600px;
+  min-width: 250px;
 }
 
 .hero-banner__action,
@@ -258,6 +280,7 @@ textarea {
   padding: 4px 10px;
   line-height: 1.2;
   white-space: nowrap;
+  margin-left: auto;
 }
 
 .hero-banner__status--edit {
@@ -286,11 +309,11 @@ textarea {
 
 @media (max-width: 1024px) {
   .hero-banner__actions {
-    min-width: 206px;
+    min-width: 216px;
   }
 
   .hero-banner__title {
-    font-size: clamp(1.36rem, 3.3vw, 1.64rem);
+    font-size: clamp(1.38rem, 3.3vw, 1.7rem);
   }
 }
 
@@ -298,6 +321,20 @@ textarea {
   .hero-banner,
   .hero-banner--mobile {
     padding: 10px 10px 8px;
+  }
+
+  .hero-banner__badge {
+    padding-right: 10px;
+  }
+
+  .hero-banner__badge-logo-wrap {
+    width: 36px;
+    height: 30px;
+  }
+
+  .hero-banner__badge-logo {
+    width: 27px;
+    height: 22px;
   }
 
   .hero-banner__top {
@@ -880,10 +917,6 @@ code {
   font-weight: 700;
   transform: translateY(0.5px);
   white-space: nowrap;
-}
-
-.auth-provider-coming-soon-chip {
-  /* Positioned inline via JSX */
 }
 
 .auth-provider-button:hover:not(:disabled) .auth-provider-logo {
