@@ -19,6 +19,7 @@ import {
     banProfileForAdmin,
     cancelAccountDeletion,
     ensureProfileForUser,
+    listUnmatchedBmacEventsForAdmin,
     listSocialLeaderboardTotals,
     listAdminAuditLogs,
     listBansForAdmin,
@@ -35,6 +36,7 @@ import {
     submitShare,
     unbanProfileForAdmin,
     requestAccountDeletion,
+    resolveUnmatchedBmacEventForAdmin,
     updateProfileForAdmin,
     updateProfileForUser,
 } from "./profileApi";
@@ -5893,12 +5895,21 @@ function ProfilePanel({
     adminBans,
     isAdminBansLoading,
     adminBansError,
+    adminUnmatchedBmacEvents,
+    isAdminUnmatchedBmacEventsLoading,
+    adminUnmatchedBmacEventsError,
+    adminUnmatchedBmacSelectedProfileIdByEventId,
+    adminUnmatchedBmacResolutionNoteByEventId,
+    resolvingUnmatchedBmacEventId,
     onAdminBanReasonChange,
     onBanProfile,
     onUnbanProfile,
     onAdminBmacAmountPenceChange,
     onAdminBmacNoteChange,
     onRecordAdminBmacContribution,
+    onAdminUnmatchedBmacProfileChange,
+    onAdminUnmatchedBmacResolutionNoteChange,
+    onResolveAdminUnmatchedBmacEvent,
     onLoadPointHistoryForAdminProfile,
     adminPointEventsByProfileId,
     isAdminPointHistoryLoadingByProfileId,
@@ -5938,6 +5949,9 @@ function ProfilePanel({
         : 0;
     const activeAdminProfileCount = Array.isArray(adminProfiles)
         ? adminProfiles.filter((profile) => !profile?.delete_requested_at).length
+        : 0;
+    const pendingUnmatchedBmacCount = Array.isArray(adminUnmatchedBmacEvents)
+        ? adminUnmatchedBmacEvents.filter((event) => event?.status === "pending").length
         : 0;
     const adminUserCountLabel = isAdminProfilesLoading
         ? "Users..."
@@ -6342,6 +6356,111 @@ function ProfilePanel({
                     {adminActionError ? (
                         <div style={{ marginTop: "8px", color: "#b91c1c", fontSize: "0.76rem", fontWeight: 700 }}>{adminActionError}</div>
                     ) : null}
+
+                    <details style={{ marginTop: "10px" }}>
+                        <summary style={{ cursor: "pointer", fontSize: "0.76rem", fontWeight: 800, color: "#7c2d12", letterSpacing: "0.03em", textTransform: "uppercase" }}>
+                            Reveal unmatched BMAC events {pendingUnmatchedBmacCount ? `(${pendingUnmatchedBmacCount})` : ""}
+                        </summary>
+                        {adminUnmatchedBmacEventsError ? (
+                            <div style={{ marginTop: "8px", fontSize: "0.75rem", color: "#b91c1c" }}>{adminUnmatchedBmacEventsError}</div>
+                        ) : null}
+                        {isAdminUnmatchedBmacEventsLoading ? (
+                            <div style={{ marginTop: "8px", fontSize: "0.75rem", color: "#57534e" }}>Loading unmatched BMAC events...</div>
+                        ) : (
+                            <div style={{ marginTop: "8px", display: "grid", gap: "8px", maxHeight: "240px", overflowY: "auto", paddingRight: "2px" }}>
+                                {pendingUnmatchedBmacCount ? adminUnmatchedBmacEvents
+                                    .filter((event) => event?.status === "pending")
+                                    .map((event) => {
+                                        const selectedProfileId = String(adminUnmatchedBmacSelectedProfileIdByEventId?.[event.id] || "");
+                                        const isResolving = resolvingUnmatchedBmacEventId === event.id;
+                                        return (
+                                            <div key={event.id} style={{ border: "1px solid #fde68a", borderRadius: "10px", padding: "8px", background: "#fffbeb", display: "grid", gap: "8px" }}>
+                                                <div style={{ display: "grid", gap: "3px" }}>
+                                                    <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#92400e" }}>
+                                                        {event.supporter_name || "Unknown supporter"} • {event.amount_pence}p
+                                                    </div>
+                                                    <div style={{ fontSize: "0.72rem", color: "#57534e", overflowWrap: "anywhere" }}>
+                                                        {event.supporter_email || "No email supplied"}
+                                                    </div>
+                                                    <div style={{ fontSize: "0.69rem", color: "#78716c", overflowWrap: "anywhere" }}>
+                                                        {event.event_type} • {event.source_key}
+                                                    </div>
+                                                    {event.note ? (
+                                                        <div style={{ fontSize: "0.72rem", color: "#57534e" }}>{event.note}</div>
+                                                    ) : null}
+                                                </div>
+
+                                                <div style={{ display: "grid", gap: "8px", gridTemplateColumns: isMobile ? "1fr" : "minmax(0,1fr) minmax(0,1fr) auto" }}>
+                                                    <label style={{ display: "grid", gap: "4px" }}>
+                                                        <span style={{ fontSize: "0.72rem", color: "#57534e", fontWeight: 700 }}>Match to profile</span>
+                                                        <select
+                                                            value={selectedProfileId}
+                                                            onChange={(evt) => onAdminUnmatchedBmacProfileChange(event.id, evt.target.value)}
+                                                            style={{
+                                                                width: "100%",
+                                                                minHeight: "34px",
+                                                                borderRadius: "10px",
+                                                                border: "1px solid #d6d3d1",
+                                                                padding: "0 10px",
+                                                                fontSize: "0.82rem",
+                                                                boxSizing: "border-box",
+                                                            }}
+                                                        >
+                                                            <option value="">Select a profile</option>
+                                                            {adminProfiles.map((profile) => (
+                                                                <option key={profile.id} value={profile.id}>
+                                                                    {getProfileDisplayName(profile, null)}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    </label>
+                                                    <label style={{ display: "grid", gap: "4px" }}>
+                                                        <span style={{ fontSize: "0.72rem", color: "#57534e", fontWeight: 700 }}>Resolution note</span>
+                                                        <input
+                                                            type="text"
+                                                            value={adminUnmatchedBmacResolutionNoteByEventId?.[event.id] || ""}
+                                                            onChange={(evt) => onAdminUnmatchedBmacResolutionNoteChange(event.id, evt.target.value)}
+                                                            placeholder="Optional note"
+                                                            style={{
+                                                                width: "100%",
+                                                                minHeight: "34px",
+                                                                borderRadius: "10px",
+                                                                border: "1px solid #d6d3d1",
+                                                                padding: "0 10px",
+                                                                fontSize: "0.82rem",
+                                                                boxSizing: "border-box",
+                                                            }}
+                                                        />
+                                                    </label>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => resolveAdminUnmatchedBmacEvent(event.id)}
+                                                        disabled={isResolving}
+                                                        style={{
+                                                            minHeight: "34px",
+                                                            alignSelf: isMobile ? "stretch" : "end",
+                                                            borderRadius: "10px",
+                                                            border: "1px solid #166534",
+                                                            background: "#dcfce7",
+                                                            color: "#166534",
+                                                            padding: "0 12px",
+                                                            fontSize: "0.76rem",
+                                                            fontWeight: 700,
+                                                            cursor: isResolving ? "not-allowed" : "pointer",
+                                                            opacity: isResolving ? 0.7 : 1,
+                                                        }}
+                                                    >
+                                                        {isResolving ? "Resolving..." : "Resolve"}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        );
+                                    }) : (
+                                        <div style={{ fontSize: "0.75rem", color: "#57534e" }}>No unmatched BMAC events.</div>
+                                    )}
+                            </div>
+                        )}
+                    </details>
 
                     <details style={{ marginTop: "10px" }}>
                         <summary style={{ cursor: "pointer", fontSize: "0.76rem", fontWeight: 800, color: "#7c2d12", letterSpacing: "0.03em", textTransform: "uppercase" }}>
@@ -7133,13 +7252,17 @@ function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impact
                 fontSize: controlFontSize,
             }}
         >
-                {statTiles.map((tile) => renderStatTile(
-                    tile.id,
-                    tile.label,
-                    tile.valueNode,
-                    tile.tooltipContent,
-                    tile.valueColor,
-                    tile.mobileLabel,
+                {statTiles.map((tile) => (
+                    <React.Fragment key={tile.id}>
+                        {renderStatTile(
+                            tile.id,
+                            tile.label,
+                            tile.valueNode,
+                            tile.tooltipContent,
+                            tile.valueColor,
+                            tile.mobileLabel,
+                        )}
+                    </React.Fragment>
                 ))}
                 {isMobile && activeStatTile && typeof document !== "undefined"
                     ? createPortal(
@@ -11461,6 +11584,12 @@ function App() {
     const [adminBans, setAdminBans] = useState([]);
     const [isAdminBansLoading, setIsAdminBansLoading] = useState(false);
     const [adminBansError, setAdminBansError] = useState("");
+    const [adminUnmatchedBmacEvents, setAdminUnmatchedBmacEvents] = useState([]);
+    const [isAdminUnmatchedBmacEventsLoading, setIsAdminUnmatchedBmacEventsLoading] = useState(false);
+    const [adminUnmatchedBmacEventsError, setAdminUnmatchedBmacEventsError] = useState("");
+    const [adminUnmatchedBmacSelectedProfileIdByEventId, setAdminUnmatchedBmacSelectedProfileIdByEventId] = useState({});
+    const [adminUnmatchedBmacResolutionNoteByEventId, setAdminUnmatchedBmacResolutionNoteByEventId] = useState({});
+    const [resolvingUnmatchedBmacEventId, setResolvingUnmatchedBmacEventId] = useState("");
     const [adminActionError, setAdminActionError] = useState("");
     const [adminActionStatus, setAdminActionStatus] = useState("");
     const [adminPointEventsByProfileId, setAdminPointEventsByProfileId] = useState({});
@@ -12594,6 +12723,7 @@ function App() {
                 setAdminProfiles([]);
                 setAdminPendingComments([]);
                 setAdminBans([]);
+                setAdminUnmatchedBmacEvents([]);
                 setAdminAuditLogs([]);
                 setAdminPointEventsByProfileId({});
             }
@@ -12604,10 +12734,12 @@ function App() {
         setIsAdminProfilesLoading(true);
         setIsAdminPendingCommentsLoading(true);
         setIsAdminBansLoading(true);
+        setIsAdminUnmatchedBmacEventsLoading(true);
         setIsAdminAuditLogsLoading(true);
         setAdminProfilesError("");
         setAdminPendingCommentsError("");
         setAdminBansError("");
+        setAdminUnmatchedBmacEventsError("");
         setAdminAuditLogsError("");
         setAdminProfilesStatus("");
         setAdminActionError("");
@@ -12618,11 +12750,13 @@ function App() {
                 profilesResult,
                 pendingCommentsResult,
                 bansResult,
+                unmatchedBmacEventsResult,
                 auditLogsResult,
             ] = await Promise.all([
                 listProfilesForAdmin(),
                 listPendingCommentsForAdmin(),
                 listBansForAdmin(),
+                listUnmatchedBmacEventsForAdmin(),
                 listAdminAuditLogs(),
             ]);
 
@@ -12649,6 +12783,13 @@ function App() {
                 setAdminBans(bansResult.bans || []);
             }
 
+            if (unmatchedBmacEventsResult.error) {
+                setAdminUnmatchedBmacEvents([]);
+                setAdminUnmatchedBmacEventsError("Unable to load unmatched BMAC events.");
+            } else {
+                setAdminUnmatchedBmacEvents(unmatchedBmacEventsResult.events || []);
+            }
+
             if (auditLogsResult.error) {
                 setAdminAuditLogs([]);
                 setAdminAuditLogsError("Unable to load admin audit logs.");
@@ -12659,6 +12800,7 @@ function App() {
             setIsAdminProfilesLoading(false);
             setIsAdminPendingCommentsLoading(false);
             setIsAdminBansLoading(false);
+            setIsAdminUnmatchedBmacEventsLoading(false);
             setIsAdminAuditLogsLoading(false);
         })();
 
@@ -14167,6 +14309,80 @@ function App() {
 
         setAdminActionStatus(`Recorded BMAC contribution (${contribution?.amount_pence || amountPence}p).`);
         setAdminBmacAmountPenceByProfileId((prev) => ({ ...prev, [profileId]: "" }));
+    }
+
+    function onAdminUnmatchedBmacProfileChange(eventId, profileId) {
+        setAdminUnmatchedBmacSelectedProfileIdByEventId((prev) => ({
+            ...prev,
+            [eventId]: profileId,
+        }));
+    }
+
+    function onAdminUnmatchedBmacResolutionNoteChange(eventId, note) {
+        setAdminUnmatchedBmacResolutionNoteByEventId((prev) => ({
+            ...prev,
+            [eventId]: note,
+        }));
+    }
+
+    async function resolveAdminUnmatchedBmacEvent(eventId) {
+        if (!canManageItems || !hasSupabaseConfig || !eventId) return;
+
+        const profileId = String(adminUnmatchedBmacSelectedProfileIdByEventId?.[eventId] || "").trim();
+        if (!profileId) {
+            setAdminActionError("Choose a profile before resolving an unmatched BMAC event.");
+            return;
+        }
+
+        const resolutionNote = String(adminUnmatchedBmacResolutionNoteByEventId?.[eventId] || "").trim();
+        setAdminActionError("");
+        setAdminActionStatus("");
+        setResolvingUnmatchedBmacEventId(eventId);
+
+        const { contribution, error } = await resolveUnmatchedBmacEventForAdmin(eventId, profileId, resolutionNote);
+
+        if (error) {
+            setAdminActionError("Could not resolve unmatched BMAC event.");
+            setResolvingUnmatchedBmacEventId("");
+            return;
+        }
+
+        const [profilesResult, unmatchedEventsResult, auditLogsResult] = await Promise.all([
+            listProfilesForAdmin(),
+            listUnmatchedBmacEventsForAdmin(),
+            listAdminAuditLogs(),
+        ]);
+
+        if (!profilesResult.error) {
+            setAdminProfiles(profilesResult.profiles || []);
+            if (currentProfile?.id === profileId) {
+                const updatedCurrent = (profilesResult.profiles || []).find((entry) => entry.id === profileId);
+                if (updatedCurrent) {
+                    setCurrentProfile(updatedCurrent);
+                }
+            }
+        }
+
+        if (!unmatchedEventsResult.error) {
+            setAdminUnmatchedBmacEvents(unmatchedEventsResult.events || []);
+        }
+
+        if (!auditLogsResult.error) {
+            setAdminAuditLogs(auditLogsResult.logs || []);
+        }
+
+        setAdminUnmatchedBmacSelectedProfileIdByEventId((prev) => {
+            const next = { ...prev };
+            delete next[eventId];
+            return next;
+        });
+        setAdminUnmatchedBmacResolutionNoteByEventId((prev) => {
+            const next = { ...prev };
+            delete next[eventId];
+            return next;
+        });
+        setAdminActionStatus(`Resolved unmatched BMAC event (${contribution?.amount_pence || 0}p).`);
+        setResolvingUnmatchedBmacEventId("");
     }
 
     async function approvePendingComment(commentId) {
@@ -18227,6 +18443,12 @@ function App() {
                     adminBans={adminBans}
                     isAdminBansLoading={isAdminBansLoading}
                     adminBansError={adminBansError}
+                    adminUnmatchedBmacEvents={adminUnmatchedBmacEvents}
+                    isAdminUnmatchedBmacEventsLoading={isAdminUnmatchedBmacEventsLoading}
+                    adminUnmatchedBmacEventsError={adminUnmatchedBmacEventsError}
+                    adminUnmatchedBmacSelectedProfileIdByEventId={adminUnmatchedBmacSelectedProfileIdByEventId}
+                    adminUnmatchedBmacResolutionNoteByEventId={adminUnmatchedBmacResolutionNoteByEventId}
+                    resolvingUnmatchedBmacEventId={resolvingUnmatchedBmacEventId}
                     onAdminBanReasonChange={(profileId, value) => {
                         setAdminBanReasonByProfileId((prev) => ({ ...prev, [profileId]: value }));
                     }}
@@ -18239,6 +18461,9 @@ function App() {
                         setAdminBmacNoteByProfileId((prev) => ({ ...prev, [profileId]: value }));
                     }}
                     onRecordAdminBmacContribution={recordAdminBmacContribution}
+                    onAdminUnmatchedBmacProfileChange={onAdminUnmatchedBmacProfileChange}
+                    onAdminUnmatchedBmacResolutionNoteChange={onAdminUnmatchedBmacResolutionNoteChange}
+                    onResolveAdminUnmatchedBmacEvent={resolveAdminUnmatchedBmacEvent}
                     onLoadPointHistoryForAdminProfile={loadPointHistoryForAdminProfile}
                     adminPointEventsByProfileId={adminPointEventsByProfileId}
                     isAdminPointHistoryLoadingByProfileId={isAdminPointHistoryLoadingByProfileId}
