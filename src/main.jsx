@@ -5985,100 +5985,133 @@ function LeaderboardModal({
                         })}
                     </div>
                 ) : (
-                    <div className="leaderboard-table-scroll" style={{ overflowX: "auto", border: "1px solid #dbeafe", borderRadius: "12px", background: "#fff" }}>
-                        <table className="leaderboard-table" style={{ width: isMobile ? "max-content" : "100%", minWidth: isMobile ? "500px" : "100%", borderCollapse: "separate", borderSpacing: 0, tableLayout: "fixed" }}>
-                            <colgroup>
-                                <col style={{ width: isMobile ? "56px" : "64px" }} />
-                                <col style={{ width: "auto" }} />
-                                <col style={{ width: isMobile ? "62px" : "78px" }} />
-                                <col style={{ width: isMobile ? "62px" : "78px" }} />
-                                <col style={{ width: isMobile ? "62px" : "78px" }} />
-                                {scope === "users" && <col style={{ width: isMobile ? "62px" : "78px" }} />}
-                                <col style={{ width: isMobile ? "66px" : "86px" }} />
-                            </colgroup>
-                            <thead>
-                                <tr>
-                                    <th style={{ textAlign: "left", padding: isMobile ? "10px 8px" : "10px 10px", borderBottom: "1px solid #dbeafe", fontSize: isMobile ? "0.68rem" : "0.74rem", color: "#334155", letterSpacing: "0.02em", textTransform: "uppercase", whiteSpace: "nowrap", lineHeight: 1.2 }}>Rank</th>
-                                    <th style={{ textAlign: "left", padding: isMobile ? "10px 8px" : "10px 10px", borderBottom: "1px solid #dbeafe", fontSize: isMobile ? "0.68rem" : "0.74rem", color: "#334155", letterSpacing: "0.02em", textTransform: "uppercase", whiteSpace: "nowrap", lineHeight: 1.2 }}>Name</th>
-                                    <th style={{ textAlign: "right", padding: isMobile ? "10px 8px" : "10px 10px", borderBottom: "1px solid #dbeafe", fontSize: isMobile ? "0.68rem" : "0.74rem", color: "#334155", letterSpacing: "0.02em", textTransform: "uppercase", whiteSpace: "nowrap", lineHeight: 1.2 }}>
-                                        {renderHeaderTooltip("like", "Likes") ?? "Likes"}
-                                    </th>
-                                    <th style={{ textAlign: "right", padding: isMobile ? "10px 8px" : "10px 10px", borderBottom: "1px solid #dbeafe", fontSize: isMobile ? "0.68rem" : "0.74rem", color: "#334155", letterSpacing: "0.02em", textTransform: "uppercase", whiteSpace: "nowrap", lineHeight: 1.2 }}>
-                                        {renderHeaderTooltip("share", "Shares") ?? "Shares"}
-                                    </th>
-                                    <th style={{ textAlign: "right", padding: isMobile ? "10px 8px" : "10px 10px", borderBottom: "1px solid #dbeafe", fontSize: isMobile ? "0.68rem" : "0.74rem", color: "#334155", letterSpacing: "0.02em", textTransform: "uppercase", whiteSpace: "nowrap", lineHeight: 1.2 }}>
-                                        {renderHeaderTooltip("comment_approved", "Comments") ?? (isMobile ? "Comms" : "Comments")}
-                                    </th>
-                                    {scope === "users" && (
-                                        <th style={{ textAlign: "right", padding: isMobile ? "10px 8px" : "10px 10px", borderBottom: "1px solid #dbeafe", fontSize: isMobile ? "0.68rem" : "0.74rem", color: "#334155", letterSpacing: "0.02em", textTransform: "uppercase", whiteSpace: "nowrap", lineHeight: 1.2 }}>{isMobile ? "Supp" : "Support"}</th>
-                                    )}
-                                    <th style={{ textAlign: "right", padding: isMobile ? "10px 8px" : "10px 10px", borderBottom: "1px solid #dbeafe", fontSize: isMobile ? "0.68rem" : "0.74rem", color: "#334155", letterSpacing: "0.02em", textTransform: "uppercase", whiteSpace: "nowrap", lineHeight: 1.2 }}>Total</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {rows.map((row, index) => {
-                                    const rank = Number.isFinite(Number(row?.rank)) ? Number(row.rank) : index + 1;
-                                    const rankStyle = getRankStyle(rank);
+                    <>
+                        {Array.isArray(pointsRules) && pointsRules.length > 0 && (() => {
+                            const likePts = getPointsValue("like");
+                            const sharePts = getPointsValue("share");
+                            const commentPts = getPointsValue("comment_approved");
+                            const keyItems = [
+                                likePts !== null && { label: "Like", pts: likePts },
+                                sharePts !== null && { label: "Share", pts: sharePts },
+                                commentPts !== null && { label: "Comment", pts: commentPts },
+                            ].filter(Boolean);
+                            if (keyItems.length === 0) return null;
+                            return (
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 20px", padding: "6px 2px 10px", fontSize: "0.73rem", color: "#64748b", fontWeight: 600 }}>
+                                    {keyItems.map(({ label, pts }) => (
+                                        <span key={label}>
+                                            <span style={{ color: "#0f172a", fontWeight: 800 }}>{label}</span>
+                                            {" "}
+                                            <span style={{ color: "#0f766e", fontWeight: 700 }}>+{pts} pt{pts === 1 ? "" : "s"}</span>
+                                        </span>
+                                    ))}
+                                </div>
+                            );
+                        })()}
+                        <div className="leaderboard-compact-list">
+                            {rows.map((row, index) => {
+                                const rank = Number.isFinite(Number(row?.rank)) ? Number(row.rank) : index + 1;
+                                const rankStyle = getRankStyle(rank);
+                                const rowId = `${String(row?.id || row?.label || "row")}-${index}`;
+                                const isLastRow = index === rows.length - 1;
+                                if (scope === "users") {
+                                    const providerPillStyle = getAuthProviderPillStyle(row?.authProvider);
                                     return (
-                                        <tr
-                                            key={`${row.id}-${index}`}
-                                            className={isInteractiveScope ? "leaderboard-row leaderboard-row-interactive" : "leaderboard-row"}
-                                            tabIndex={isInteractiveScope ? 0 : undefined}
-                                            role={isInteractiveScope ? "button" : undefined}
-                                            aria-label={isInteractiveScope ? `Open ${scope.slice(0, -1)} ${String(row?.label || "")}` : undefined}
-                                            onClick={isInteractiveScope ? () => activateRow(row) : undefined}
-                                            onKeyDown={isInteractiveScope ? (event) => handleRowKeyDown(event, row) : undefined}
-                                            style={{ cursor: isInteractiveScope ? "pointer" : "default", transition: "background 150ms ease" }}
+                                        <div
+                                            key={rowId}
+                                            className="leaderboard-compact-row leaderboard-desktop-user-row"
+                                            style={{
+                                                borderLeft: rank <= 3 ? `3px solid ${rankStyle.borderColor}` : "3px solid transparent",
+                                                background: rankStyle.rowBackground,
+                                                borderBottom: isLastRow ? "none" : "1px solid #eff6ff",
+                                                cursor: "default",
+                                                padding: "12px 14px",
+                                            }}
                                         >
-                                            <td style={{ padding: isMobile ? "10px 8px" : "10px", borderBottom: "1px solid #eff6ff", borderLeft: rank <= 3 ? `3px solid ${rankStyle.borderColor}` : "3px solid transparent", background: rankStyle.rowBackground }}>
-                                                <span style={{ display: "inline-grid", placeItems: "center", minWidth: isMobile ? "28px" : "30px", height: isMobile ? "28px" : "30px", padding: "0 6px", borderRadius: "999px", fontSize: isMobile ? "0.77rem" : "0.8rem", fontWeight: 800, color: rankStyle.badgeColor, background: rankStyle.badgeBackground, boxShadow: rank <= 3 ? "0 8px 14px rgba(15,23,42,0.14)" : "none" }}>
-                                                    #{rank}
-                                                </span>
-                                            </td>
-                                            <td style={{ padding: isMobile ? "10px 8px" : "10px", borderBottom: "1px solid #eff6ff", fontSize: isMobile ? "0.84rem" : "0.8rem", color: "#0f172a", background: rankStyle.rowBackground }}>
-                                                {scope === "users" ? (
-                                                    <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
-                                                        <ProfileAvatar imageUrl={String(row?.avatarUrl || "")} label={String(row?.label || "User")} size={isMobile ? 26 : 24} />
-                                                        <div style={{ display: "grid", minWidth: 0 }}>
-                                                            <span style={{ color: "#0f172a", fontWeight: 800, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: isMobile ? "170px" : "280px" }}>
-                                                                {String(row?.label || "User")}
-                                                            </span>
-                                                            {(() => {
-                                                                const providerPillStyle = getAuthProviderPillStyle(row?.authProvider);
-                                                                return (
-                                                                    <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "3px", flexWrap: "wrap" }}>
-                                                                        <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "fit-content", borderRadius: "999px", padding: isMobile ? "3px 8px" : "2px 8px", fontSize: isMobile ? "0.68rem" : "0.64rem", fontWeight: 700, border: providerPillStyle.border, background: providerPillStyle.background, color: providerPillStyle.color, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: isMobile ? "170px" : "280px" }}>
-                                                                            {providerPillStyle.label}
-                                                                        </span>
-                                                                        {Boolean(row?.isFacebookGroupMember) && (
-                                                                            <span title={`FB group bonus: +${Number(row?.facebookGroupPoints) || 0}`} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: "999px", padding: isMobile ? "3px 8px" : "2px 8px", fontSize: isMobile ? "0.68rem" : "0.64rem", fontWeight: 700, border: "1px solid #60a5fa", background: "#eff6ff", color: "#1d4ed8", whiteSpace: "nowrap" }}>
-                                                                                FB Group
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
-                                                                );
-                                                            })()}
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <span style={{ display: "inline-block", color: "#0f4bbd", textDecoration: "underline", textUnderlineOffset: "2px", fontWeight: 700, lineHeight: 1.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: isMobile ? "170px" : "280px" }}>
-                                                        {String(row?.label || "-")}
+                                            <span style={{ display: "inline-grid", placeItems: "center", minWidth: "34px", height: "34px", padding: "0 6px", borderRadius: "999px", fontSize: "0.8rem", fontWeight: 800, color: rankStyle.badgeColor, background: rankStyle.badgeBackground, boxShadow: rank <= 3 ? "0 6px 12px rgba(15,23,42,0.14)" : "none", flexShrink: 0 }}>
+                                                #{rank}
+                                            </span>
+                                            <ProfileAvatar imageUrl={String(row?.avatarUrl || "")} label={String(row?.label || "User")} size={36} />
+                                            <div style={{ flex: "1 1 0", minWidth: 0 }}>
+                                                <div style={{ fontWeight: 800, color: "#0f172a", fontSize: "0.9rem", lineHeight: 1.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                                    {String(row?.label || "User")}
+                                                </div>
+                                                <div style={{ display: "flex", alignItems: "center", gap: "5px", marginTop: "3px", flexWrap: "wrap" }}>
+                                                    <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: "999px", padding: "2px 8px", fontSize: "0.65rem", fontWeight: 700, border: providerPillStyle.border, background: providerPillStyle.background, color: providerPillStyle.color, whiteSpace: "nowrap" }}>
+                                                        {providerPillStyle.label}
                                                     </span>
+                                                    {Boolean(row?.isFacebookGroupMember) && (
+                                                        <span className="leaderboard-fb-group-pill">FB Group</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="leaderboard-desktop-stats">
+                                                <div className="leaderboard-desktop-stat-item">
+                                                    <span className="leaderboard-desktop-stat-label">Likes</span>
+                                                    <span className="leaderboard-desktop-stat-value">{Number.isFinite(Number(row?.likes)) ? Number(row.likes) : 0}</span>
+                                                </div>
+                                                <div className="leaderboard-desktop-stat-item">
+                                                    <span className="leaderboard-desktop-stat-label">Shares</span>
+                                                    <span className="leaderboard-desktop-stat-value">{Number.isFinite(Number(row?.shares)) ? Number(row.shares) : 0}</span>
+                                                </div>
+                                                <div className="leaderboard-desktop-stat-item">
+                                                    <span className="leaderboard-desktop-stat-label">Comments</span>
+                                                    <span className="leaderboard-desktop-stat-value">{Number.isFinite(Number(row?.comments)) ? Number(row.comments) : 0}</span>
+                                                </div>
+                                                <div className="leaderboard-desktop-stat-item">
+                                                    <span className="leaderboard-desktop-stat-label" style={{ color: "#d97706" }}>Support</span>
+                                                    <span className="leaderboard-desktop-stat-value" style={{ color: "#f59e0b" }}>{Number.isFinite(Number(row?.support ?? row?.bmc)) ? Number(row.support ?? row.bmc) : 0}</span>
+                                                </div>
+                                                {Boolean(row?.isFacebookGroupMember) && (
+                                                    <div className="leaderboard-desktop-stat-item">
+                                                        <span className="leaderboard-desktop-stat-label" style={{ color: "#2563eb" }}>FB Bonus</span>
+                                                        <span className="leaderboard-desktop-stat-value" style={{ color: "#1d4ed8" }}>{Number.isFinite(Number(row?.facebookGroupPoints)) ? Number(row.facebookGroupPoints) : 0}</span>
+                                                    </div>
                                                 )}
-                                            </td>
-                                            <td style={{ padding: isMobile ? "10px 8px" : "10px", borderBottom: "1px solid #eff6ff", textAlign: "right", fontSize: isMobile ? "0.81rem" : "0.78rem", color: "#334155", fontWeight: 600, background: rankStyle.rowBackground }}>{row.likes}</td>
-                                            <td style={{ padding: isMobile ? "10px 8px" : "10px", borderBottom: "1px solid #eff6ff", textAlign: "right", fontSize: isMobile ? "0.81rem" : "0.78rem", color: "#334155", fontWeight: 600, background: rankStyle.rowBackground }}>{row.shares}</td>
-                                            <td style={{ padding: isMobile ? "10px 8px" : "10px", borderBottom: "1px solid #eff6ff", textAlign: "right", fontSize: isMobile ? "0.81rem" : "0.78rem", color: "#334155", fontWeight: 600, background: rankStyle.rowBackground }}>{row.comments ?? 0}</td>
-                                            {scope === "users" && (
-                                                <td style={{ padding: isMobile ? "10px 8px" : "10px", borderBottom: "1px solid #eff6ff", textAlign: "right", fontSize: isMobile ? "0.81rem" : "0.78rem", color: "#f59e0b", fontWeight: 700, background: rankStyle.rowBackground }}>{row.support ?? row.bmc ?? 0}</td>
-                                            )}
-                                            <td style={{ padding: isMobile ? "10px 8px" : "10px", borderBottom: "1px solid #eff6ff", textAlign: "right", fontSize: isMobile ? "0.88rem" : "0.82rem", color: rankStyle.totalColor, fontWeight: 800, background: rankStyle.rowBackground }}>{row.total}</td>
-                                        </tr>
+                                            </div>
+                                            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", flexShrink: 0, gap: "2px", paddingLeft: "16px" }}>
+                                                <span style={{ fontWeight: 800, color: rankStyle.totalColor, fontSize: "1.15rem", lineHeight: 1 }}>{row.total}</span>
+                                                <span style={{ fontSize: "0.62rem", color: "#94a3b8", fontWeight: 700, letterSpacing: "0.03em", textTransform: "uppercase" }}>pts</span>
+                                            </div>
+                                        </div>
                                     );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
+                                }
+                                return (
+                                    <button
+                                        key={rowId}
+                                        type="button"
+                                        className="leaderboard-compact-row"
+                                        onClick={() => activateRow(row)}
+                                        onKeyDown={(event) => handleRowKeyDown(event, row)}
+                                        aria-label={`Open ${scope.slice(0, -1)} ${String(row?.label || "-")}`}
+                                        style={{
+                                            borderLeft: rank <= 3 ? `3px solid ${rankStyle.borderColor}` : "3px solid transparent",
+                                            background: rankStyle.rowBackground,
+                                            borderBottom: isLastRow ? "none" : "1px solid #eff6ff",
+                                            padding: "12px 14px",
+                                        }}
+                                    >
+                                        <span style={{ display: "inline-grid", placeItems: "center", minWidth: "34px", height: "34px", padding: "0 6px", borderRadius: "999px", fontSize: "0.8rem", fontWeight: 800, color: rankStyle.badgeColor, background: rankStyle.badgeBackground, boxShadow: rank <= 3 ? "0 6px 12px rgba(15,23,42,0.14)" : "none", flexShrink: 0 }}>
+                                            #{rank}
+                                        </span>
+                                        <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+                                            <div style={{ fontWeight: 700, color: "#0f4bbd", fontSize: "0.9rem", lineHeight: 1.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                                {String(row?.label || "-")}
+                                            </div>
+                                            <div style={{ fontSize: "0.73rem", color: "#64748b", fontWeight: 600, marginTop: "3px" }}>
+                                                {row.likes ?? 0} likes · {row.shares ?? 0} shares · {row.comments ?? 0} comments
+                                            </div>
+                                        </div>
+                                        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", flexShrink: 0, gap: "2px" }}>
+                                            <span style={{ fontWeight: 800, color: rankStyle.totalColor, fontSize: "1.15rem", lineHeight: 1 }}>{row.total}</span>
+                                            <span style={{ fontSize: "0.62rem", color: "#94a3b8", fontWeight: 700, letterSpacing: "0.03em", textTransform: "uppercase" }}>pts</span>
+                                        </div>
+                                        <span style={{ fontSize: "0.9rem", color: "#94a3b8", flexShrink: 0, paddingLeft: "4px" }}>›</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </>
                 )}
             </div>
         </ModalShell>

@@ -1105,6 +1105,10 @@ code {
   box-sizing: border-box;
 }
 
+.leaderboard-compact-row:hover {
+  background: rgba(239, 246, 255, 0.7) !important;
+}
+
 .leaderboard-compact-row:active {
   background: rgba(219, 234, 254, 0.5) !important;
 }
@@ -1163,6 +1167,52 @@ code {
   border-top: 1px solid rgba(219, 234, 254, 0.9);
   padding-top: 5px;
   margin-top: 2px;
+}
+
+/* Desktop user row: non-interactive, no hover cursor */
+.leaderboard-desktop-user-row {
+  cursor: default !important;
+}
+.leaderboard-desktop-user-row:hover {
+  background: inherit !important;
+}
+
+/* Desktop inline stats strip */
+.leaderboard-desktop-stats {
+  display: flex;
+  align-items: center;
+  gap: 4px 2px;
+  flex-shrink: 0;
+  flex-wrap: nowrap;
+  padding: 0 16px;
+}
+
+.leaderboard-desktop-stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 52px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: rgba(241, 245, 249, 0.7);
+  gap: 2px;
+}
+
+.leaderboard-desktop-stat-label {
+  font-size: 0.63rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.leaderboard-desktop-stat-value {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.2;
 }
 
 @media (max-width: 768px) {
