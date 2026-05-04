@@ -12806,6 +12806,8 @@ function App() {
     useEffect(() => {
         if (!isLeaderboardModalOpen) return;
         void fetchLeaderboardData();
+        const intervalId = setInterval(() => { void fetchLeaderboardData(); }, 30_000);
+        return () => clearInterval(intervalId);
     }, [isLeaderboardModalOpen]);
 
     useEffect(() => {
@@ -14550,6 +14552,10 @@ function App() {
         }
         setAdminProfilesStatus(`Saved ${getProfileDisplayName(nextProfile, null)}`);
         setSavingAdminProfileId("");
+
+        if (isLeaderboardModalOpen || isContributorPanelOpen) {
+            void fetchLeaderboardData();
+        }
     }
 
     async function loadPointHistoryForAdminProfile(profileId) {
