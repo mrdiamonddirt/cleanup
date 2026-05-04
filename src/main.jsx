@@ -13642,7 +13642,7 @@ function App() {
             listSocialLeaderboardTotals(),
             supabase
                 .from("profiles")
-                .select("id, display_name, avatar_url, auth_provider, is_facebook_group_member")
+                .select("id, display_name, avatar_url, auth_provider, is_facebook_group_member, supporter_points")
                 .order("updated_at", { ascending: false }),
             listPointsRules(),
         ]);
@@ -13661,6 +13661,7 @@ function App() {
                         ...profile,
                         auth_provider: "unknown",
                         is_facebook_group_member: false,
+                        supporter_points: 0,
                     }))
                     : [],
             };
@@ -16038,7 +16039,6 @@ function App() {
     );
     const leaderboardTotalsByEntityKey = useMemo(() => {
         const map = {};
-        if (!Array.isArray(leaderboardTotals)) return map;
 
         const getRulePts = (ruleCode) => {
             if (!Array.isArray(leaderboardPointsRules)) return 1;
@@ -16061,6 +16061,31 @@ function App() {
             }, {})
             : {};
 
+        if (Array.isArray(leaderboardProfiles)) {
+            leaderboardProfiles.forEach((profile) => {
+                const profileId = String(profile?.id || "").trim();
+                if (!profileId) return;
+
+                const isFacebookGroupMember = Boolean(profile?.is_facebook_group_member);
+                const bmc = Number.isFinite(Number(profile?.supporter_points))
+                    ? Number(profile.supporter_points)
+                    : 0;
+                const facebookGroupPoints = isFacebookGroupMember ? facebookGroupJoinBonusPts : 0;
+
+                map[`user:${profileId}`] = {
+                    likes: 0,
+                    shares: 0,
+                    comments: 0,
+                    bmc,
+                    isFacebookGroupMember,
+                    facebookGroupPoints,
+                    total: bmc + facebookGroupPoints,
+                };
+            });
+        }
+
+        if (!Array.isArray(leaderboardTotals)) return map;
+
         leaderboardTotals.forEach((row) => {
             const entityType = String(row?.entity_type || "").trim().toLowerCase();
             const entityId = String(row?.entity_id || "").trim();
@@ -16069,9 +16094,14 @@ function App() {
             const likes = Number.isFinite(Number(row?.like_count)) ? Number(row.like_count) : 0;
             const shares = Number.isFinite(Number(row?.share_count)) ? Number(row.share_count) : 0;
             const comments = Number.isFinite(Number(row?.comment_count)) ? Number(row.comment_count) : 0;
-            const bmc = Number.isFinite(Number(row?.bmc_points)) ? Number(row.bmc_points) : 0;
+            const existing = map[`${entityType}:${entityId}`] || {};
+            const bmc = Number.isFinite(Number(row?.bmc_points))
+                ? Number(row.bmc_points)
+                : (Number.isFinite(Number(existing?.bmc)) ? Number(existing.bmc) : 0);
             const profile = entityType === "user" ? profilesById[entityId] : null;
-            const isFacebookGroupMember = Boolean(profile?.is_facebook_group_member);
+            const isFacebookGroupMember = entityType === "user"
+                ? Boolean(profile?.is_facebook_group_member ?? existing?.isFacebookGroupMember)
+                : false;
             const facebookGroupPoints = entityType === "user" && isFacebookGroupMember
                 ? facebookGroupJoinBonusPts
                 : 0;
