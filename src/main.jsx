@@ -963,7 +963,7 @@ const ENABLE_PUBLIC_REPORTS = String(import.meta.env.VITE_ENABLE_PUBLIC_REPORTS 
     .trim()
     .toLowerCase() !== "false";
 const REPORT_NOTE_MAX_LENGTH = 280;
-const REPORT_ACTION_COOLDOWN_MS = 12_000;
+const REPORT_ACTION_COOLDOWN_MS = 4_000;
 const REPORT_CONSENT_STORAGE_KEY = "cleanup-report-consent-v1";
 const HISTORICAL_POI_STATUS_DRAFT = "draft";
 const HISTORICAL_POI_STATUS_PUBLISHED = "published";
@@ -3797,12 +3797,12 @@ function PublicReportOverlay({
             ref={panelRef}
             style={{
                 position: isMobile ? "fixed" : "absolute",
-                left: isMobile ? "8px" : `${panelPosition.left}px`,
-                right: isMobile ? "8px" : "auto",
-                bottom: isMobile ? "calc(env(safe-area-inset-bottom, 0px) + 8px)" : "auto",
-                top: isMobile ? "auto" : `${panelPosition.top}px`,
-                width: isMobile ? "auto" : "332px",
-                maxHeight: isMobile ? "66svh" : "none",
+                left: isMobile ? "50%" : `${panelPosition.left}px`,
+                right: "auto",
+                bottom: "auto",
+                top: isMobile ? "50%" : `${panelPosition.top}px`,
+                width: isMobile ? "min(332px, calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 16px))" : "332px",
+                maxHeight: isMobile ? "calc(100svh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 16px)" : "none",
                 overflowY: isMobile ? "auto" : "visible",
                 padding: isMobile ? "12px" : "11px 13px",
                 border: "1px solid #93c5fd",
@@ -3813,7 +3813,9 @@ function PublicReportOverlay({
                 zIndex: isMobile ? 1400 : 1100,
                 boxSizing: "border-box",
                 opacity: panelPosition.ready ? 1 : 0,
-                transform: panelPosition.ready ? "translateY(0)" : "translateY(4px)",
+                transform: isMobile
+                    ? (panelPosition.ready ? "translate(-50%, -50%)" : "translate(-50%, calc(-50% + 4px))")
+                    : (panelPosition.ready ? "translateY(0)" : "translateY(4px)"),
                 transition: "opacity 140ms ease, transform 180ms ease",
             }}
         >
@@ -12150,6 +12152,25 @@ function App() {
         }
     };
 
+    const copyTextToClipboardSync = (textValue) => {
+        if (!textValue) return false;
+
+        try {
+            const textArea = document.createElement("textarea");
+            textArea.value = textValue;
+            textArea.setAttribute("readonly", "");
+            textArea.style.position = "absolute";
+            textArea.style.left = "-9999px";
+            document.body.appendChild(textArea);
+            textArea.select();
+            const copied = document.execCommand("copy");
+            document.body.removeChild(textArea);
+            return copied;
+        } catch {
+            return false;
+        }
+    };
+
     const buildCurrentReportMessage = () => {
         if (!reportLocation) return "";
 
@@ -12167,7 +12188,7 @@ function App() {
         });
     };
 
-    const handleOpenMessengerForReport = () => {
+    const handleOpenMessengerForReport = async () => {
         if (!reportLocation) return;
         if (!hasMessengerTarget || !messengerThreadUrl) {
             setReportStatusMessage("Messenger target is not configured yet.");
@@ -12183,32 +12204,35 @@ function App() {
         const message = buildCurrentReportMessage();
         const messengerUrl = `${messengerThreadUrl}?text=${encodeURIComponent(message)}`;
 
-        // Attempt a synchronous execCommand copy BEFORE window.open so we still
-        // hold the user-gesture token on Android Chrome (async clipboard API
-        // will be denied after window.open consumes the gesture).
-        let syncCopied = false;
-        try {
-            const ta = document.createElement("textarea");
-            ta.value = message;
-            ta.setAttribute("readonly", "");
-            ta.style.cssText = "position:absolute;left:-9999px;top:-9999px;";
-            document.body.appendChild(ta);
-            ta.select();
-            syncCopied = document.execCommand("copy");
-            document.body.removeChild(ta);
-        } catch (_) {
-            // ignored — will fall through to async attempt below
+        if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+            try {
+                await navigator.share({
+                    title: "River Lune Cleanup Tracker",
+                    text: message,
+                    url: reportSourceUrl || undefined,
+                });
+
+                setReportCooldownUntil(Date.now() + REPORT_ACTION_COOLDOWN_MS);
+                setReportStatusMessage("Share sheet opened. Choose Messenger to send this report.", 3600);
+                return;
+            } catch (error) {
+                if (error?.name === "AbortError") {
+                    setReportStatusMessage("Share canceled.");
+                    return;
+                }
+            }
         }
 
-        // Must be synchronous (no async/await) so mobile browsers preserve the
-        // user-gesture token and do not block window.open as a popup.
-        window.open(messengerUrl, "_blank", "noopener,noreferrer");
+        const syncCopied = copyTextToClipboardSync(message);
+        const popup = window.open(messengerUrl, "_blank", "noopener,noreferrer");
+        if (!popup) {
+            window.location.assign(messengerUrl);
+        }
         setReportCooldownUntil(Date.now() + REPORT_ACTION_COOLDOWN_MS);
 
         if (syncCopied) {
             setReportStatusMessage("Messenger opened. Report text copied to your clipboard.", 3600);
         } else {
-            // Async clipboard as a second attempt (works on desktop/iOS Safari).
             copyTextToClipboard(message).then((copied) => {
                 setReportStatusMessage(
                     copied
