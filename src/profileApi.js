@@ -390,6 +390,19 @@ export async function listSocialLeaderboardTotals() {
     return { rows: Array.isArray(data) ? data : [], error: null };
 }
 
+export async function listPointsRules() {
+    const { data, error } = await supabase
+        .from("points_rules")
+        .select("rule_code, display_name, points_value")
+        .eq("is_active", true);
+
+    if (error) {
+        return { rules: [], error };
+    }
+
+    return { rules: Array.isArray(data) ? data : [], error: null };
+}
+
 export async function listCommentsForTarget(targetType, targetId) {
     const { data, error } = await supabase
         .from("comments")

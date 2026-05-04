@@ -21,6 +21,7 @@ import {
     ensureProfileForUser,
     listUnmatchedBmacEventsForAdmin,
     listSocialLeaderboardTotals,
+    listPointsRules,
     listAdminAuditLogs,
     listBansForAdmin,
     listCommentsForTarget,
@@ -5669,7 +5670,99 @@ function LeaderboardModal({
     rows,
     isLoading,
     error,
+    pointsRules,
 }) {
+    const [activeHeaderTooltip, setActiveHeaderTooltip] = useState(null);
+    const headerTooltipContainerRef = useRef(null);
+
+    useEffect(() => {
+        if (!activeHeaderTooltip) return undefined;
+        const handleClickOutside = (event) => {
+            if (
+                headerTooltipContainerRef.current &&
+                !headerTooltipContainerRef.current.contains(event.target)
+            ) {
+                setActiveHeaderTooltip(null);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        document.addEventListener("touchstart", handleClickOutside, { passive: true });
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+            document.removeEventListener("touchstart", handleClickOutside);
+        };
+    }, [activeHeaderTooltip]);
+
+    const getPointsValue = (ruleCode) => {
+        if (!Array.isArray(pointsRules)) return null;
+        const rule = pointsRules.find((r) => r?.rule_code === ruleCode);
+        return rule ? Number(rule.points_value) : null;
+    };
+
+    const renderHeaderTooltip = (ruleCode, label) => {
+        const pts = getPointsValue(ruleCode);
+        if (pts === null) return null;
+        const isActive = activeHeaderTooltip === ruleCode;
+        return (
+            <div style={{ position: "relative", display: "inline-block" }} ref={isActive ? headerTooltipContainerRef : null}>
+                <button
+                    type="button"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveHeaderTooltip(isActive ? null : ruleCode);
+                    }}
+                    style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: 0,
+                        margin: 0,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "4px",
+                        color: "inherit",
+                        fontSize: "inherit",
+                        fontWeight: "inherit",
+                        letterSpacing: "inherit",
+                        textTransform: "inherit",
+                    }}
+                    title={`${pts} pt${pts === 1 ? "" : "s"} each`}
+                >
+                    {label}
+                    <span style={{ fontSize: "0.7em", opacity: 0.55, lineHeight: 1 }}>ⓘ</span>
+                </button>
+                {isActive && (
+                    <div
+                        style={{
+                            position: "absolute",
+                            top: "calc(100% + 6px)",
+                            right: 0,
+                            zIndex: 200,
+                            background: "#ffffff",
+                            border: "1px solid #bae6fd",
+                            borderRadius: "10px",
+                            boxShadow: "0 8px 24px rgba(15,23,42,0.13)",
+                            padding: "10px 14px",
+                            minWidth: "160px",
+                            whiteSpace: "nowrap",
+                            pointerEvents: "auto",
+                        }}
+                    >
+                        <div style={{ fontSize: "0.72rem", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "4px" }}>
+                            Points earned
+                        </div>
+                        <div style={{ fontSize: "0.9rem", color: "#0f766e", fontWeight: 800 }}>
+                            +{pts} pt{pts === 1 ? "" : "s"} per approved {label.toLowerCase()}
+                        </div>
+                        <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginTop: "5px", fontWeight: 500 }}>
+                            Earn points to climb the leaderboard
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
     if (!isOpen) return null;
 
     const scopeOptions = [
@@ -5733,7 +5826,7 @@ function LeaderboardModal({
     return (
         <ModalShell isMobile={isMobile} title="Leaderboards" onClose={onClose} width="min(760px, calc(100vw - 32px))">
             <p style={{ margin: 0, fontSize: isMobile ? "0.88rem" : "0.82rem", color: "#334155", lineHeight: 1.45 }}>
-                Ranked by total engagement (likes + shares).
+                {scope === "users" ? "Ranked by total engagement (likes + shares + approved comments + BMC support points)." : "Ranked by total engagement (likes + shares + approved comments)."}
             </p>
 
             <div style={{ marginTop: "12px", display: "flex", flexWrap: "wrap", gap: "8px" }}>
@@ -5816,14 +5909,26 @@ function LeaderboardModal({
                                 <col style={{ width: "auto" }} />
                                 <col style={{ width: isMobile ? "62px" : "78px" }} />
                                 <col style={{ width: isMobile ? "62px" : "78px" }} />
+                                <col style={{ width: isMobile ? "62px" : "78px" }} />
+                                {scope === "users" && <col style={{ width: isMobile ? "62px" : "78px" }} />}
                                 <col style={{ width: isMobile ? "66px" : "86px" }} />
                             </colgroup>
                             <thead>
                                 <tr>
                                     <th style={{ textAlign: "left", padding: isMobile ? "10px 8px" : "10px 10px", borderBottom: "1px solid #dbeafe", fontSize: isMobile ? "0.72rem" : "0.74rem", color: "#334155", letterSpacing: "0.02em", textTransform: "uppercase" }}>Rank</th>
                                     <th style={{ textAlign: "left", padding: isMobile ? "10px 8px" : "10px 10px", borderBottom: "1px solid #dbeafe", fontSize: isMobile ? "0.72rem" : "0.74rem", color: "#334155", letterSpacing: "0.02em", textTransform: "uppercase" }}>Name</th>
-                                    <th style={{ textAlign: "right", padding: isMobile ? "10px 8px" : "10px 10px", borderBottom: "1px solid #dbeafe", fontSize: isMobile ? "0.72rem" : "0.74rem", color: "#334155", letterSpacing: "0.02em", textTransform: "uppercase" }}>Likes</th>
-                                    <th style={{ textAlign: "right", padding: isMobile ? "10px 8px" : "10px 10px", borderBottom: "1px solid #dbeafe", fontSize: isMobile ? "0.72rem" : "0.74rem", color: "#334155", letterSpacing: "0.02em", textTransform: "uppercase" }}>Shares</th>
+                                    <th style={{ textAlign: "right", padding: isMobile ? "10px 8px" : "10px 10px", borderBottom: "1px solid #dbeafe", fontSize: isMobile ? "0.72rem" : "0.74rem", color: "#334155", letterSpacing: "0.02em", textTransform: "uppercase" }}>
+                                        {renderHeaderTooltip("like", "Likes") ?? "Likes"}
+                                    </th>
+                                    <th style={{ textAlign: "right", padding: isMobile ? "10px 8px" : "10px 10px", borderBottom: "1px solid #dbeafe", fontSize: isMobile ? "0.72rem" : "0.74rem", color: "#334155", letterSpacing: "0.02em", textTransform: "uppercase" }}>
+                                        {renderHeaderTooltip("share", "Shares") ?? "Shares"}
+                                    </th>
+                                    <th style={{ textAlign: "right", padding: isMobile ? "10px 8px" : "10px 10px", borderBottom: "1px solid #dbeafe", fontSize: isMobile ? "0.72rem" : "0.74rem", color: "#334155", letterSpacing: "0.02em", textTransform: "uppercase" }}>
+                                        {renderHeaderTooltip("comment_approved", "Comments") ?? "Comments"}
+                                    </th>
+                                    {scope === "users" && (
+                                        <th style={{ textAlign: "right", padding: isMobile ? "10px 8px" : "10px 10px", borderBottom: "1px solid #dbeafe", fontSize: isMobile ? "0.72rem" : "0.74rem", color: "#334155", letterSpacing: "0.02em", textTransform: "uppercase" }}>Support</th>
+                                    )}
                                     <th style={{ textAlign: "right", padding: isMobile ? "10px 8px" : "10px 10px", borderBottom: "1px solid #dbeafe", fontSize: isMobile ? "0.72rem" : "0.74rem", color: "#334155", letterSpacing: "0.02em", textTransform: "uppercase" }}>Total</th>
                                 </tr>
                             </thead>
@@ -5935,6 +6040,10 @@ function LeaderboardModal({
                                                 </td>
                                                 <td style={{ padding: isMobile ? "10px 8px" : "10px", borderBottom: "1px solid #eff6ff", textAlign: "right", fontSize: isMobile ? "0.81rem" : "0.78rem", color: "#334155", fontWeight: 600, background: rankStyle.rowBackground }}>{row.likes}</td>
                                                 <td style={{ padding: isMobile ? "10px 8px" : "10px", borderBottom: "1px solid #eff6ff", textAlign: "right", fontSize: isMobile ? "0.81rem" : "0.78rem", color: "#334155", fontWeight: 600, background: rankStyle.rowBackground }}>{row.shares}</td>
+                                                <td style={{ padding: isMobile ? "10px 8px" : "10px", borderBottom: "1px solid #eff6ff", textAlign: "right", fontSize: isMobile ? "0.81rem" : "0.78rem", color: "#334155", fontWeight: 600, background: rankStyle.rowBackground }}>{row.comments ?? 0}</td>
+                                                {scope === "users" && (
+                                                    <td style={{ padding: isMobile ? "10px 8px" : "10px", borderBottom: "1px solid #eff6ff", textAlign: "right", fontSize: isMobile ? "0.81rem" : "0.78rem", color: "#f59e0b", fontWeight: 700, background: rankStyle.rowBackground }}>{row.bmc ?? 0}</td>
+                                                )}
                                                 <td style={{ padding: isMobile ? "10px 8px" : "10px", borderBottom: "1px solid #eff6ff", textAlign: "right", fontSize: isMobile ? "0.88rem" : "0.82rem", color: rankStyle.totalColor, fontWeight: 800, background: rankStyle.rowBackground }}>{row.total}</td>
                                             </tr>
                                         );
@@ -11742,6 +11851,7 @@ function App() {
     const [leaderboardScope, setLeaderboardScope] = useState("contributors");
     const [leaderboardTotals, setLeaderboardTotals] = useState([]);
     const [leaderboardProfiles, setLeaderboardProfiles] = useState([]);
+    const [leaderboardPointsRules, setLeaderboardPointsRules] = useState([]);
     const [isLeaderboardLoading, setIsLeaderboardLoading] = useState(false);
     const [leaderboardError, setLeaderboardError] = useState("");
     const [historicalPois, setHistoricalPois] = useState([]);
@@ -13463,12 +13573,13 @@ function App() {
         setIsLeaderboardLoading(true);
         setLeaderboardError("");
 
-        const [totalsResult, profilesWithProviderResult] = await Promise.all([
+        const [totalsResult, profilesWithProviderResult, pointsRulesResult] = await Promise.all([
             listSocialLeaderboardTotals(),
             supabase
                 .from("profiles")
                 .select("id, display_name, avatar_url, auth_provider")
                 .order("updated_at", { ascending: false }),
+            listPointsRules(),
         ]);
 
         let profilesResult = profilesWithProviderResult;
@@ -13498,6 +13609,7 @@ function App() {
 
         setLeaderboardTotals(Array.isArray(totalsResult?.rows) ? totalsResult.rows : []);
         setLeaderboardProfiles(Array.isArray(profilesResult?.data) ? profilesResult.data : []);
+        setLeaderboardPointsRules(Array.isArray(pointsRulesResult?.rules) ? pointsRulesResult.rules : []);
 
         if (profilesResult?.error) {
             setLeaderboardError("Leaderboard loaded, but user names could not be fetched.");
@@ -15865,13 +15977,17 @@ function App() {
 
             const likes = Number.isFinite(Number(row?.like_count)) ? Number(row.like_count) : 0;
             const shares = Number.isFinite(Number(row?.share_count)) ? Number(row.share_count) : 0;
+            const comments = Number.isFinite(Number(row?.comment_count)) ? Number(row.comment_count) : 0;
+            const bmc = Number.isFinite(Number(row?.bmc_points)) ? Number(row.bmc_points) : 0;
             const total = Number.isFinite(Number(row?.total_count))
                 ? Number(row.total_count)
-                : likes + shares;
+                : likes + shares + comments + bmc;
 
             map[`${entityType}:${entityId}`] = {
                 likes,
                 shares,
+                comments,
+                bmc,
                 total,
             };
         });
@@ -15912,6 +16028,7 @@ function App() {
                     label: String(contributor?.name || "Contributor"),
                     likes: Number.isFinite(Number(totals?.likes)) ? Number(totals.likes) : 0,
                     shares: Number.isFinite(Number(totals?.shares)) ? Number(totals.shares) : 0,
+                    comments: Number.isFinite(Number(totals?.comments)) ? Number(totals.comments) : 0,
                     total: Number.isFinite(Number(totals?.total)) ? Number(totals.total) : 0,
                 };
             }),
@@ -15926,6 +16043,7 @@ function App() {
                     label: `${itemType} (${String(item?.id || "").slice(0, 8)})`,
                     likes: Number.isFinite(Number(totals?.likes)) ? Number(totals.likes) : 0,
                     shares: Number.isFinite(Number(totals?.shares)) ? Number(totals.shares) : 0,
+                    comments: Number.isFinite(Number(totals?.comments)) ? Number(totals.comments) : 0,
                     total: Number.isFinite(Number(totals?.total)) ? Number(totals.total) : 0,
                 };
             }),
@@ -15940,6 +16058,7 @@ function App() {
                     label: poiLabel,
                     likes: Number.isFinite(Number(totals?.likes)) ? Number(totals.likes) : 0,
                     shares: Number.isFinite(Number(totals?.shares)) ? Number(totals.shares) : 0,
+                    comments: Number.isFinite(Number(totals?.comments)) ? Number(totals.comments) : 0,
                     total: Number.isFinite(Number(totals?.total)) ? Number(totals.total) : 0,
                 };
             }),
@@ -15957,6 +16076,8 @@ function App() {
                     authProvider: provider,
                     likes: Number.isFinite(Number(totals?.likes)) ? Number(totals.likes) : 0,
                     shares: Number.isFinite(Number(totals?.shares)) ? Number(totals.shares) : 0,
+                    comments: Number.isFinite(Number(totals?.comments)) ? Number(totals.comments) : 0,
+                    bmc: Number.isFinite(Number(totals?.bmc)) ? Number(totals.bmc) : 0,
                     total: Number.isFinite(Number(totals?.total)) ? Number(totals.total) : 0,
                 };
             }),
@@ -18664,6 +18785,7 @@ function App() {
                 rows={leaderboardRowsByScope?.[leaderboardScope] || []}
                 isLoading={isLeaderboardLoading}
                 error={leaderboardError}
+                pointsRules={leaderboardPointsRules}
             />
 
             {isMobile && isFilterSheetOpen ? (
