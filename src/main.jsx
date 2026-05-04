@@ -4119,7 +4119,7 @@ function HeroBanner({
                             type="button"
                             onClick={onSignOut}
                             disabled={!authReady || isAuthActionLoading}
-                            className="hero-banner__action hero-banner__auth"
+                            className="hero-banner__action hero-banner__auth hero-banner__auth--signout"
                         >
                             Sign Out
                         </button>
@@ -4128,7 +4128,7 @@ function HeroBanner({
                             type="button"
                             onClick={onSignIn}
                             disabled={!authReady || isAuthActionLoading}
-                            className="hero-banner__action hero-banner__auth"
+                            className="hero-banner__action hero-banner__auth hero-banner__auth--signin"
                         >
                             Sign In With GitHub
                         </button>
@@ -4770,25 +4770,25 @@ function AppTopBar({
                                     onClick={handleAuthMenuAction}
                                     style={{
                                         ...mobileMenuItemBaseStyle,
-                                        borderColor: signedIn ? "rgba(203,213,225,0.95)" : "rgba(15,23,42,0.9)",
+                                        borderColor: signedIn ? "rgba(203,213,225,0.95)" : "rgba(29,78,216,0.95)",
                                         background: signedIn
                                             ? "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.96))"
-                                            : "linear-gradient(180deg, rgba(15,23,42,0.98), rgba(30,41,59,0.96))",
-                                        color: signedIn ? "#0f172a" : "#fff",
+                                            : "linear-gradient(180deg, rgba(219,234,254,0.98) 0%, rgba(147,197,253,0.97) 44%, rgba(29,78,216,0.98) 100%)",
+                                        color: signedIn ? "#0f172a" : "#eff6ff",
                                         cursor: !authReady || isAuthActionLoading ? "not-allowed" : "pointer",
                                         opacity: !authReady || isAuthActionLoading ? 0.65 : 1,
                                     }}
                                 >
                                     <span aria-hidden="true" style={{ fontSize: "0.95rem", textAlign: "center" }}>{signedIn ? "✓" : "↗"}</span>
                                     <span style={{ display: "grid", gap: "2px", minWidth: 0 }}>
-                                        <span style={{ fontSize: "0.84rem", fontWeight: 800, color: signedIn ? "#0f172a" : "#fff" }}>
+                                        <span style={{ fontSize: "0.84rem", fontWeight: 800, color: signedIn ? "#0f172a" : "#f8fafc" }}>
                                             {signedIn ? "Sign Out" : "Sign In"}
                                         </span>
-                                        <span style={{ fontSize: "0.74rem", color: signedIn ? "#475569" : "rgba(226,232,240,0.9)" }}>
+                                        <span style={{ fontSize: "0.74rem", color: signedIn ? "#475569" : "rgba(239,246,255,0.95)" }}>
                                             {signedIn ? "Leave edit or view mode on this device." : "Choose GitHub or Facebook to continue."}
                                         </span>
                                     </span>
-                                    <span aria-hidden="true" style={{ color: signedIn ? "#94a3b8" : "rgba(226,232,240,0.9)", fontSize: "0.9rem" }}>›</span>
+                                    <span aria-hidden="true" style={{ color: signedIn ? "#94a3b8" : "rgba(239,246,255,0.95)", fontSize: "0.9rem" }}>›</span>
                                 </button>
                             </div>
                         ) : null}
@@ -4971,12 +4971,16 @@ function AppTopBar({
                             className="app-topbar-desktop-action"
                             style={{
                                 ...desktopActionButtonStyle,
-                                border: `1px solid ${signedIn ? "#cbd5e1" : "#0f172a"}`,
-                                background: signedIn ? "#fff" : "#0f172a",
-                                color: signedIn ? "#0f172a" : "#fff",
-                                padding: "0 12px",
+                                border: `1px solid ${signedIn ? "#cbd5e1" : "#1e40af"}`,
+                                background: signedIn
+                                    ? "#fff"
+                                    : "linear-gradient(180deg, #38bdf8 0%, #1d4ed8 55%, #0f172a 100%)",
+                                color: signedIn ? "#0f172a" : "#ffffff",
+                                padding: "0 16px",
                                 fontSize: "0.76rem",
                                 fontWeight: 700,
+                                letterSpacing: "0.02em",
+                                boxShadow: signedIn ? undefined : "0 4px 14px rgba(29,78,216,0.45), inset 0 1px 0 rgba(255,255,255,0.15)",
                                 opacity: !authReady || isAuthActionLoading ? 0.65 : 1,
                                 cursor: !authReady || isAuthActionLoading ? "not-allowed" : "pointer",
                                 gap: signedIn ? "8px" : undefined,
