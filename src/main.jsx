@@ -5379,7 +5379,7 @@ function ModalShell({ isMobile, title, onClose, children, width = "min(440px, ca
                         Close
                     </button>
                 </div>
-                <div style={{ overflowY: "auto", minHeight: 0, paddingRight: isMobile ? "0" : "2px" }}>
+                <div className="modal-shell-scroll" style={{ overflowY: "auto", minHeight: 0, paddingRight: isMobile ? "0" : "2px" }}>
                     {children}
                 </div>
             </SurfaceCard>
@@ -5672,6 +5672,7 @@ function LeaderboardModal({
     pointsRules,
 }) {
     const [activeHeaderTooltip, setActiveHeaderTooltip] = useState(null);
+    const [activeUserDetailId, setActiveUserDetailId] = useState(null);
     const headerTooltipContainerRef = useRef(null);
 
     useEffect(() => {
@@ -5691,6 +5692,29 @@ function LeaderboardModal({
             document.removeEventListener("touchstart", handleClickOutside);
         };
     }, [activeHeaderTooltip]);
+
+    useEffect(() => {
+        setActiveUserDetailId(null);
+    }, [scope, isMobile]);
+
+    useEffect(() => {
+        if (!activeUserDetailId) return undefined;
+        const handleClickOutside = (event) => {
+            const target = event.target;
+            if (!(target instanceof Element)) {
+                setActiveUserDetailId(null);
+                return;
+            }
+            if (target.closest(".leaderboard-user-detail-shell")) return;
+            setActiveUserDetailId(null);
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        document.addEventListener("touchstart", handleClickOutside, { passive: true });
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+            document.removeEventListener("touchstart", handleClickOutside);
+        };
+    }, [activeUserDetailId]);
 
     const getPointsValue = (ruleCode) => {
         if (!Array.isArray(pointsRules)) return null;
@@ -5771,7 +5795,8 @@ function LeaderboardModal({
         { id: "contributors", label: "Contributors" },
     ];
     const isInteractiveScope = scope === "items" || scope === "pois" || scope === "contributors";
-    const mobileNameMaxWidth = isMobile ? "170px" : "280px";
+    const isCompactMobileUsers = isMobile && scope === "users";
+    const mobileNameMaxWidth = isCompactMobileUsers ? "190px" : (isMobile ? "170px" : "280px");
     const getRankStyle = (rank) => {
         if (rank === 1) {
             return {
@@ -5825,7 +5850,7 @@ function LeaderboardModal({
     return (
         <ModalShell isMobile={isMobile} title="Leaderboards" onClose={onClose} width="min(760px, calc(100vw - 32px))">
             <p style={{ margin: 0, fontSize: isMobile ? "0.88rem" : "0.82rem", color: "#334155", lineHeight: 1.45 }}>
-                {scope === "users" ? "Ranked by total points (likes + shares + approved comments + BMC support points, weighted by point values)." : "Ranked by total points (likes + shares + approved comments, weighted by point values)."}
+                {scope === "users" ? "Ranked by total points (likes + shares + approved comments + BMC support points + Facebook group bonus, weighted by point values)." : "Ranked by total points (likes + shares + approved comments, weighted by point values)."}
             </p>
 
             <div style={{ marginTop: "12px", display: "flex", flexWrap: "wrap", gap: "8px" }}>
@@ -5900,9 +5925,133 @@ function LeaderboardModal({
                     >
                         No leaderboard entries yet.
                     </div>
+                ) : isCompactMobileUsers ? (
+                    <div className="leaderboard-compact-list">
+                        {rows.map((row, index) => {
+                            const rank = Number.isFinite(Number(row?.rank)) ? Number(row.rank) : index + 1;
+                            const rankStyle = getRankStyle(rank);
+                            const rowId = `${String(row?.id || row?.label || "row")}-${index}`;
+                            const isUserDetailOpen = activeUserDetailId === rowId;
+                            const isLastRow = index === rows.length - 1;
+                            return (
+                                <React.Fragment key={rowId}>
+                                    <button
+                                        type="button"
+                                        className="leaderboard-compact-row"
+                                        onClick={() => setActiveUserDetailId(isUserDetailOpen ? null : rowId)}
+                                        aria-expanded={isUserDetailOpen ? "true" : "false"}
+                                        aria-label={`${isUserDetailOpen ? "Hide" : "Show"} details for ${String(row?.label || "User")}`}
+                                        style={{
+                                            borderLeft: rank <= 3 ? `3px solid ${rankStyle.borderColor}` : "3px solid transparent",
+                                            background: rankStyle.rowBackground,
+                                            borderBottom: isUserDetailOpen || isLastRow ? "none" : "1px solid #eff6ff",
+                                        }}
+                                    >
+                                        <span style={{ display: "inline-grid", placeItems: "center", minWidth: "30px", height: "30px", padding: "0 6px", borderRadius: "999px", fontSize: "0.78rem", fontWeight: 800, color: rankStyle.badgeColor, background: rankStyle.badgeBackground, boxShadow: rank <= 3 ? "0 6px 12px rgba(15,23,42,0.14)" : "none", flexShrink: 0 }}>
+                                            #{rank}
+                                        </span>
+                                        <ProfileAvatar imageUrl={String(row?.avatarUrl || "")} label={String(row?.label || "User")} size={30} />
+                                        <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+                                            <div style={{ fontWeight: 800, color: "#0f172a", fontSize: "0.88rem", lineHeight: 1.3, wordBreak: "break-word" }}>
+                                                {String(row?.label || "User")}
+                                            </div>
+                                            {Boolean(row?.isFacebookGroupMember) && (
+                                                <span className="leaderboard-fb-group-pill" style={{ marginTop: "4px" }}>FB Group</span>
+                                            )}
+                                        </div>
+                                        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", flexShrink: 0, gap: "2px" }}>
+                                            <span style={{ fontWeight: 800, color: rankStyle.totalColor, fontSize: "1rem", lineHeight: 1 }}>
+                                                {row.total}
+                                            </span>
+                                            <span style={{ fontSize: "0.62rem", color: "#94a3b8", fontWeight: 700, letterSpacing: "0.03em", textTransform: "uppercase" }}>
+                                                {isUserDetailOpen ? "▲ less" : "▼ details"}
+                                            </span>
+                                        </div>
+                                    </button>
+                                    {isUserDetailOpen && (
+                                        <div
+                                            className="leaderboard-compact-detail"
+                                            style={{
+                                                background: rankStyle.rowBackground,
+                                                borderBottom: isLastRow ? "none" : "1px solid #eff6ff",
+                                                borderLeft: rank <= 3 ? `3px solid ${rankStyle.borderColor}` : "3px solid transparent",
+                                            }}
+                                        >
+                                            <div className="leaderboard-compact-detail-inner">
+                                                <ProfileAvatar imageUrl={String(row?.avatarUrl || "")} label={String(row?.label || "User")} size={36} />
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                    <div style={{ fontWeight: 800, color: "#0f172a", fontSize: "0.9rem", lineHeight: 1.3, wordBreak: "break-word" }}>
+                                                        {String(row?.label || "User")}
+                                                    </div>
+                                                    {Boolean(row?.isFacebookGroupMember) && (
+                                                        <div style={{ fontSize: "0.7rem", color: "#64748b", marginTop: "2px", fontWeight: 600 }}>Facebook group member</div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="leaderboard-compact-detail-grid">
+                                                <span>Likes</span><span>{Number.isFinite(Number(row?.likes)) ? Number(row.likes) : 0}</span>
+                                                <span>Shares</span><span>{Number.isFinite(Number(row?.shares)) ? Number(row.shares) : 0}</span>
+                                                <span>Comments</span><span>{Number.isFinite(Number(row?.comments)) ? Number(row.comments) : 0}</span>
+                                                <span>Support</span><span>{Number.isFinite(Number(row?.support ?? row?.bmc)) ? Number(row.support ?? row.bmc) : 0}</span>
+                                                {Boolean(row?.isFacebookGroupMember) && (
+                                                    <><span>FB Bonus</span><span>{Number.isFinite(Number(row?.facebookGroupPoints)) ? Number(row.facebookGroupPoints) : 0}</span></>
+                                                )}
+                                                <span className="leaderboard-compact-detail-total-label">Total pts</span>
+                                                <span className="leaderboard-compact-detail-total-value">{Number.isFinite(Number(row?.total)) ? Number(row.total) : 0}</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </React.Fragment>
+                            );
+                        })}
+                    </div>
+                ) : isMobile ? (
+                    <div className="leaderboard-compact-list">
+                        {rows.map((row, index) => {
+                            const rank = Number.isFinite(Number(row?.rank)) ? Number(row.rank) : index + 1;
+                            const rankStyle = getRankStyle(rank);
+                            const rowId = `${String(row?.id || row?.label || "row")}-${index}`;
+                            const isLastRow = index === rows.length - 1;
+                            return (
+                                <button
+                                    key={rowId}
+                                    type="button"
+                                    className="leaderboard-compact-row"
+                                    onClick={() => activateRow(row)}
+                                    aria-label={`Open ${scope.slice(0, -1)} ${String(row?.label || "-")}`}
+                                    style={{
+                                        borderLeft: rank <= 3 ? `3px solid ${rankStyle.borderColor}` : "3px solid transparent",
+                                        background: rankStyle.rowBackground,
+                                        borderBottom: isLastRow ? "none" : "1px solid #eff6ff",
+                                    }}
+                                >
+                                    <span style={{ display: "inline-grid", placeItems: "center", minWidth: "30px", height: "30px", padding: "0 6px", borderRadius: "999px", fontSize: "0.78rem", fontWeight: 800, color: rankStyle.badgeColor, background: rankStyle.badgeBackground, boxShadow: rank <= 3 ? "0 6px 12px rgba(15,23,42,0.14)" : "none", flexShrink: 0 }}>
+                                        #{rank}
+                                    </span>
+                                    <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+                                        <div style={{ fontWeight: 700, color: "#0f4bbd", fontSize: "0.88rem", lineHeight: 1.3, wordBreak: "break-word" }}>
+                                            {String(row?.label || "-")}
+                                        </div>
+                                        <div style={{ fontSize: "0.7rem", color: "#64748b", fontWeight: 600, marginTop: "2px" }}>
+                                            {row.likes ?? 0} likes · {row.shares ?? 0} shares · {row.comments ?? 0} comments
+                                        </div>
+                                    </div>
+                                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", flexShrink: 0, gap: "3px" }}>
+                                        <span style={{ fontWeight: 800, color: rankStyle.totalColor, fontSize: "1rem", lineHeight: 1 }}>
+                                            {row.total}
+                                        </span>
+                                        <span style={{ fontSize: "0.62rem", color: "#94a3b8", fontWeight: 700, letterSpacing: "0.03em", textTransform: "uppercase" }}>
+                                            pts
+                                        </span>
+                                    </div>
+                                    <span style={{ fontSize: "0.85rem", color: "#94a3b8", flexShrink: 0, paddingLeft: "2px" }}>›</span>
+                                </button>
+                            );
+                        })}
+                    </div>
                 ) : (
-                    <div style={{ overflowX: "auto", border: "1px solid #dbeafe", borderRadius: "12px", background: "#fff" }}>
-                        <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, tableLayout: "fixed" }}>
+                    <div className="leaderboard-table-scroll" style={{ overflowX: "auto", border: "1px solid #dbeafe", borderRadius: "12px", background: "#fff" }}>
+                        <table className="leaderboard-table" style={{ width: isMobile ? "max-content" : "100%", minWidth: isMobile ? "500px" : "100%", borderCollapse: "separate", borderSpacing: 0, tableLayout: "fixed" }}>
                             <colgroup>
                                 <col style={{ width: isMobile ? "56px" : "64px" }} />
                                 <col style={{ width: "auto" }} />
@@ -5914,140 +6063,84 @@ function LeaderboardModal({
                             </colgroup>
                             <thead>
                                 <tr>
-                                    <th style={{ textAlign: "left", padding: isMobile ? "10px 8px" : "10px 10px", borderBottom: "1px solid #dbeafe", fontSize: isMobile ? "0.72rem" : "0.74rem", color: "#334155", letterSpacing: "0.02em", textTransform: "uppercase" }}>Rank</th>
-                                    <th style={{ textAlign: "left", padding: isMobile ? "10px 8px" : "10px 10px", borderBottom: "1px solid #dbeafe", fontSize: isMobile ? "0.72rem" : "0.74rem", color: "#334155", letterSpacing: "0.02em", textTransform: "uppercase" }}>Name</th>
-                                    <th style={{ textAlign: "right", padding: isMobile ? "10px 8px" : "10px 10px", borderBottom: "1px solid #dbeafe", fontSize: isMobile ? "0.72rem" : "0.74rem", color: "#334155", letterSpacing: "0.02em", textTransform: "uppercase" }}>
+                                    <th style={{ textAlign: "left", padding: isMobile ? "10px 8px" : "10px 10px", borderBottom: "1px solid #dbeafe", fontSize: isMobile ? "0.68rem" : "0.74rem", color: "#334155", letterSpacing: "0.02em", textTransform: "uppercase", whiteSpace: "nowrap", lineHeight: 1.2 }}>Rank</th>
+                                    <th style={{ textAlign: "left", padding: isMobile ? "10px 8px" : "10px 10px", borderBottom: "1px solid #dbeafe", fontSize: isMobile ? "0.68rem" : "0.74rem", color: "#334155", letterSpacing: "0.02em", textTransform: "uppercase", whiteSpace: "nowrap", lineHeight: 1.2 }}>Name</th>
+                                    <th style={{ textAlign: "right", padding: isMobile ? "10px 8px" : "10px 10px", borderBottom: "1px solid #dbeafe", fontSize: isMobile ? "0.68rem" : "0.74rem", color: "#334155", letterSpacing: "0.02em", textTransform: "uppercase", whiteSpace: "nowrap", lineHeight: 1.2 }}>
                                         {renderHeaderTooltip("like", "Likes") ?? "Likes"}
                                     </th>
-                                    <th style={{ textAlign: "right", padding: isMobile ? "10px 8px" : "10px 10px", borderBottom: "1px solid #dbeafe", fontSize: isMobile ? "0.72rem" : "0.74rem", color: "#334155", letterSpacing: "0.02em", textTransform: "uppercase" }}>
+                                    <th style={{ textAlign: "right", padding: isMobile ? "10px 8px" : "10px 10px", borderBottom: "1px solid #dbeafe", fontSize: isMobile ? "0.68rem" : "0.74rem", color: "#334155", letterSpacing: "0.02em", textTransform: "uppercase", whiteSpace: "nowrap", lineHeight: 1.2 }}>
                                         {renderHeaderTooltip("share", "Shares") ?? "Shares"}
                                     </th>
-                                    <th style={{ textAlign: "right", padding: isMobile ? "10px 8px" : "10px 10px", borderBottom: "1px solid #dbeafe", fontSize: isMobile ? "0.72rem" : "0.74rem", color: "#334155", letterSpacing: "0.02em", textTransform: "uppercase" }}>
-                                        {renderHeaderTooltip("comment_approved", "Comments") ?? "Comments"}
+                                    <th style={{ textAlign: "right", padding: isMobile ? "10px 8px" : "10px 10px", borderBottom: "1px solid #dbeafe", fontSize: isMobile ? "0.68rem" : "0.74rem", color: "#334155", letterSpacing: "0.02em", textTransform: "uppercase", whiteSpace: "nowrap", lineHeight: 1.2 }}>
+                                        {renderHeaderTooltip("comment_approved", "Comments") ?? (isMobile ? "Comms" : "Comments")}
                                     </th>
                                     {scope === "users" && (
-                                        <th style={{ textAlign: "right", padding: isMobile ? "10px 8px" : "10px 10px", borderBottom: "1px solid #dbeafe", fontSize: isMobile ? "0.72rem" : "0.74rem", color: "#334155", letterSpacing: "0.02em", textTransform: "uppercase" }}>Support</th>
+                                        <th style={{ textAlign: "right", padding: isMobile ? "10px 8px" : "10px 10px", borderBottom: "1px solid #dbeafe", fontSize: isMobile ? "0.68rem" : "0.74rem", color: "#334155", letterSpacing: "0.02em", textTransform: "uppercase", whiteSpace: "nowrap", lineHeight: 1.2 }}>{isMobile ? "Supp" : "Support"}</th>
                                     )}
-                                    <th style={{ textAlign: "right", padding: isMobile ? "10px 8px" : "10px 10px", borderBottom: "1px solid #dbeafe", fontSize: isMobile ? "0.72rem" : "0.74rem", color: "#334155", letterSpacing: "0.02em", textTransform: "uppercase" }}>Total</th>
+                                    <th style={{ textAlign: "right", padding: isMobile ? "10px 8px" : "10px 10px", borderBottom: "1px solid #dbeafe", fontSize: isMobile ? "0.68rem" : "0.74rem", color: "#334155", letterSpacing: "0.02em", textTransform: "uppercase", whiteSpace: "nowrap", lineHeight: 1.2 }}>Total</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {rows.map((row, index) => (
-                                    (() => {
-                                        const rank = Number.isFinite(Number(row?.rank)) ? Number(row.rank) : index + 1;
-                                        const rankStyle = getRankStyle(rank);
-
-                                        return (
-                                            <tr
-                                                key={`${row.id}-${index}`}
-                                                className={isInteractiveScope ? "leaderboard-row leaderboard-row-interactive" : "leaderboard-row"}
-                                                tabIndex={isInteractiveScope ? 0 : undefined}
-                                                role={isInteractiveScope ? "button" : undefined}
-                                                aria-label={isInteractiveScope ? `Open ${scope.slice(0, -1)} ${String(row?.label || "")}` : undefined}
-                                                onClick={isInteractiveScope ? () => activateRow(row) : undefined}
-                                                onKeyDown={isInteractiveScope ? (event) => handleRowKeyDown(event, row) : undefined}
-                                                style={{
-                                                    cursor: isInteractiveScope ? "pointer" : "default",
-                                                    transition: "background 150ms ease",
-                                                }}
-                                            >
-                                                <td
-                                                    style={{
-                                                        padding: isMobile ? "10px 8px" : "10px",
-                                                        borderBottom: "1px solid #eff6ff",
-                                                        borderLeft: rank <= 3 ? `3px solid ${rankStyle.borderColor}` : "3px solid transparent",
-                                                        background: rankStyle.rowBackground,
-                                                    }}
-                                                >
-                                                    <span
-                                                        style={{
-                                                            display: "inline-grid",
-                                                            placeItems: "center",
-                                                            minWidth: isMobile ? "28px" : "30px",
-                                                            height: isMobile ? "28px" : "30px",
-                                                            padding: "0 6px",
-                                                            borderRadius: "999px",
-                                                            fontSize: isMobile ? "0.77rem" : "0.8rem",
-                                                            fontWeight: 800,
-                                                            color: rankStyle.badgeColor,
-                                                            background: rankStyle.badgeBackground,
-                                                            boxShadow: rank <= 3 ? "0 8px 14px rgba(15, 23, 42, 0.14)" : "none",
-                                                        }}
-                                                    >
-                                                        #{rank}
-                                                    </span>
-                                                </td>
-                                                <td style={{ padding: isMobile ? "10px 8px" : "10px", borderBottom: "1px solid #eff6ff", fontSize: isMobile ? "0.84rem" : "0.8rem", color: "#0f172a", background: rankStyle.rowBackground }}>
-                                            {scope === "users" ? (
-                                                <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
-                                                    <ProfileAvatar
-                                                        imageUrl={String(row?.avatarUrl || "")}
-                                                        label={String(row?.label || "User")}
-                                                        size={isMobile ? 26 : 24}
-                                                    />
-                                                    <div style={{ display: "grid", minWidth: 0 }}>
-                                                        <span style={{ color: "#0f172a", fontWeight: 800, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: mobileNameMaxWidth }}>
-                                                            {String(row?.label || "User")}
-                                                        </span>
-                                                        {(() => {
-                                                            const providerPillStyle = getAuthProviderPillStyle(row?.authProvider);
-                                                            return (
-                                                                <span
-                                                                    style={{
-                                                                        display: "inline-flex",
-                                                                        alignItems: "center",
-                                                                        justifyContent: "center",
-                                                                        width: "fit-content",
-                                                                        marginTop: "3px",
-                                                                        borderRadius: "999px",
-                                                                        padding: isMobile ? "3px 8px" : "2px 8px",
-                                                                        fontSize: isMobile ? "0.68rem" : "0.64rem",
-                                                                        fontWeight: 700,
-                                                                        border: providerPillStyle.border,
-                                                                        background: providerPillStyle.background,
-                                                                        color: providerPillStyle.color,
-                                                                        maxWidth: mobileNameMaxWidth,
-                                                                        whiteSpace: "nowrap",
-                                                                        overflow: "hidden",
-                                                                        textOverflow: "ellipsis",
-                                                                    }}
-                                                                >
-                                                                    {providerPillStyle.label}
-                                                                </span>
-                                                            );
-                                                        })()}
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <span
-                                                    style={{
-                                                        display: "inline-block",
-                                                        color: "#0f4bbd",
-                                                        textDecoration: "underline",
-                                                        textUnderlineOffset: "2px",
-                                                        fontWeight: 700,
-                                                        lineHeight: 1.3,
-                                                        whiteSpace: "nowrap",
-                                                        overflow: "hidden",
-                                                        textOverflow: "ellipsis",
-                                                        maxWidth: mobileNameMaxWidth,
-                                                    }}
-                                                >
-                                                    {String(row?.label || "-")}
+                                {rows.map((row, index) => {
+                                    const rank = Number.isFinite(Number(row?.rank)) ? Number(row.rank) : index + 1;
+                                    const rankStyle = getRankStyle(rank);
+                                    return (
+                                        <tr
+                                            key={`${row.id}-${index}`}
+                                            className={isInteractiveScope ? "leaderboard-row leaderboard-row-interactive" : "leaderboard-row"}
+                                            tabIndex={isInteractiveScope ? 0 : undefined}
+                                            role={isInteractiveScope ? "button" : undefined}
+                                            aria-label={isInteractiveScope ? `Open ${scope.slice(0, -1)} ${String(row?.label || "")}` : undefined}
+                                            onClick={isInteractiveScope ? () => activateRow(row) : undefined}
+                                            onKeyDown={isInteractiveScope ? (event) => handleRowKeyDown(event, row) : undefined}
+                                            style={{ cursor: isInteractiveScope ? "pointer" : "default", transition: "background 150ms ease" }}
+                                        >
+                                            <td style={{ padding: isMobile ? "10px 8px" : "10px", borderBottom: "1px solid #eff6ff", borderLeft: rank <= 3 ? `3px solid ${rankStyle.borderColor}` : "3px solid transparent", background: rankStyle.rowBackground }}>
+                                                <span style={{ display: "inline-grid", placeItems: "center", minWidth: isMobile ? "28px" : "30px", height: isMobile ? "28px" : "30px", padding: "0 6px", borderRadius: "999px", fontSize: isMobile ? "0.77rem" : "0.8rem", fontWeight: 800, color: rankStyle.badgeColor, background: rankStyle.badgeBackground, boxShadow: rank <= 3 ? "0 8px 14px rgba(15,23,42,0.14)" : "none" }}>
+                                                    #{rank}
                                                 </span>
-                                            )}
-                                                </td>
-                                                <td style={{ padding: isMobile ? "10px 8px" : "10px", borderBottom: "1px solid #eff6ff", textAlign: "right", fontSize: isMobile ? "0.81rem" : "0.78rem", color: "#334155", fontWeight: 600, background: rankStyle.rowBackground }}>{row.likes}</td>
-                                                <td style={{ padding: isMobile ? "10px 8px" : "10px", borderBottom: "1px solid #eff6ff", textAlign: "right", fontSize: isMobile ? "0.81rem" : "0.78rem", color: "#334155", fontWeight: 600, background: rankStyle.rowBackground }}>{row.shares}</td>
-                                                <td style={{ padding: isMobile ? "10px 8px" : "10px", borderBottom: "1px solid #eff6ff", textAlign: "right", fontSize: isMobile ? "0.81rem" : "0.78rem", color: "#334155", fontWeight: 600, background: rankStyle.rowBackground }}>{row.comments ?? 0}</td>
-                                                {scope === "users" && (
-                                                    <td style={{ padding: isMobile ? "10px 8px" : "10px", borderBottom: "1px solid #eff6ff", textAlign: "right", fontSize: isMobile ? "0.81rem" : "0.78rem", color: "#f59e0b", fontWeight: 700, background: rankStyle.rowBackground }}>{row.bmc ?? 0}</td>
+                                            </td>
+                                            <td style={{ padding: isMobile ? "10px 8px" : "10px", borderBottom: "1px solid #eff6ff", fontSize: isMobile ? "0.84rem" : "0.8rem", color: "#0f172a", background: rankStyle.rowBackground }}>
+                                                {scope === "users" ? (
+                                                    <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
+                                                        <ProfileAvatar imageUrl={String(row?.avatarUrl || "")} label={String(row?.label || "User")} size={isMobile ? 26 : 24} />
+                                                        <div style={{ display: "grid", minWidth: 0 }}>
+                                                            <span style={{ color: "#0f172a", fontWeight: 800, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: isMobile ? "170px" : "280px" }}>
+                                                                {String(row?.label || "User")}
+                                                            </span>
+                                                            {(() => {
+                                                                const providerPillStyle = getAuthProviderPillStyle(row?.authProvider);
+                                                                return (
+                                                                    <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "3px", flexWrap: "wrap" }}>
+                                                                        <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "fit-content", borderRadius: "999px", padding: isMobile ? "3px 8px" : "2px 8px", fontSize: isMobile ? "0.68rem" : "0.64rem", fontWeight: 700, border: providerPillStyle.border, background: providerPillStyle.background, color: providerPillStyle.color, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: isMobile ? "170px" : "280px" }}>
+                                                                            {providerPillStyle.label}
+                                                                        </span>
+                                                                        {Boolean(row?.isFacebookGroupMember) && (
+                                                                            <span title={`FB group bonus: +${Number(row?.facebookGroupPoints) || 0}`} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: "999px", padding: isMobile ? "3px 8px" : "2px 8px", fontSize: isMobile ? "0.68rem" : "0.64rem", fontWeight: 700, border: "1px solid #60a5fa", background: "#eff6ff", color: "#1d4ed8", whiteSpace: "nowrap" }}>
+                                                                                FB Group
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })()}
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <span style={{ display: "inline-block", color: "#0f4bbd", textDecoration: "underline", textUnderlineOffset: "2px", fontWeight: 700, lineHeight: 1.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: isMobile ? "170px" : "280px" }}>
+                                                        {String(row?.label || "-")}
+                                                    </span>
                                                 )}
-                                                <td style={{ padding: isMobile ? "10px 8px" : "10px", borderBottom: "1px solid #eff6ff", textAlign: "right", fontSize: isMobile ? "0.88rem" : "0.82rem", color: rankStyle.totalColor, fontWeight: 800, background: rankStyle.rowBackground }}>{row.total}</td>
-                                            </tr>
-                                        );
-                                    })()
-                                ))}
+                                            </td>
+                                            <td style={{ padding: isMobile ? "10px 8px" : "10px", borderBottom: "1px solid #eff6ff", textAlign: "right", fontSize: isMobile ? "0.81rem" : "0.78rem", color: "#334155", fontWeight: 600, background: rankStyle.rowBackground }}>{row.likes}</td>
+                                            <td style={{ padding: isMobile ? "10px 8px" : "10px", borderBottom: "1px solid #eff6ff", textAlign: "right", fontSize: isMobile ? "0.81rem" : "0.78rem", color: "#334155", fontWeight: 600, background: rankStyle.rowBackground }}>{row.shares}</td>
+                                            <td style={{ padding: isMobile ? "10px 8px" : "10px", borderBottom: "1px solid #eff6ff", textAlign: "right", fontSize: isMobile ? "0.81rem" : "0.78rem", color: "#334155", fontWeight: 600, background: rankStyle.rowBackground }}>{row.comments ?? 0}</td>
+                                            {scope === "users" && (
+                                                <td style={{ padding: isMobile ? "10px 8px" : "10px", borderBottom: "1px solid #eff6ff", textAlign: "right", fontSize: isMobile ? "0.81rem" : "0.78rem", color: "#f59e0b", fontWeight: 700, background: rankStyle.rowBackground }}>{row.support ?? row.bmc ?? 0}</td>
+                                            )}
+                                            <td style={{ padding: isMobile ? "10px 8px" : "10px", borderBottom: "1px solid #eff6ff", textAlign: "right", fontSize: isMobile ? "0.88rem" : "0.82rem", color: rankStyle.totalColor, fontWeight: 800, background: rankStyle.rowBackground }}>{row.total}</td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
@@ -13576,7 +13669,7 @@ function App() {
             listSocialLeaderboardTotals(),
             supabase
                 .from("profiles")
-                .select("id, display_name, avatar_url, auth_provider")
+                .select("id, display_name, avatar_url, auth_provider, is_facebook_group_member")
                 .order("updated_at", { ascending: false }),
             listPointsRules(),
         ]);
@@ -13594,6 +13687,7 @@ function App() {
                     ? fallbackResult.data.map((profile) => ({
                         ...profile,
                         auth_provider: "unknown",
+                        is_facebook_group_member: false,
                     }))
                     : [],
             };
@@ -15977,6 +16071,18 @@ function App() {
         const likePts = getRulePts("like");
         const sharePts = getRulePts("share");
         const commentPts = getRulePts("comment_approved");
+        const facebookGroupJoinBonusPts = (() => {
+            if (!Array.isArray(leaderboardPointsRules)) return 0;
+            const rule = leaderboardPointsRules.find((r) => r?.rule_code === "facebook_group_join_bonus");
+            return rule && Number.isFinite(Number(rule.points_value)) ? Number(rule.points_value) : 0;
+        })();
+        const profilesById = Array.isArray(leaderboardProfiles)
+            ? leaderboardProfiles.reduce((acc, profile) => {
+                const id = String(profile?.id || "").trim();
+                if (id) acc[id] = profile;
+                return acc;
+            }, {})
+            : {};
 
         leaderboardTotals.forEach((row) => {
             const entityType = String(row?.entity_type || "").trim().toLowerCase();
@@ -15987,21 +16093,28 @@ function App() {
             const shares = Number.isFinite(Number(row?.share_count)) ? Number(row.share_count) : 0;
             const comments = Number.isFinite(Number(row?.comment_count)) ? Number(row.comment_count) : 0;
             const bmc = Number.isFinite(Number(row?.bmc_points)) ? Number(row.bmc_points) : 0;
+            const profile = entityType === "user" ? profilesById[entityId] : null;
+            const isFacebookGroupMember = Boolean(profile?.is_facebook_group_member);
+            const facebookGroupPoints = entityType === "user" && isFacebookGroupMember
+                ? facebookGroupJoinBonusPts
+                : 0;
             // Compute a points-weighted total using rule values rather than raw counts.
             // bmc_points is already stored in points (sum of points_awarded), so it is not multiplied.
-            const total = (likes * likePts) + (shares * sharePts) + (comments * commentPts) + bmc;
+            const total = (likes * likePts) + (shares * sharePts) + (comments * commentPts) + bmc + facebookGroupPoints;
 
             map[`${entityType}:${entityId}`] = {
                 likes,
                 shares,
                 comments,
                 bmc,
+                isFacebookGroupMember,
+                facebookGroupPoints,
                 total,
             };
         });
 
         return map;
-    }, [leaderboardTotals, leaderboardPointsRules]);
+    }, [leaderboardProfiles, leaderboardTotals, leaderboardPointsRules]);
     const sortedContributorsByEngagement = useMemo(
         () => [...contributors].sort((left, right) => {
             const leftTotals = leaderboardTotalsByEntityKey[`contributor:${String(left?.id || "")}`];
@@ -16086,6 +16199,10 @@ function App() {
                     shares: Number.isFinite(Number(totals?.shares)) ? Number(totals.shares) : 0,
                     comments: Number.isFinite(Number(totals?.comments)) ? Number(totals.comments) : 0,
                     bmc: Number.isFinite(Number(totals?.bmc)) ? Number(totals.bmc) : 0,
+                    isFacebookGroupMember: Boolean(totals?.isFacebookGroupMember),
+                    facebookGroupPoints: Number.isFinite(Number(totals?.facebookGroupPoints)) ? Number(totals.facebookGroupPoints) : 0,
+                    support: (Number.isFinite(Number(totals?.bmc)) ? Number(totals.bmc) : 0)
+                        + (Number.isFinite(Number(totals?.facebookGroupPoints)) ? Number(totals.facebookGroupPoints) : 0),
                     total: Number.isFinite(Number(totals?.total)) ? Number(totals.total) : 0,
                 };
             }),
