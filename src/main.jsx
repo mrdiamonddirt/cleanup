@@ -3791,6 +3791,12 @@ function PublicReportOverlay({
 
     const latText = formatCoordinate(reportLocation.y, 6) || String(reportLocation.y);
     const lngText = formatCoordinate(reportLocation.x, 6) || String(reportLocation.x);
+    const isShortMobileViewport =
+        isMobile && typeof window !== "undefined" && window.innerHeight < 760;
+    const mobilePanelPadding = isShortMobileViewport ? "10px" : "12px";
+    const mobileControlMinHeight = isShortMobileViewport ? "38px" : "42px";
+    const mobileControlPadding = isShortMobileViewport ? "8px 11px" : "10px 14px";
+    const mobileControlFontSize = isShortMobileViewport ? "0.84rem" : "0.9rem";
 
     const panelNode = (
         <div
@@ -3804,7 +3810,7 @@ function PublicReportOverlay({
                 width: isMobile ? "min(332px, calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 16px))" : "332px",
                 maxHeight: isMobile ? "calc(100svh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 16px)" : "none",
                 overflowY: isMobile ? "auto" : "visible",
-                padding: isMobile ? "12px" : "11px 13px",
+                padding: isMobile ? mobilePanelPadding : "11px 13px",
                 border: "1px solid #93c5fd",
                 borderRadius: isMobile ? "16px" : "10px",
                 background: "rgba(239,246,255,0.97)",
@@ -3848,11 +3854,11 @@ function PublicReportOverlay({
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
-                    gap: "10px",
-                    marginBottom: "7px",
+                    gap: isShortMobileViewport ? "8px" : "10px",
+                    marginBottom: isShortMobileViewport ? "6px" : "7px",
                 }}
             >
-                <div style={{ fontSize: "0.9rem", fontWeight: 700, color: "#0f172a" }}>
+                <div style={{ fontSize: isShortMobileViewport ? "0.86rem" : "0.9rem", fontWeight: 700, color: "#0f172a" }}>
                     Send this report
                 </div>
                 <button
@@ -3861,8 +3867,8 @@ function PublicReportOverlay({
                     aria-label="Close report popup"
                     title="Close"
                     style={{
-                        width: "28px",
-                        height: "28px",
+                        width: isShortMobileViewport ? "26px" : "28px",
+                        height: isShortMobileViewport ? "26px" : "28px",
                         borderRadius: "999px",
                         border: "1px solid #cbd5e1",
                         background: "rgba(255,255,255,0.85)",
@@ -3870,7 +3876,7 @@ function PublicReportOverlay({
                         display: "inline-flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        fontSize: "1rem",
+                        fontSize: isShortMobileViewport ? "0.92rem" : "1rem",
                         lineHeight: 1,
                         cursor: "pointer",
                     }}
@@ -3878,29 +3884,29 @@ function PublicReportOverlay({
                     ×
                 </button>
             </div>
-            <div style={{ marginBottom: "8px" }}>
-                <div style={{ fontSize: "0.8rem", color: "#334155", lineHeight: 1.4 }}>
+            <div style={{ marginBottom: isShortMobileViewport ? "7px" : "8px" }}>
+                <div style={{ fontSize: isShortMobileViewport ? "0.77rem" : "0.8rem", color: "#334155", lineHeight: 1.4 }}>
                     GPS to share: {latText}, {lngText}
                 </div>
             </div>
 
             <div
                 style={{
-                    fontSize: "0.75rem",
+                    fontSize: isShortMobileViewport ? "0.73rem" : "0.75rem",
                     color: "#1e3a8a",
                     background: "rgba(191,219,254,0.5)",
                     border: "1px solid #bfdbfe",
                     borderRadius: "8px",
-                    padding: "7px 8px",
+                    padding: isShortMobileViewport ? "6px 7px" : "7px 8px",
                     lineHeight: 1.35,
-                    marginBottom: "9px",
+                    marginBottom: isShortMobileViewport ? "8px" : "9px",
                 }}
             >
                 Your note and GPS are sent through Facebook Messenger, not saved in this app.
             </div>
 
-            <label style={{ display: "grid", gap: "5px", marginBottom: "9px" }}>
-                <span style={{ fontSize: "0.76rem", color: "#334155", fontWeight: 700 }}>
+            <label style={{ display: "grid", gap: isShortMobileViewport ? "4px" : "5px", marginBottom: isShortMobileViewport ? "8px" : "9px" }}>
+                <span style={{ fontSize: isShortMobileViewport ? "0.74rem" : "0.76rem", color: "#334155", fontWeight: 700 }}>
                     Quick details (optional)
                 </span>
                 <textarea
@@ -3911,16 +3917,16 @@ function PublicReportOverlay({
                     style={{
                         border: "1px solid #bfdbfe",
                         borderRadius: "8px",
-                        minHeight: "72px",
+                        minHeight: isShortMobileViewport ? "64px" : "72px",
                         resize: "vertical",
-                        padding: "8px",
-                        fontSize: "0.82rem",
+                        padding: isShortMobileViewport ? "7px" : "8px",
+                        fontSize: isShortMobileViewport ? "0.8rem" : "0.82rem",
                         color: "#0f172a",
                         boxSizing: "border-box",
                         width: "100%",
                     }}
                 />
-                <span style={{ fontSize: "0.72rem", color: "#64748b" }}>
+                <span style={{ fontSize: isShortMobileViewport ? "0.7rem" : "0.72rem", color: "#64748b" }}>
                     {reportNote.length}/{REPORT_NOTE_MAX_LENGTH}
                 </span>
             </label>
@@ -3929,7 +3935,7 @@ function PublicReportOverlay({
                 style={{
                     display: "grid",
                     gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                    gap: "8px",
+                    gap: isShortMobileViewport ? "7px" : "8px",
                     alignItems: "stretch",
                 }}
             >
@@ -3942,20 +3948,20 @@ function PublicReportOverlay({
                         background: hasMessengerTarget ? "linear-gradient(135deg, #1d4ed8 0%, #1877f2 65%, #36a2ff 100%)" : "#cbd5e1",
                         color: "#ffffff",
                         borderRadius: "10px",
-                        minHeight: isMobile ? "42px" : "38px",
-                        padding: isMobile ? "10px 14px" : "8px 13px",
-                        fontSize: isMobile ? "0.9rem" : "0.83rem",
+                        minHeight: isMobile ? mobileControlMinHeight : "38px",
+                        padding: isMobile ? mobileControlPadding : "8px 13px",
+                        fontSize: isMobile ? mobileControlFontSize : "0.83rem",
                         fontWeight: 700,
                         cursor: hasMessengerTarget ? "pointer" : "not-allowed",
                         display: "inline-flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        gap: "7px",
+                        gap: isShortMobileViewport ? "6px" : "7px",
                         boxShadow: hasMessengerTarget ? "0 8px 18px rgba(24,119,242,0.34)" : "none",
                         width: "100%",
                     }}
                 >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" width={isShortMobileViewport ? "14" : "15"} height={isShortMobileViewport ? "14" : "15"} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                         <path d="M12 2C6.48 2 2 6.15 2 11.29c0 2.93 1.46 5.54 3.74 7.24V22l3.23-1.77c.96.27 1.98.41 3.03.41 5.52 0 10-4.15 10-9.29S17.52 2 12 2Zm1.12 12.51-2.54-2.71-4.95 2.71 5.44-5.76 2.61 2.71 4.87-2.71-5.43 5.76Z"/>
                     </svg>
                     Send via Messenger
@@ -3969,19 +3975,19 @@ function PublicReportOverlay({
                         background: hasEmailTarget ? "#ecfeff" : "#e2e8f0",
                         color: hasEmailTarget ? "#075985" : "#64748b",
                         borderRadius: "10px",
-                        minHeight: isMobile ? "42px" : "38px",
-                        padding: isMobile ? "10px 14px" : "8px 13px",
-                        fontSize: isMobile ? "0.9rem" : "0.83rem",
+                        minHeight: isMobile ? mobileControlMinHeight : "38px",
+                        padding: isMobile ? mobileControlPadding : "8px 13px",
+                        fontSize: isMobile ? mobileControlFontSize : "0.83rem",
                         fontWeight: 700,
                         cursor: hasEmailTarget ? "pointer" : "not-allowed",
                         display: "inline-flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        gap: "7px",
+                        gap: isShortMobileViewport ? "6px" : "7px",
                         width: "100%",
                     }}
                 >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" width={isShortMobileViewport ? "14" : "15"} height={isShortMobileViewport ? "14" : "15"} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                         <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.89 2 1.99 2H20c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2Zm0 4-8 5-8-5V6l8 5 8-5v2Z"/>
                     </svg>
                     Send by Email
@@ -3993,24 +3999,24 @@ function PublicReportOverlay({
                     type="button"
                     onClick={onCopyReportText}
                     style={{
-                        marginTop: "6px",
+                        marginTop: isShortMobileViewport ? "5px" : "6px",
                         width: "100%",
                         border: "1px solid #94a3b8",
                         background: "#f8fafc",
                         color: "#334155",
                         borderRadius: "10px",
-                        minHeight: isMobile ? "42px" : "38px",
-                        padding: isMobile ? "10px 14px" : "8px 13px",
-                        fontSize: isMobile ? "0.9rem" : "0.83rem",
+                        minHeight: isMobile ? mobileControlMinHeight : "38px",
+                        padding: isMobile ? mobileControlPadding : "8px 13px",
+                        fontSize: isMobile ? mobileControlFontSize : "0.83rem",
                         fontWeight: 600,
                         cursor: "pointer",
                         display: "inline-flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        gap: "7px",
+                        gap: isShortMobileViewport ? "6px" : "7px",
                     }}
                 >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" width={isShortMobileViewport ? "14" : "15"} height={isShortMobileViewport ? "14" : "15"} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                         <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1Zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2Zm0 16H8V7h11v14Z"/>
                     </svg>
                     Copy report text
@@ -4018,19 +4024,19 @@ function PublicReportOverlay({
             ) : null}
 
             {!hasMessengerTarget ? (
-                <div style={{ marginTop: "8px", fontSize: "0.75rem", color: "#7f1d1d" }}>
+                <div style={{ marginTop: isShortMobileViewport ? "7px" : "8px", fontSize: isShortMobileViewport ? "0.73rem" : "0.75rem", color: "#7f1d1d" }}>
                     Reporting is unavailable because Facebook recipient ID is not configured.
                 </div>
             ) : null}
 
             {!hasEmailTarget ? (
-                <div style={{ marginTop: "6px", fontSize: "0.75rem", color: "#7f1d1d" }}>
+                <div style={{ marginTop: isShortMobileViewport ? "5px" : "6px", fontSize: isShortMobileViewport ? "0.73rem" : "0.75rem", color: "#7f1d1d" }}>
                     Email fallback is unavailable because VITE_COMMUNITY_EMAIL_ACCOUNT is not configured.
                 </div>
             ) : null}
 
             {reportStatus ? (
-                <div style={{ marginTop: "8px", fontSize: "0.76rem", color: "#1e3a8a" }}>
+                <div style={{ marginTop: isShortMobileViewport ? "7px" : "8px", fontSize: isShortMobileViewport ? "0.74rem" : "0.76rem", color: "#1e3a8a" }}>
                     {reportStatus}
                 </div>
             ) : null}
