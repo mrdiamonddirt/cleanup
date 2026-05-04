@@ -5826,7 +5826,7 @@ function LeaderboardModal({
     return (
         <ModalShell isMobile={isMobile} title="Leaderboards" onClose={onClose} width="min(760px, calc(100vw - 32px))">
             <p style={{ margin: 0, fontSize: isMobile ? "0.88rem" : "0.82rem", color: "#334155", lineHeight: 1.45 }}>
-                {scope === "users" ? "Ranked by total engagement (likes + shares + approved comments + BMC support points)." : "Ranked by total engagement (likes + shares + approved comments)."}
+                {scope === "users" ? "Ranked by total points (likes + shares + approved comments + BMC support points, weighted by point values)." : "Ranked by total points (likes + shares + approved comments, weighted by point values)."}
             </p>
 
             <div style={{ marginTop: "12px", display: "flex", flexWrap: "wrap", gap: "8px" }}>
@@ -15970,6 +15970,15 @@ function App() {
         const map = {};
         if (!Array.isArray(leaderboardTotals)) return map;
 
+        const getRulePts = (ruleCode) => {
+            if (!Array.isArray(leaderboardPointsRules)) return 1;
+            const rule = leaderboardPointsRules.find((r) => r?.rule_code === ruleCode);
+            return rule && Number.isFinite(Number(rule.points_value)) ? Number(rule.points_value) : 1;
+        };
+        const likePts = getRulePts("like");
+        const sharePts = getRulePts("share");
+        const commentPts = getRulePts("comment_approved");
+
         leaderboardTotals.forEach((row) => {
             const entityType = String(row?.entity_type || "").trim().toLowerCase();
             const entityId = String(row?.entity_id || "").trim();
@@ -15979,9 +15988,9 @@ function App() {
             const shares = Number.isFinite(Number(row?.share_count)) ? Number(row.share_count) : 0;
             const comments = Number.isFinite(Number(row?.comment_count)) ? Number(row.comment_count) : 0;
             const bmc = Number.isFinite(Number(row?.bmc_points)) ? Number(row.bmc_points) : 0;
-            const total = Number.isFinite(Number(row?.total_count))
-                ? Number(row.total_count)
-                : likes + shares + comments + bmc;
+            // Compute a points-weighted total using rule values rather than raw counts.
+            // bmc_points is already stored in points (sum of points_awarded), so it is not multiplied.
+            const total = (likes * likePts) + (shares * sharePts) + (comments * commentPts) + bmc;
 
             map[`${entityType}:${entityId}`] = {
                 likes,
@@ -15993,7 +16002,7 @@ function App() {
         });
 
         return map;
-    }, [leaderboardTotals]);
+    }, [leaderboardTotals, leaderboardPointsRules]);
     const sortedContributorsByEngagement = useMemo(
         () => [...contributors].sort((left, right) => {
             const leftTotals = leaderboardTotalsByEntityKey[`contributor:${String(left?.id || "")}`];
