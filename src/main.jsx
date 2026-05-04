@@ -16229,8 +16229,7 @@ function App() {
                     bmc: Number.isFinite(Number(totals?.bmc)) ? Number(totals.bmc) : 0,
                     isFacebookGroupMember: Boolean(totals?.isFacebookGroupMember),
                     facebookGroupPoints: Number.isFinite(Number(totals?.facebookGroupPoints)) ? Number(totals.facebookGroupPoints) : 0,
-                    support: (Number.isFinite(Number(totals?.bmc)) ? Number(totals.bmc) : 0)
-                        + (Number.isFinite(Number(totals?.facebookGroupPoints)) ? Number(totals.facebookGroupPoints) : 0),
+                    support: Number.isFinite(Number(totals?.bmc)) ? Number(totals.bmc) : 0,
                     total: Number.isFinite(Number(totals?.total)) ? Number(totals.total) : 0,
                 };
             }),
