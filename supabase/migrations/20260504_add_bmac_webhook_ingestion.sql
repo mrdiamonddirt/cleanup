@@ -159,13 +159,33 @@ update public.bmac_contributions
 set source_type = 'manual_admin'
 where coalesce(trim(source_type), '') = '';
 
-alter table public.bmac_contributions
-    add constraint bmac_contributions_source_type_not_blank_check
-        check (length(trim(source_type)) > 0);
+do $$
+begin
+    if not exists (
+        select 1 from pg_constraint
+        where conname = 'bmac_contributions_source_type_not_blank_check'
+          and conrelid = 'public.bmac_contributions'::regclass
+    ) then
+        alter table public.bmac_contributions
+            add constraint bmac_contributions_source_type_not_blank_check
+                check (length(trim(source_type)) > 0);
+    end if;
+end;
+$$;
 
-alter table public.bmac_contributions
-    add constraint bmac_contributions_supporter_email_normalized_check
-        check (supporter_email is null or supporter_email = public.normalize_email(supporter_email));
+do $$
+begin
+    if not exists (
+        select 1 from pg_constraint
+        where conname = 'bmac_contributions_supporter_email_normalized_check'
+          and conrelid = 'public.bmac_contributions'::regclass
+    ) then
+        alter table public.bmac_contributions
+            add constraint bmac_contributions_supporter_email_normalized_check
+                check (supporter_email is null or supporter_email = public.normalize_email(supporter_email));
+    end if;
+end;
+$$;
 
 create unique index if not exists bmac_contributions_source_type_source_key_key
     on public.bmac_contributions (source_type, source_key)
@@ -450,10 +470,10 @@ begin
     end if;
 
     if v_supporter_email is not null then
-        select profile_id
+        select ppe.profile_id
         into v_profile_id
-        from public.profile_private_emails
-        where email = v_supporter_email
+        from public.profile_private_emails as ppe
+        where ppe.email = v_supporter_email
         limit 1;
     end if;
 
