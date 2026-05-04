@@ -168,6 +168,50 @@ const SUPABASE_MUTATION_TIMEOUT_MS = 25000;
 const DEFAULT_RETRY_ATTEMPTS = 3;
 const DEFAULT_RETRY_BASE_DELAY_MS = 900;
 
+const AUTH_PROVIDER_PILL_STYLES = {
+    github: { label: "GitHub", border: "1px solid #94a3b8", background: "#f8fafc", color: "#334155" },
+    facebook: { label: "Facebook", border: "1px solid #60a5fa", background: "#eff6ff", color: "#1d4ed8" },
+    google: { label: "Google", border: "1px solid #a7f3d0", background: "#ecfdf5", color: "#047857" },
+    apple: { label: "Apple", border: "1px solid #9ca3af", background: "#f3f4f6", color: "#111827" },
+    linkedin: { label: "LinkedIn", border: "1px solid #93c5fd", background: "#eff6ff", color: "#1d4ed8" },
+    x: { label: "X (Twitter)", border: "1px solid #94a3b8", background: "#f1f5f9", color: "#0f172a" },
+    unknown: { label: "Unknown", border: "1px solid #cbd5e1", background: "#f8fafc", color: "#475569" },
+};
+
+const normalizeAuthProvider = (value) => {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (!normalized) return "unknown";
+    if (normalized === "twitter") return "x";
+    if (normalized === "x.com") return "x";
+    return normalized;
+};
+
+const getAuthProviderPillStyle = (provider) => {
+    const providerKey = normalizeAuthProvider(provider);
+    return AUTH_PROVIDER_PILL_STYLES[providerKey] || {
+        label: providerKey.charAt(0).toUpperCase() + providerKey.slice(1),
+        border: "1px solid #cbd5e1",
+        background: "#f8fafc",
+        color: "#475569",
+    };
+};
+
+const isMissingAuthProviderColumnError = (error) => {
+    const message = String(error?.message || "").toLowerCase();
+    const details = String(error?.details || "").toLowerCase();
+    const hint = String(error?.hint || "").toLowerCase();
+    const code = String(error?.code || "").toLowerCase();
+
+    if (!message && !details && !hint && !code) return false;
+
+    return (
+        message.includes("auth_provider") ||
+        details.includes("auth_provider") ||
+        hint.includes("auth_provider") ||
+        (code === "42703" && (message.includes("column") || details.includes("column")))
+    );
+};
+
 const wait = (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs));
 
 const buildTimeoutError = (label, timeoutMs) => {
@@ -5830,9 +5874,33 @@ function LeaderboardModal({
                                                         <span style={{ color: "#0f172a", fontWeight: 800, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: mobileNameMaxWidth }}>
                                                             {String(row?.label || "User")}
                                                         </span>
-                                                        <span style={{ color: "#64748b", fontSize: isMobile ? "0.72rem" : "0.68rem", lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: mobileNameMaxWidth }}>
-                                                            {String(row?.socialLabel || "GitHub supporter")}
-                                                        </span>
+                                                        {(() => {
+                                                            const providerPillStyle = getAuthProviderPillStyle(row?.authProvider);
+                                                            return (
+                                                                <span
+                                                                    style={{
+                                                                        display: "inline-flex",
+                                                                        alignItems: "center",
+                                                                        justifyContent: "center",
+                                                                        width: "fit-content",
+                                                                        marginTop: "3px",
+                                                                        borderRadius: "999px",
+                                                                        padding: isMobile ? "3px 8px" : "2px 8px",
+                                                                        fontSize: isMobile ? "0.68rem" : "0.64rem",
+                                                                        fontWeight: 700,
+                                                                        border: providerPillStyle.border,
+                                                                        background: providerPillStyle.background,
+                                                                        color: providerPillStyle.color,
+                                                                        maxWidth: mobileNameMaxWidth,
+                                                                        whiteSpace: "nowrap",
+                                                                        overflow: "hidden",
+                                                                        textOverflow: "ellipsis",
+                                                                    }}
+                                                                >
+                                                                    {providerPillStyle.label}
+                                                                </span>
+                                                            );
+                                                        })()}
                                                     </div>
                                                 </div>
                                             ) : (
@@ -13319,13 +13387,31 @@ function App() {
         setIsLeaderboardLoading(true);
         setLeaderboardError("");
 
-        const [totalsResult, profilesResult] = await Promise.all([
+        const [totalsResult, profilesWithProviderResult] = await Promise.all([
             listSocialLeaderboardTotals(),
             supabase
                 .from("profiles")
-                .select("id, display_name, avatar_url, is_facebook_group_member")
+                .select("id, display_name, avatar_url, auth_provider")
                 .order("updated_at", { ascending: false }),
         ]);
+
+        let profilesResult = profilesWithProviderResult;
+        if (isMissingAuthProviderColumnError(profilesWithProviderResult?.error)) {
+            const fallbackResult = await supabase
+                .from("profiles")
+                .select("id, display_name, avatar_url")
+                .order("updated_at", { ascending: false });
+
+            profilesResult = {
+                ...fallbackResult,
+                data: Array.isArray(fallbackResult?.data)
+                    ? fallbackResult.data.map((profile) => ({
+                        ...profile,
+                        auth_provider: "unknown",
+                    }))
+                    : [],
+            };
+        }
 
         if (totalsResult?.error) {
             setLeaderboardTotals([]);
@@ -15778,12 +15864,12 @@ function App() {
             leaderboardProfiles.map((profile) => {
                 const profileId = String(profile?.id || "");
                 const totals = leaderboardTotalsByEntityKey[`user:${profileId}`] || {};
-                const isFacebookGroupMember = Boolean(profile?.is_facebook_group_member);
+                const provider = normalizeAuthProvider(profile?.auth_provider);
                 return {
                     id: profileId,
                     label: String(profile?.display_name || profileId.slice(0, 8) || "User"),
                     avatarUrl: String(profile?.avatar_url || ""),
-                    socialLabel: isFacebookGroupMember ? "Facebook group member" : "GitHub supporter",
+                    authProvider: provider,
                     likes: Number.isFinite(Number(totals?.likes)) ? Number(totals.likes) : 0,
                     shares: Number.isFinite(Number(totals?.shares)) ? Number(totals.shares) : 0,
                     total: Number.isFinite(Number(totals?.total)) ? Number(totals.total) : 0,
