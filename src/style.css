@@ -53,10 +53,7 @@
 body {
   margin: 0;
   min-height: 100svh;
-  background:
-    radial-gradient(circle at 10% -5%, rgba(125, 211, 252, 0.22), transparent 32%),
-    radial-gradient(circle at 90% 0%, rgba(59, 130, 246, 0.16), transparent 28%),
-    linear-gradient(180deg, #f8fbff 0%, #eef3f9 100%);
+  background: #2f3339;
   color: #0f172a;
 }
 
@@ -136,6 +133,7 @@ textarea {
 #root {
   min-height: 100svh;
   padding: 10px;
+  background: #2f3339;
   box-sizing: border-box;
 }
 
@@ -253,6 +251,7 @@ code {
   margin: 0 auto;
   text-align: center;
   border-inline: 1px solid var(--border);
+  background: #dfeaf6;
   min-height: 100svh;
   display: flex;
   flex-direction: column;

@@ -13,6 +13,7 @@ import {
 } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import "./style.css";
 import { hasSupabaseConfig, supabase } from "./supabaseClient";
 import {
     approveCommentForAdmin,
@@ -4401,9 +4402,7 @@ function AppTopBar({
                 padding: isMobile ? "8px 10px" : "9px 12px",
                 borderRadius: UI_TOKENS.radius.md,
                 border: "1px solid rgba(148,163,184,0.35)",
-                background: isMobile
-                    ? "linear-gradient(180deg, rgba(255,255,255,0.94), rgba(248,250,252,0.9))"
-                    : "rgba(255,255,255,0.86)",
+                background: "#dfeaf6",
                 backdropFilter: "blur(16px)",
                 boxShadow: UI_TOKENS.shadow.soft,
                 display: "grid",
@@ -4537,7 +4536,7 @@ function AppTopBar({
                             padding: isMobile ? "3px 8px" : "4px 9px",
                             borderRadius: "999px",
                             border: "1px solid rgba(147,197,253,0.55)",
-                            background: "linear-gradient(135deg, rgba(239,246,255,0.92), rgba(224,242,254,0.78))",
+                            background: "#dfeaf6",
                             boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.45)",
                         }}
                     >
@@ -16954,8 +16953,7 @@ function App() {
                 margin: "0 auto",
                 borderRadius: isMobile ? UI_TOKENS.radius.lg : "24px",
                 border: "1px solid rgba(148,163,184,0.35)",
-                background:
-                    "linear-gradient(180deg, rgba(255,255,255,0.88) 0%, rgba(248,250,252,0.9) 100%)",
+                background: "#dfeaf6",
                 boxShadow: isMobile
                     ? "0 12px 30px rgba(15,23,42,0.14)"
                     : "0 20px 50px rgba(15,23,42,0.14)",
