@@ -1045,6 +1045,22 @@ code {
   flex-shrink: 0;
 }
 
+.leaderboard-bmac-support-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 2px 7px;
+  border: 1px solid #fdba74;
+  background: #fff7ed;
+  color: #c2410c;
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1.3;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+
 .leaderboard-user-detail-card {
   position: absolute;
   left: 0;

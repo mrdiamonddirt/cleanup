@@ -5868,6 +5868,7 @@ function LeaderboardModal({
                             const rowId = `${String(row?.id || row?.label || "row")}-${index}`;
                             const isUserDetailOpen = activeUserDetailId === rowId;
                             const isLastRow = index === rows.length - 1;
+                            const hasBmacSupportPoints = Number.isFinite(Number(row?.bmc)) && Number(row.bmc) > 0;
                             return (
                                 <React.Fragment key={rowId}>
                                     <button
@@ -5890,8 +5891,15 @@ function LeaderboardModal({
                                             <div style={{ fontWeight: 800, color: "#0f172a", fontSize: "0.88rem", lineHeight: 1.3, wordBreak: "break-word" }}>
                                                 {String(row?.label || "User")}
                                             </div>
-                                            {Boolean(row?.isFacebookGroupMember) && (
-                                                <span className="leaderboard-fb-group-pill" style={{ marginTop: "4px" }}>FB Group</span>
+                                            {(hasBmacSupportPoints || Boolean(row?.isFacebookGroupMember)) && (
+                                                <div style={{ display: "flex", alignItems: "center", gap: "5px", flexWrap: "wrap", marginTop: "4px" }}>
+                                                    {hasBmacSupportPoints && (
+                                                        <span className="leaderboard-bmac-support-pill">BMAC</span>
+                                                    )}
+                                                    {Boolean(row?.isFacebookGroupMember) && (
+                                                        <span className="leaderboard-fb-group-pill">FB Group</span>
+                                                    )}
+                                                </div>
                                             )}
                                         </div>
                                         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", flexShrink: 0, gap: "2px" }}>
@@ -5918,8 +5926,15 @@ function LeaderboardModal({
                                                     <div style={{ fontWeight: 800, color: "#0f172a", fontSize: "0.9rem", lineHeight: 1.3, wordBreak: "break-word" }}>
                                                         {String(row?.label || "User")}
                                                     </div>
-                                                    {Boolean(row?.isFacebookGroupMember) && (
-                                                        <div style={{ fontSize: "0.7rem", color: "#64748b", marginTop: "2px", fontWeight: 600 }}>Facebook group member</div>
+                                                    {(hasBmacSupportPoints || Boolean(row?.isFacebookGroupMember)) && (
+                                                        <div style={{ display: "flex", alignItems: "center", gap: "5px", marginTop: "3px", flexWrap: "wrap" }}>
+                                                            {hasBmacSupportPoints && (
+                                                                <span className="leaderboard-bmac-support-pill">BMAC</span>
+                                                            )}
+                                                            {Boolean(row?.isFacebookGroupMember) && (
+                                                                <span className="leaderboard-fb-group-pill">FB Group</span>
+                                                            )}
+                                                        </div>
                                                     )}
                                                 </div>
                                             </div>
@@ -6016,6 +6031,7 @@ function LeaderboardModal({
                                 const isLastRow = index === rows.length - 1;
                                 if (scope === "users") {
                                     const providerPillStyle = getAuthProviderPillStyle(row?.authProvider);
+                                    const hasBmacSupportPoints = Number.isFinite(Number(row?.bmc)) && Number(row.bmc) > 0;
                                     return (
                                         <div
                                             key={rowId}
@@ -6040,8 +6056,15 @@ function LeaderboardModal({
                                                     <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: "999px", padding: "2px 8px", fontSize: "0.65rem", fontWeight: 700, border: providerPillStyle.border, background: providerPillStyle.background, color: providerPillStyle.color, whiteSpace: "nowrap" }}>
                                                         {providerPillStyle.label}
                                                     </span>
-                                                    {Boolean(row?.isFacebookGroupMember) && (
-                                                        <span className="leaderboard-fb-group-pill">FB Group</span>
+                                                    {(hasBmacSupportPoints || Boolean(row?.isFacebookGroupMember)) && (
+                                                        <span style={{ display: "inline-flex", alignItems: "center", gap: "5px", whiteSpace: "nowrap" }}>
+                                                            {hasBmacSupportPoints && (
+                                                                <span className="leaderboard-bmac-support-pill">BMAC</span>
+                                                            )}
+                                                            {Boolean(row?.isFacebookGroupMember) && (
+                                                                <span className="leaderboard-fb-group-pill">FB Group</span>
+                                                            )}
+                                                        </span>
                                                     )}
                                                 </div>
                                             </div>
@@ -12839,8 +12862,6 @@ function App() {
     useEffect(() => {
         if (!isLeaderboardModalOpen) return;
         void fetchLeaderboardData();
-        const intervalId = setInterval(() => { void fetchLeaderboardData(); }, 30_000);
-        return () => clearInterval(intervalId);
     }, [isLeaderboardModalOpen]);
 
     useEffect(() => {
