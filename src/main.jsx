@@ -5019,57 +5019,75 @@ function AppTopBar({
             </div>
 
             {showMobileStatsToggle ? (
-                <button
-                    type="button"
-                    onClick={onToggleStats}
-                    aria-expanded={isStatsExpanded}
+                <div
                     style={{
-                        border: "1px solid rgba(125,211,252,0.55)",
+                        border: isStatsExpanded ? "1px solid rgba(125,211,252,0.7)" : "1px solid rgba(148,163,184,0.5)",
                         borderRadius: "14px",
                         background: isStatsExpanded
-                            ? "linear-gradient(145deg, rgba(239,246,255,0.98), rgba(224,242,254,0.92))"
-                            : "linear-gradient(145deg, rgba(248,250,252,0.96), rgba(241,245,249,0.92))",
-                        padding: "8px 10px",
-                        display: "grid",
-                        gap: "2px",
-                        textAlign: "left",
-                        color: "#0f172a",
-                        boxShadow: isStatsExpanded ? "0 12px 28px rgba(14,165,233,0.12)" : "0 1px 0 rgba(255,255,255,0.85) inset",
-                        cursor: "pointer",
+                            ? "linear-gradient(145deg, rgba(239,246,255,0.99), rgba(219,234,254,0.95))"
+                            : "linear-gradient(145deg, rgba(255,255,255,0.97), rgba(241,245,249,0.93))",
+                        boxShadow: isStatsExpanded
+                            ? "0 12px 28px rgba(14,165,233,0.14), inset 0 3px 0 0 #0369a1"
+                            : "0 2px 6px rgba(15,23,42,0.06), inset 0 3px 0 0 #0369a1",
+                        overflow: "hidden",
                     }}
                 >
-                    <span
+                    <button
+                        type="button"
+                        onClick={onToggleStats}
+                        aria-expanded={isStatsExpanded}
                         style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            gap: "10px",
-                            fontSize: "0.68rem",
-                            fontWeight: 800,
-                            letterSpacing: "0.06em",
-                            textTransform: "uppercase",
-                            color: "#0369a1",
+                            width: "100%",
+                            border: "none",
+                            borderBottom: isStatsExpanded ? "1px solid rgba(125,211,252,0.5)" : "none",
+                            background: "none",
+                            padding: "9px 11px",
+                            display: "grid",
+                            gap: "3px",
+                            textAlign: "left",
+                            color: "#0f172a",
+                            cursor: "pointer",
                         }}
                     >
-                        <span>River stats</span>
-                        <span style={{ fontSize: "0.92rem", color: "#0f172a" }}>
-                            {isStatsExpanded ? "▴" : "▾"}
+                        <span
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                gap: "10px",
+                                fontSize: "0.68rem",
+                                fontWeight: 800,
+                                letterSpacing: "0.07em",
+                                textTransform: "uppercase",
+                                color: "#0369a1",
+                            }}
+                        >
+                            <span>River stats</span>
+                            <span style={{ fontSize: "0.85rem", color: "#0369a1", fontWeight: 700 }}>
+                                {isStatsExpanded ? "▴" : "▾"}
+                            </span>
                         </span>
-                    </span>
-                    <span
-                        style={{
-                            fontSize: "0.8rem",
-                            fontWeight: 700,
-                            lineHeight: 1.3,
-                            color: "#334155",
-                        }}
-                    >
-                        {mobileStatsSummary}
-                    </span>
-                </button>
+                        <span
+                            style={{
+                                fontSize: "0.82rem",
+                                fontWeight: 700,
+                                lineHeight: 1.3,
+                                color: "#1e293b",
+                                letterSpacing: "-0.01em",
+                            }}
+                        >
+                            {mobileStatsSummary}
+                        </span>
+                    </button>
+                    {isStatsExpanded && children ? (
+                        <div style={{ padding: "8px" }}>
+                            {children}
+                        </div>
+                    ) : null}
+                </div>
             ) : null}
 
-            {showStatsInline && children ? (
+            {!showMobileStatsToggle && showStatsInline && children ? (
                 <div
                     style={isMobile ? {
                         padding: "2px",
@@ -7327,6 +7345,7 @@ function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impact
             setActiveTooltip((prev) => (prev === id ? null : id));
         };
 
+        const accentColor = valueColor || "#0369a1";
         return (
             <button
                 type="button"
@@ -7343,15 +7362,17 @@ function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impact
                     border: `1px solid ${activeTooltip === id ? "#93c5fd" : "rgba(203,213,225,0.92)"}`,
                     background: activeTooltip === id
                         ? "linear-gradient(180deg, rgba(239,246,255,0.98), rgba(219,234,254,0.92))"
-                        : "linear-gradient(180deg, rgba(255,255,255,0.94), rgba(248,250,252,0.88))",
+                        : "linear-gradient(180deg, rgba(255,255,255,0.96), rgba(248,250,252,0.9))",
                     borderRadius: UI_TOKENS.radius.sm,
-                    padding: isMobile ? "6px 8px" : "7px 9px",
+                    padding: isMobile ? "7px 9px" : "8px 10px",
                     textAlign: "left",
                     color: "#0f172a",
                     cursor: "help",
-                    boxShadow: activeTooltip === id ? "0 10px 24px rgba(37,99,235,0.12)" : "0 1px 0 rgba(255,255,255,0.85) inset",
+                    boxShadow: activeTooltip === id
+                        ? `0 10px 24px rgba(37,99,235,0.12), inset 0 3px 0 0 ${accentColor}`
+                        : `0 1px 0 rgba(255,255,255,0.85) inset, inset 0 3px 0 0 ${accentColor}`,
                     minWidth: 0,
-                    minHeight: isMobile ? "40px" : "46px",
+                    minHeight: isMobile ? "44px" : "52px",
                     display: "grid",
                     gap: "0",
                     alignContent: "start",
@@ -7361,11 +7382,11 @@ function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impact
                 aria-expanded={activeTooltip === id}
                 aria-label={`${label}. Tap or hover for breakdown.`}
             >
-                <span style={{ display: "block", paddingRight: isMobile ? "15px" : "18px" }}>
-                    <span style={{ display: "block", fontSize: isMobile ? "0.54rem" : "0.6rem", fontWeight: 800, letterSpacing: "0.04em", textTransform: "uppercase", color: "#64748b", lineHeight: 1.05 }}>
+                <span style={{ display: "block", paddingRight: isMobile ? "16px" : "20px" }}>
+                    <span style={{ display: "block", fontSize: isMobile ? "0.56rem" : "0.63rem", fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase", color: "#64748b", lineHeight: 1.1 }}>
                         {visibleLabel}
                     </span>
-                    <strong style={{ display: "block", marginTop: isMobile ? "2px" : "3px", fontSize: isMobile ? "0.82rem" : "0.88rem", lineHeight: 1.05, color: valueColor || "#0f172a" }}>
+                    <strong style={{ display: "block", marginTop: isMobile ? "3px" : "4px", fontSize: isMobile ? "0.88rem" : "0.95rem", lineHeight: 1.05, color: accentColor, fontWeight: 800 }}>
                         {valueNode}
                     </strong>
                 </span>
@@ -7373,13 +7394,13 @@ function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impact
                     aria-hidden="true"
                     style={{
                         position: "absolute",
-                        top: isMobile ? "6px" : "7px",
+                        top: isMobile ? "7px" : "8px",
                         right: isMobile ? "6px" : "8px",
                         width: isMobile ? "14px" : "16px",
                         height: isMobile ? "14px" : "16px",
                         borderRadius: "999px",
-                        background: activeTooltip === id ? "#2563eb" : "#cbd5e1",
-                        color: activeTooltip === id ? "#fff" : "#334155",
+                        background: activeTooltip === id ? "#2563eb" : "#e2e8f0",
+                        color: activeTooltip === id ? "#fff" : "#64748b",
                         display: "inline-flex",
                         alignItems: "center",
                         justifyContent: "center",
@@ -7428,9 +7449,9 @@ function SummaryStats({ totals, locationCount, controlFontSize, isMobile, impact
     const statTiles = [
         { id: "total-items", label: "Total Items", mobileLabel: "Total", valueNode: totals.total, tooltipContent: totalTooltipContent },
         { id: "historic-items", label: "Historic Finds", mobileLabel: "Historic", valueNode: totalHistoric, tooltipContent: historicTooltipContent, valueColor: "#92400e" },
-        { id: "recovered-items", label: "Recovered", mobileLabel: "Recovered", valueNode: totals.recovered, tooltipContent: recoveredTooltipContent, valueColor: "green" },
-        { id: "remaining-items", label: "Remaining", mobileLabel: "Remaining", valueNode: totals.remaining, tooltipContent: remainingTooltipContent, valueColor: "red" },
-        { id: "locations", label: "Locations", mobileLabel: "Places", valueNode: locationCount, tooltipContent: locationsTooltipContent, valueColor: "#2c3e50" },
+        { id: "recovered-items", label: "Recovered", mobileLabel: "Recovered", valueNode: totals.recovered, tooltipContent: recoveredTooltipContent, valueColor: "#16a34a" },
+        { id: "remaining-items", label: "Remaining", mobileLabel: "Remaining", valueNode: totals.remaining, tooltipContent: remainingTooltipContent, valueColor: "#dc2626" },
+        { id: "locations", label: "Locations", mobileLabel: "Places", valueNode: locationCount, tooltipContent: locationsTooltipContent, valueColor: "#0891b2" },
         { id: "remaining-weight", label: "Est. Weight Remaining", mobileLabel: "Weight Left", valueNode: remainingKgLabel, tooltipContent: remainingWeightTooltipContent, valueColor: "#b45309" },
         { id: "removed-weight", label: "Est. Weight Removed", mobileLabel: "Weight Out", valueNode: recoveredKgLabel, tooltipContent: removedWeightTooltipContent, valueColor: "#0f766e" },
     ];
