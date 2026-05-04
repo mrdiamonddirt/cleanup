@@ -74,14 +74,16 @@ export default function SelectedItemDrawer({
     normalizeOptionalDateInput,
 }) {
     if (!selectedItem || !selectedCounts) return null;
+    const viewportHeight = typeof window !== "undefined" ? window.innerHeight : 900;
+    const useShortDesktop = !isMobile && viewportHeight <= 820;
     const useCompactLayout =
         isMobile || (typeof window !== "undefined" && window.innerWidth <= 1024);
     const useBottomSheet = isMobile;
-    const useCompactDesktop = !useBottomSheet && useCompactLayout;
+    const useCompactDesktop = !useBottomSheet && (useCompactLayout || useShortDesktop);
     const isEditingThisItem = canManageItems && editingItemId === selectedItem.id;
     const compactNoScroll = false;
     const statGridColumns = useCompactLayout ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))";
-    const imagePanelHeight = useCompactLayout ? "min(23svh, 180px)" : "208px";
+    const imagePanelHeight = useBottomSheet ? "min(23svh, 180px)" : useShortDesktop ? "200px" : "240px";
     const itemTypeLabel = TYPE_LABELS[normalizeType(selectedItem.type)];
     const itemStatusLabel = selectedCounts.isRecovered ? "Recovered" : "In Water";
     const shareCountLabel = Number.isFinite(Number(itemShareCount)) ? Number(itemShareCount) : 0;
@@ -104,7 +106,7 @@ export default function SelectedItemDrawer({
     ].join(", ");
     const selectedItemPreviewSizes = useCompactLayout
         ? "calc(100vw - 56px)"
-        : "240px";
+        : useShortDesktop ? "220px" : "260px";
 
     const drawerNode = (
         <>
@@ -117,11 +119,12 @@ export default function SelectedItemDrawer({
                     position: "fixed",
                     inset: 0,
                     background: "rgba(2, 6, 23, 0.45)",
-                    zIndex: 1499,
+                    zIndex: 2399,
                 }}
             />
 
             <div
+                className="item-drawer-scroll"
                 data-drawer-version={useBottomSheet ? "v5-bottom-sheet" : "v5-desktop-card"}
                 style={{
                     position: "fixed",
@@ -137,21 +140,23 @@ export default function SelectedItemDrawer({
                         left: useCompactDesktop ? "10px" : "max(14px, env(safe-area-inset-left, 0px) + 8px)",
                         right: useCompactDesktop ? "10px" : "max(14px, env(safe-area-inset-right, 0px) + 8px)",
                         top: "max(12px, env(safe-area-inset-top, 0px) + 8px)",
-                        bottom: "max(12px, env(safe-area-inset-bottom, 0px) + 8px)",
+                        bottom: useShortDesktop ? "max(8px, env(safe-area-inset-bottom, 0px) + 6px)" : "auto",
                         width: useCompactDesktop
                             ? "auto"
-                            : "min(900px, calc(100vw - 36px))",
-                        maxHeight: "none",
+                            : "min(1040px, calc(100vw - 44px))",
+                        maxHeight: useShortDesktop
+                            ? "calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 16px)"
+                            : "calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 24px)",
                         margin: useCompactDesktop ? "0" : "0 auto",
                         borderRadius: "18px",
                     }),
-                    overflowY: compactNoScroll ? "hidden" : useBottomSheet || isEditingThisItem ? "auto" : "hidden",
+                    overflowY: compactNoScroll ? "hidden" : "auto",
                     background: "#ffffff",
                     boxShadow: "0 24px 60px rgba(0,0,0,0.32)",
-                    zIndex: 1500,
+                    zIndex: 2400,
                     padding: useBottomSheet
                         ? "10px 10px calc(env(safe-area-inset-bottom, 0px) + 10px)"
-                        : useDenseDesktopCard ? "10px" : "12px",
+                        : useShortDesktop ? "12px" : "16px",
                     boxSizing: "border-box",
                     display: "flex",
                     flexDirection: "column",
@@ -325,16 +330,18 @@ export default function SelectedItemDrawer({
                 {/* Two-column on desktop, stacked on mobile */}
                 <div style={{
                     display: compactNoScroll ? "flex" : useCompactLayout ? "block" : "flex",
-                    gap: compactNoScroll ? "10px" : useBottomSheet ? "14px" : useDenseDesktopCard ? "10px" : "12px",
-                    alignItems: "flex-start",
-                    flex: compactNoScroll ? 1 : "0 0 auto",
+                    gap: compactNoScroll ? "10px" : useBottomSheet ? "14px" : "14px",
+                    alignItems: useCompactLayout ? "flex-start" : "stretch",
+                    flex: compactNoScroll ? 1 : useCompactLayout ? "0 0 auto" : 1,
                     minHeight: 0,
+                    overflow: "visible",
                 }}>
                     {/* Left: image */}
                     <div style={{
                         flexShrink: 0,
-                        width: compactNoScroll ? "42%" : useCompactLayout ? "100%" : "240px",
-                        marginBottom: compactNoScroll ? 0 : useCompactLayout ? "8px" : useDenseDesktopCard ? "0" : "0",
+                        alignSelf: "flex-start",
+                        width: compactNoScroll ? "42%" : useCompactLayout ? "100%" : useShortDesktop ? "220px" : "260px",
+                        marginBottom: compactNoScroll ? 0 : useCompactLayout ? "12px" : 0,
                     }}>
                         {selectedItem.image_url ? (
                             <button
@@ -409,54 +416,6 @@ export default function SelectedItemDrawer({
                             </div>
                         )}
 
-                        {!isItemStoryEmpty(selectedStory) ? (
-                            <div
-                                style={{
-                                    display: "grid",
-                                    gap: "5px",
-                                    marginTop: "8px",
-                                    padding: compactNoScroll ? "8px 9px" : useBottomSheet ? "8px 9px" : "10px 11px",
-                                    borderRadius: "12px",
-                                    border: "1px solid #dbe3ee",
-                                    background: "#f8fafc",
-                                    color: "#334155",
-                                    fontSize: compactNoScroll ? "0.78rem" : useBottomSheet ? "0.8rem" : "0.83rem",
-                                    lineHeight: 1.45,
-                                }}
-                            >
-                                {selectedStory?.knownSinceDate ? (
-                                    <div>
-                                        Known in river since: <strong style={{ color: "#0f172a" }}>{formatStoryDate(selectedStory.knownSinceDate)}</strong>
-                                    </div>
-                                ) : null}
-                                {selectedStory?.recoveredOnDate ? (
-                                    <div>
-                                        Recovered on: <strong style={{ color: "#0f172a" }}>{formatStoryDate(selectedStory.recoveredOnDate)}</strong>
-                                    </div>
-                                ) : null}
-                                {timeInRiverLabel ? (
-                                    <div>
-                                        Time in river: <strong style={{ color: "#0f172a" }}>{timeInRiverLabel}</strong>
-                                    </div>
-                                ) : null}
-                                {selectedStory?.referenceImageUrl ? (
-                                    <div style={{ color: "#1d4ed8", fontWeight: 600 }}>
-                                        Includes reference image in fullscreen viewer.
-                                    </div>
-                                ) : null}
-                                {selectedStory?.referenceImageCaption ? (
-                                    <a
-                                        href={selectedStory.referenceImageCaption}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        style={{ color: "#1d4ed8", fontWeight: 700, width: "fit-content" }}
-                                    >
-                                        Open Street View source
-                                    </a>
-                                ) : null}
-                            </div>
-                        ) : null}
-
                         <div style={{ marginTop: "8px" }}>
                             <LocationDetailsBlock
                                 gps={selectedGps}
@@ -476,51 +435,107 @@ export default function SelectedItemDrawer({
                         display: "flex",
                         flexDirection: "column",
                         minHeight: 0,
-                        overflowY: useCompactLayout ? "visible" : "auto",
-                        paddingRight: useCompactLayout ? 0 : "2px",
+                        overflowY: "visible",
+                        paddingRight: 0,
                     }}>
                         <div style={{
                             display: "grid",
-                            gap: compactNoScroll ? "7px" : useBottomSheet ? "8px" : useDenseDesktopCard ? "7px" : "10px",
-                            marginBottom: compactNoScroll ? "6px" : useBottomSheet ? "6px" : "6px",
+                            gap: useBottomSheet ? "10px" : "12px",
+                            marginBottom: useBottomSheet ? "8px" : "10px",
                         }}>
-                            <div style={{ color: "#64748b", fontSize: compactNoScroll ? "0.8rem" : "0.84rem" }}>
+                            <div style={{ color: "#64748b", fontSize: useBottomSheet ? "0.8rem" : "0.85rem", letterSpacing: "0.01em" }}>
                                 Spotted: {new Date(selectedItem.created_at).toLocaleString()}
                             </div>
 
-                            <div style={{ display: "grid", gridTemplateColumns: statGridColumns, gap: "8px", minWidth: 0 }}>
+                            <div style={{ display: "grid", gridTemplateColumns: statGridColumns, gap: useBottomSheet ? "8px" : "10px", minWidth: 0 }}>
                                 <DetailBadge
                                     label="Status"
                                     value={selectedCounts.isRecovered ? "Recovered" : "In Water"}
                                     tone={selectedCounts.isRecovered ? "success" : "warning"}
-                                    compact={compactNoScroll || useDenseDesktopCard}
+                                    compact={useBottomSheet}
                                 />
-                                <DetailBadge label="Total" value={selectedCounts.total} compact={compactNoScroll || useDenseDesktopCard} />
-                                <DetailBadge label="Recovered" value={selectedCounts.recovered} compact={compactNoScroll || useDenseDesktopCard} />
-                                <DetailBadge label="In Water" value={selectedCounts.inWater} compact={compactNoScroll || useDenseDesktopCard} />
+                                <DetailBadge label="Total" value={selectedCounts.total} compact={useBottomSheet} />
+                                <DetailBadge label="Recovered" value={selectedCounts.recovered} compact={useBottomSheet} />
+                                <DetailBadge label="In Water" value={selectedCounts.inWater} compact={useBottomSheet} />
                             </div>
 
-                            {selectedWeight ? (
+                            {(selectedWeight || !isItemStoryEmpty(selectedStory)) ? (
                                 <div
                                     style={{
                                         display: "grid",
-                                        gap: "2px",
-                                        padding: compactNoScroll ? "8px 9px" : useBottomSheet ? "8px 9px" : "10px 11px",
-                                        borderRadius: "12px",
+                                        gap: useBottomSheet ? "6px" : "8px",
+                                        padding: useBottomSheet ? "10px 12px" : "14px 16px",
+                                        borderRadius: "14px",
                                         border: "1px solid #dbe3ee",
                                         background: "#f8fafc",
                                         color: "#334155",
-                                        fontSize: compactNoScroll ? "0.78rem" : useBottomSheet ? "0.8rem" : "0.83rem",
-                                        lineHeight: 1.45,
+                                        fontSize: useBottomSheet ? "0.82rem" : "0.9rem",
+                                        lineHeight: 1.6,
                                     }}
                                 >
-                                    <div>
-                                        Est. weight per item: <strong style={{ color: "#0f172a" }}>{formatWeightKg(selectedWeight.value)}</strong>
-                                        {selectedWeight.source === "default" ? " (default)" : ""}
-                                    </div>
-                                    <div>
-                                        Est. total at location: <strong style={{ color: "#0f172a" }}>{formatWeightKg(selectedWeight.value * selectedCounts.total)}</strong>
-                                    </div>
+                                    {selectedWeight ? (
+                                        <>
+                                            <div>
+                                                Est. weight per item: <strong style={{ color: "#0f172a" }}>{formatWeightKg(selectedWeight.value)}</strong>
+                                                {selectedWeight.source === "default" ? " (default)" : ""}
+                                            </div>
+                                            <div>
+                                                Est. total at location: <strong style={{ color: "#0f172a" }}>{formatWeightKg(selectedWeight.value * selectedCounts.total)}</strong>
+                                            </div>
+                                        </>
+                                    ) : null}
+                                    {selectedStory?.knownSinceDate ? (
+                                        <div>
+                                            Known in river since: <strong style={{ color: "#0f172a" }}>{formatStoryDate(selectedStory.knownSinceDate)}</strong>
+                                        </div>
+                                    ) : null}
+                                    {selectedStory?.recoveredOnDate ? (
+                                        <div>
+                                            Recovered on: <strong style={{ color: "#0f172a" }}>{formatStoryDate(selectedStory.recoveredOnDate)}</strong>
+                                        </div>
+                                    ) : null}
+                                    {timeInRiverLabel ? (
+                                        <div>
+                                            Time in river: <strong style={{ color: "#0f172a" }}>{timeInRiverLabel}</strong>
+                                        </div>
+                                    ) : null}
+                                    {selectedStory?.referenceImageUrl ? (
+                                        <div style={{ color: "#1d4ed8", fontWeight: 600 }}>
+                                            Includes reference image in fullscreen viewer.
+                                        </div>
+                                    ) : null}
+                                    {selectedStory?.referenceImageCaption ? (
+                                        <a
+                                            href={selectedStory.referenceImageCaption}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            style={{ color: "#1d4ed8", fontWeight: 700, width: "fit-content" }}
+                                        >
+                                            Open Street View source
+                                        </a>
+                                    ) : null}
+                                    {(selectedStory?.facebookVideoUrl || selectedStory?.instagramVideoUrl || selectedStory?.youtubeVideoUrl) ? (
+                                        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "4px" }}>
+                                            {selectedStory.facebookVideoUrl ? (
+                                                <a href={selectedStory.facebookVideoUrl} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "0.78rem", fontWeight: 600, color: "#1877f2", textDecoration: "none", border: "1px solid #bfdbfe", borderRadius: "999px", padding: "4px 10px", background: "#eff6ff" }}>
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="#1877f2"><path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.413c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.927-1.956 1.874v2.25h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>
+                                                    Facebook
+                                                </a>
+                                            ) : null}
+                                            {selectedStory.instagramVideoUrl ? (
+                                                <a href={selectedStory.instagramVideoUrl} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "0.78rem", fontWeight: 600, color: "#e1306c", textDecoration: "none", border: "1px solid #fce7f3", borderRadius: "999px", padding: "4px 10px", background: "#fdf2f8" }}>
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="#e1306c"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
+                                                    Instagram
+                                                </a>
+                                            ) : null}
+                                            {selectedStory.youtubeVideoUrl ? (
+                                                <a href={selectedStory.youtubeVideoUrl} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "0.78rem", fontWeight: 600, color: "#ff0000", textDecoration: "none", border: "1px solid #fecaca", borderRadius: "999px", padding: "4px 10px", background: "#fff5f5" }}>
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="#ff0000"><path d="M23.495 6.205a3.007 3.007 0 00-2.088-2.088c-1.87-.501-9.396-.501-9.396-.501s-7.507-.01-9.396.501A3.007 3.007 0 00.527 6.205a31.247 31.247 0 00-.522 5.805 31.247 31.247 0 00.522 5.783 3.007 3.007 0 002.088 2.088c1.868.502 9.396.502 9.396.502s7.506 0 9.396-.502a3.007 3.007 0 002.088-2.088 31.247 31.247 0 00.5-5.783 31.247 31.247 0 00-.5-5.805zM9.609 15.601V8.408l6.264 3.602z"/></svg>
+                                                    YouTube
+                                                </a>
+                                            ) : null}
+                                        </div>
+                                    ) : null}
                                 </div>
                             ) : null}
 
@@ -547,24 +562,25 @@ export default function SelectedItemDrawer({
                             <div
                                 style={{
                                     display: "grid",
-                                    gap: "8px",
-                                    flex: useCompactLayout ? "0 0 auto" : "1 1 auto",
+                                    gap: "10px",
+                                    flex: "0 0 auto",
                                     minHeight: 0,
-                                    marginBottom: compactNoScroll ? "8px" : useBottomSheet ? "12px" : "8px",
-                                    padding: compactNoScroll ? "7px 8px" : useBottomSheet ? "9px 10px" : "8px 9px",
-                                    borderRadius: "10px",
+                                    marginBottom: useBottomSheet ? "12px" : "0",
+                                    marginTop: useBottomSheet ? "0" : "4px",
+                                    padding: useBottomSheet ? "10px 12px" : "14px 16px",
+                                    borderRadius: "14px",
                                     border: "1px solid #e2e8f0",
                                     background: "#f8fafc",
                                 }}
                             >
-                                <div style={{ fontSize: "0.74rem", fontWeight: 800, color: "#334155", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                                <div style={{ fontSize: "0.75rem", fontWeight: 800, color: "#64748b", letterSpacing: "0.08em", textTransform: "uppercase" }}>
                                     Comments
                                 </div>
                                 <textarea
                                     value={itemCommentDraft || ""}
                                     onChange={(event) => onItemCommentDraftChange?.(event.target.value)}
                                     placeholder="Write a comment. It will be reviewed before publishing."
-                                    rows={3}
+                                    rows={useBottomSheet ? 3 : useShortDesktop ? 3 : 4}
                                     disabled={Boolean(isSubmittingItemInteraction)}
                                     style={{
                                         width: "100%",
@@ -576,7 +592,7 @@ export default function SelectedItemDrawer({
                                         boxSizing: "border-box",
                                     }}
                                 />
-                                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                                <div style={{ display: "flex", justifyContent: useBottomSheet ? "stretch" : "flex-end" }}>
                                     <button
                                         type="button"
                                         onClick={() => onSubmitItemComment(selectedItem.id)}
@@ -591,6 +607,7 @@ export default function SelectedItemDrawer({
                                             fontWeight: 700,
                                             cursor: Boolean(isSubmittingItemInteraction) ? "not-allowed" : "pointer",
                                             opacity: Boolean(isSubmittingItemInteraction) ? 0.7 : 1,
+                                            width: useBottomSheet ? "100%" : "auto",
                                         }}
                                     >
                                         {Boolean(isSubmittingItemInteraction) ? "Saving..." : "Submit for review"}
@@ -602,10 +619,10 @@ export default function SelectedItemDrawer({
                                 ) : itemCommentsError ? (
                                     <div style={{ fontSize: "0.78rem", color: "#991b1b" }}>{itemCommentsError}</div>
                                 ) : Array.isArray(itemComments) && itemComments.length ? (
-                                    <div style={{
+                                    <div className="item-drawer-comments-scroll" style={{
                                         display: "grid",
                                         gap: "6px",
-                                        maxHeight: useCompactLayout ? "220px" : "min(34vh, 320px)",
+                                        maxHeight: useCompactLayout ? "220px" : useShortDesktop ? "180px" : "min(34vh, 320px)",
                                         overflowY: "auto",
                                         paddingRight: "2px",
                                     }}>
@@ -633,7 +650,7 @@ export default function SelectedItemDrawer({
                         ) : null}
 
                         {canManageItems && editingItemId === selectedItem.id ? (
-                            <div style={{ textAlign: "left" }}>
+                            <div style={{ textAlign: "left", marginTop: "4px" }}>
                                 <div style={{ marginBottom: "8px" }}>
                                     <label style={{ fontSize: "0.8rem", color: "#475569" }}>Type</label>
                                     <select
@@ -888,6 +905,75 @@ export default function SelectedItemDrawer({
                                     />
                                 </div>
 
+                                <div style={{ marginBottom: "10px" }}>
+                                    <label style={{ fontSize: "0.8rem", color: "#475569", display: "flex", alignItems: "center", gap: "5px" }}>
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="#1877f2"><path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.413c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.927-1.956 1.874v2.25h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>
+                                        Facebook Video URL
+                                    </label>
+                                    <input
+                                        type="url"
+                                        placeholder="https://www.facebook.com/..."
+                                        value={editForm.facebookVideoUrl}
+                                        onChange={(e) =>
+                                            setEditForm((prev) => ({ ...prev, facebookVideoUrl: e.target.value }))
+                                        }
+                                        style={{
+                                            width: "100%",
+                                            marginTop: "4px",
+                                            border: "1px solid #cbd5e1",
+                                            borderRadius: "6px",
+                                            padding: "8px",
+                                            boxSizing: "border-box",
+                                        }}
+                                    />
+                                </div>
+
+                                <div style={{ marginBottom: "10px" }}>
+                                    <label style={{ fontSize: "0.8rem", color: "#475569", display: "flex", alignItems: "center", gap: "5px" }}>
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="#e1306c"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
+                                        Instagram Video URL
+                                    </label>
+                                    <input
+                                        type="url"
+                                        placeholder="https://www.instagram.com/..."
+                                        value={editForm.instagramVideoUrl}
+                                        onChange={(e) =>
+                                            setEditForm((prev) => ({ ...prev, instagramVideoUrl: e.target.value }))
+                                        }
+                                        style={{
+                                            width: "100%",
+                                            marginTop: "4px",
+                                            border: "1px solid #cbd5e1",
+                                            borderRadius: "6px",
+                                            padding: "8px",
+                                            boxSizing: "border-box",
+                                        }}
+                                    />
+                                </div>
+
+                                <div style={{ marginBottom: "12px" }}>
+                                    <label style={{ fontSize: "0.8rem", color: "#475569", display: "flex", alignItems: "center", gap: "5px" }}>
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="#ff0000"><path d="M23.495 6.205a3.007 3.007 0 00-2.088-2.088c-1.87-.501-9.396-.501-9.396-.501s-7.507-.01-9.396.501A3.007 3.007 0 00.527 6.205a31.247 31.247 0 00-.522 5.805 31.247 31.247 0 00.522 5.783 3.007 3.007 0 002.088 2.088c1.868.502 9.396.502 9.396.502s7.506 0 9.396-.502a3.007 3.007 0 002.088-2.088 31.247 31.247 0 00.5-5.783 31.247 31.247 0 00-.5-5.805zM9.609 15.601V8.408l6.264 3.602z"/></svg>
+                                        YouTube Video URL
+                                    </label>
+                                    <input
+                                        type="url"
+                                        placeholder="https://www.youtube.com/..."
+                                        value={editForm.youtubeVideoUrl}
+                                        onChange={(e) =>
+                                            setEditForm((prev) => ({ ...prev, youtubeVideoUrl: e.target.value }))
+                                        }
+                                        style={{
+                                            width: "100%",
+                                            marginTop: "4px",
+                                            border: "1px solid #cbd5e1",
+                                            borderRadius: "6px",
+                                            padding: "8px",
+                                            boxSizing: "border-box",
+                                        }}
+                                    />
+                                </div>
+
                                 <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
                                     <button
                                         onClick={() => saveItemEdits(selectedItem.id)}
@@ -929,7 +1015,7 @@ export default function SelectedItemDrawer({
                                 ) : null}
                             </div>
                         ) : canManageItems ? (
-                            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "0" }}>
+                            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "10px", flexShrink: 0 }}>
                                 {lastSaveResult?.itemId === selectedItem.id && lastSaveResult.status === "success" ? (
                                     <div style={{ flex: "1 1 100%", padding: "8px 10px", background: "#f0fdf4", border: "1px solid #86efac", borderRadius: "6px", fontSize: "0.82rem", color: "#15803d", fontWeight: 600, textAlign: "center" }}>
                                         Saved ✓
@@ -970,13 +1056,15 @@ export default function SelectedItemDrawer({
                                 <button
                                     onClick={() => startEditingItem(selectedItem)}
                                     style={{
-                                        flex: "1 1 90px",
-                                        padding: compactNoScroll ? "8px" : "10px",
+                                        flex: "1 1 180px",
+                                        minHeight: "44px",
+                                        padding: compactNoScroll ? "8px" : "11px 14px",
                                         border: "1px solid #cbd5e1",
                                         background: "#fff",
                                         color: "#0f172a",
-                                        borderRadius: "6px",
-                                        fontWeight: 600,
+                                        borderRadius: "10px",
+                                        fontWeight: 700,
+                                        fontSize: "0.92rem",
                                         cursor: "pointer",
                                     }}
                                 >
@@ -986,13 +1074,15 @@ export default function SelectedItemDrawer({
                                     onClick={() => removeLocation(selectedItem.id)}
                                     disabled={isUpdatingItemId === selectedItem.id}
                                     style={{
-                                        flex: "1 1 90px",
-                                        padding: compactNoScroll ? "8px" : "10px",
+                                        flex: "1 1 180px",
+                                        minHeight: "44px",
+                                        padding: compactNoScroll ? "8px" : "11px 14px",
                                         border: "none",
                                         background: "#dc2626",
                                         color: "#fff",
-                                        borderRadius: "6px",
+                                        borderRadius: "10px",
                                         fontWeight: 700,
+                                        fontSize: "0.92rem",
                                         cursor: "pointer",
                                     }}
                                 >

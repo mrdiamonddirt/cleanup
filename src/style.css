@@ -95,6 +95,44 @@ textarea {
   background: linear-gradient(90deg, #0ea5e9, #0284c7);
 }
 
+.item-drawer-scroll,
+.item-drawer-comments-scroll {
+  scrollbar-width: auto;
+  scrollbar-color: #0ea5e9 #dbeafe;
+  scrollbar-gutter: stable both-edges;
+}
+
+.item-drawer-scroll::-webkit-scrollbar,
+.item-drawer-comments-scroll::-webkit-scrollbar {
+  width: 16px;
+  height: 16px;
+}
+
+.item-drawer-scroll::-webkit-scrollbar-track,
+.item-drawer-comments-scroll::-webkit-scrollbar-track {
+  background: linear-gradient(180deg, #dbeafe, #bfdbfe);
+  border-radius: 999px;
+  border: 1px solid #93c5fd;
+}
+
+.item-drawer-scroll::-webkit-scrollbar-thumb,
+.item-drawer-comments-scroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #0ea5e9, #2563eb);
+  border-radius: 999px;
+  border: 3px solid #eff6ff;
+  box-shadow: inset 0 0 0 1px rgba(30, 64, 175, 0.35), 0 0 0 1px rgba(147, 197, 253, 0.45);
+}
+
+.item-drawer-scroll::-webkit-scrollbar-thumb:hover,
+.item-drawer-comments-scroll::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #0284c7, #1d4ed8);
+}
+
+.item-drawer-scroll::-webkit-scrollbar-thumb:active,
+.item-drawer-comments-scroll::-webkit-scrollbar-thumb:active {
+  background: linear-gradient(180deg, #0369a1, #1e40af);
+}
+
 #root {
   min-height: 100svh;
   padding: 10px;
