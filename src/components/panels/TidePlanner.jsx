@@ -4,22 +4,22 @@ const TIDE_DATA_STALE_WARNING_HOURS = 30;
 
 function SectionTitle({ eyebrow, title, subtitle }) {
     return (
-        <div style={{ display: "grid", gap: "3px" }}>
+        <div style={{ display: "grid", gap: "5px" }}>
             {eyebrow ? (
                 <div
                     style={{
-                        fontSize: "0.68rem",
+                        fontSize: "0.66rem",
                         fontWeight: 800,
-                        color: "#0f766e",
+                        color: "#0369a1",
                         textTransform: "uppercase",
-                        letterSpacing: "0.08em",
+                        letterSpacing: "0.09em",
                     }}
                 >
                     {eyebrow}
                 </div>
             ) : null}
-            <div style={{ fontSize: "0.96rem", fontWeight: 800, color: "#0f172a" }}>{title}</div>
-            {subtitle ? <div style={{ fontSize: "0.78rem", color: "#475569", lineHeight: 1.45 }}>{subtitle}</div> : null}
+            <div style={{ fontSize: "1.01rem", fontWeight: 800, color: "#0f172a", lineHeight: 1.28 }}>{title}</div>
+            {subtitle ? <div style={{ fontSize: "0.78rem", color: "#475569", lineHeight: 1.5 }}>{subtitle}</div> : null}
         </div>
     );
 }
@@ -37,9 +37,9 @@ function TrendPill({ direction, label }) {
                 gap: "5px",
                 borderRadius: "999px",
                 border: `1px solid ${borderColor}`,
-                background: "#fff",
+                background: direction === "flat" ? "#f8fafc" : "#ffffff",
                 color,
-                padding: "3px 8px",
+                padding: "4px 8px",
                 fontSize: "0.7rem",
                 fontWeight: 800,
                 whiteSpace: "nowrap",
@@ -208,16 +208,17 @@ function CleanupSensorTable({ isMobile, rows, expandedSensorId, onToggleSensor }
     return (
         <div
             style={{
-                border: "1px solid #dbeafe",
-                borderRadius: "12px",
-                background: "rgba(255,255,255,0.92)",
+                border: "1px solid #d7e4f4",
+                borderRadius: "14px",
+                background: "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.96) 100%)",
                 overflow: "hidden",
+                boxShadow: "0 10px 22px rgba(15,23,42,0.06)",
             }}
         >
             <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", minWidth: "640px", borderCollapse: "collapse" }}>
                     <thead>
-                        <tr style={{ background: "#eff6ff" }}>
+                        <tr style={{ background: "linear-gradient(180deg, #eef5ff 0%, #e9f2ff 100%)" }}>
                             {[
                                 "Station",
                                 "Latest",
@@ -230,12 +231,12 @@ function CleanupSensorTable({ isMobile, rows, expandedSensorId, onToggleSensor }
                                     style={{
                                         padding: isMobile ? "10px 10px" : "10px 12px",
                                         textAlign: "left",
-                                        fontSize: "0.7rem",
-                                        color: "#1d4ed8",
+                                        fontSize: "0.68rem",
+                                        color: "#1e40af",
                                         fontWeight: 800,
-                                        letterSpacing: "0.05em",
+                                        letterSpacing: "0.07em",
                                         textTransform: "uppercase",
-                                        borderBottom: "1px solid #dbeafe",
+                                        borderBottom: "1px solid #d4e4fb",
                                     }}
                                 >
                                     {heading}
@@ -259,7 +260,7 @@ function CleanupSensorTable({ isMobile, rows, expandedSensorId, onToggleSensor }
                                     <tr style={{ borderBottom: isExpanded ? "none" : "1px solid #e2e8f0" }}>
                                         <td style={{ padding: isMobile ? "11px 10px" : "12px" }}>
                                             <div style={{ display: "grid", gap: "3px" }}>
-                                                <div style={{ fontSize: "0.82rem", fontWeight: 800, color: "#0f172a" }}>{row.name}</div>
+                                                <div style={{ fontSize: "0.82rem", fontWeight: 800, color: "#0f172a", lineHeight: 1.35 }}>{row.name}</div>
                                                 <div style={{ fontSize: "0.71rem", color: "#0f766e", fontWeight: 700 }}>
                                                     {row.riverName} · {row.kindLabel}
                                                 </div>
@@ -312,7 +313,7 @@ function CleanupSensorTable({ isMobile, rows, expandedSensorId, onToggleSensor }
                                                         : isExpanded
                                                           ? "#115e59"
                                                           : "#0f172a",
-                                                    borderRadius: "999px",
+                                                    borderRadius: "10px",
                                                     padding: "6px 10px",
                                                     fontSize: "0.72rem",
                                                     fontWeight: 800,
@@ -346,14 +347,14 @@ function CleanupSensorTable({ isMobile, rows, expandedSensorId, onToggleSensor }
 
 function SensorFilterSelect({ label, value, options, onChange }) {
     return (
-        <label style={{ display: "grid", gap: "4px", minWidth: "140px" }}>
+        <label style={{ display: "grid", gap: "5px", minWidth: "152px" }}>
             <span
                 style={{
-                    fontSize: "0.68rem",
+                    fontSize: "0.66rem",
                     fontWeight: 800,
-                    color: "#475569",
+                    color: "#334155",
                     textTransform: "uppercase",
-                    letterSpacing: "0.06em",
+                    letterSpacing: "0.08em",
                 }}
             >
                 {label}
@@ -362,14 +363,15 @@ function SensorFilterSelect({ label, value, options, onChange }) {
                 value={value}
                 onChange={(event) => onChange(event.target.value)}
                 style={{
-                    minHeight: "36px",
-                    borderRadius: "10px",
-                    border: "1px solid #cbd5e1",
-                    background: "#fff",
+                    minHeight: "37px",
+                    borderRadius: "11px",
+                    border: "1px solid #bfccdd",
+                    background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
                     color: "#0f172a",
-                    padding: "7px 10px",
+                    padding: "7px 11px",
                     fontSize: "0.8rem",
                     fontWeight: 700,
+                    boxShadow: "0 1px 0 rgba(255,255,255,0.85) inset",
                 }}
             >
                 {options.map((option) => (
@@ -701,13 +703,13 @@ function HourForecastCard({ hour }) {
             style={{
                 width: "124px",
                 minWidth: "124px",
-                borderRadius: "16px",
-                border: "1px solid #dbeafe",
+                borderRadius: "14px",
+                border: "1px solid #d6e3f5",
                 background: "linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(248,250,252,0.98) 100%)",
                 padding: "8px",
                 display: "grid",
                 gap: "7px",
-                boxShadow: "0 10px 20px rgba(15,23,42,0.05)",
+                boxShadow: "0 10px 18px rgba(15,23,42,0.06)",
             }}
         >
             <div style={{ display: "flex", justifyContent: "space-between", gap: "6px", alignItems: "center" }}>
@@ -730,13 +732,13 @@ function DailyForecastCard({ day }) {
     return (
         <div
             style={{
-                borderRadius: "16px",
-                border: "1px solid #dbeafe",
+                borderRadius: "14px",
+                border: "1px solid #d6e3f5",
                 background: "linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(248,250,252,0.98) 100%)",
                 padding: "9px",
                 display: "grid",
                 gap: "8px",
-                boxShadow: "0 10px 20px rgba(15,23,42,0.05)",
+                boxShadow: "0 10px 18px rgba(15,23,42,0.06)",
             }}
         >
             <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "flex-start" }}>
@@ -779,7 +781,11 @@ export default function TidePlanner({
     const [selectedTideIndex, setSelectedTideIndex] = useState(null);
     const [liveTideTimeMs, setLiveTideTimeMs] = useState(() => Date.now());
     const [activeCleanupWindowIndex, setActiveCleanupWindowIndex] = useState(null);
+    const [isTideDetailsCollapsed, setIsTideDetailsCollapsed] = useState(true);
+    const [miniTideHoverIndex, setMiniTideHoverIndex] = useState(null);
     const [expandedSensorId, setExpandedSensorId] = useState(null);
+    const [isSensorsSectionCollapsed, setIsSensorsSectionCollapsed] = useState(true);
+    const [isWeatherSectionCollapsed, setIsWeatherSectionCollapsed] = useState(true);
     const [sensorRiverFilter, setSensorRiverFilter] = useState("River Lune");
     const [sensorTypeFilter, setSensorTypeFilter] = useState("all");
     const tideChartViewportRef = useRef(null);
@@ -1013,12 +1019,108 @@ export default function TidePlanner({
         }
     }, [expandedSensorId, filteredSensorRows]);
 
+    useEffect(() => {
+        if (isSensorsSectionCollapsed) {
+            setExpandedSensorId(null);
+        }
+    }, [isSensorsSectionCollapsed]);
+
     const forecastOutlook = useMemo(
         () => getForecastOutlook(cleanupForecast?.nextHour),
         [cleanupForecast],
     );
     const hourlyForecast = cleanupForecast?.upcomingHours || [];
     const dailyForecast = cleanupForecast?.daily || [];
+    const latestFilteredSensorRow = useMemo(() => {
+        if (!filteredSensorRows.length) return null;
+
+        return filteredSensorRows.find((row) => row.ageLabel || row.timestampLabel || row.flowTimestampLabel) || filteredSensorRows[0];
+    }, [filteredSensorRows]);
+    const sensorTrendSummary = useMemo(() => {
+        if (!filteredSensorRows.length) return null;
+
+        const trendCounts = filteredSensorRows.reduce(
+            (counts, row) => {
+                if (row.trendDirection === "up") counts.up += 1;
+                else if (row.trendDirection === "down") counts.down += 1;
+                else counts.flat += 1;
+                return counts;
+            },
+            { up: 0, down: 0, flat: 0 },
+        );
+
+        if (trendCounts.up >= trendCounts.down && trendCounts.up >= trendCounts.flat) {
+            return "Mostly rising";
+        }
+
+        if (trendCounts.down >= trendCounts.up && trendCounts.down >= trendCounts.flat) {
+            return "Mostly falling";
+        }
+
+        return "Mostly steady";
+    }, [filteredSensorRows]);
+    const sensorSummaryLine = useMemo(() => {
+        if (!filteredSensorRows.length) {
+            return sensorLoadingCount
+                ? `${sensorLoadingCount} sensor feed${sensorLoadingCount === 1 ? " is" : "s are"} still updating.`
+                : "Sensor feeds are still loading.";
+        }
+
+        const stationCountLabel = `${filteredSensorRows.length} station${filteredSensorRows.length === 1 ? "" : "s"}`;
+        const freshnessLabel = latestFilteredSensorRow?.ageLabel || latestFilteredSensorRow?.timestampLabel || "Freshness unavailable";
+
+        return `${stationCountLabel} visible • Latest ${freshnessLabel}${sensorTrendSummary ? ` • ${sensorTrendSummary}` : ""}`;
+    }, [filteredSensorRows, latestFilteredSensorRow, sensorLoadingCount, sensorTrendSummary]);
+    const weatherSummaryHeadline = cleanupForecast?.headline
+        || (isLoadingCleanupForecast
+            ? "Loading weather forecast..."
+            : cleanupForecastError || "Forecast unavailable right now.");
+    const weatherSummaryMetrics = cleanupForecast?.nextHour
+        ? `${cleanupForecast.nextHour.temperatureLabel} • Rain ${cleanupForecast.nextHour.rainChanceLabel} • Wind ${cleanupForecast.nextHour.windSpeedLabel}`
+        : cleanupForecastUpdatedLabel
+          ? `Forecast updated ${cleanupForecastUpdatedLabel}`
+          : "Next-hour breakdown unavailable.";
+    const compactTidePath = tideChartData?.curvePath || "";
+    const miniTideHoverPoint = useMemo(() => {
+        if (!tideChartData?.points?.length) return null;
+        if (miniTideHoverIndex === null) return null;
+        return tideChartData.points[miniTideHoverIndex] || null;
+    }, [miniTideHoverIndex, tideChartData]);
+    const updateMiniTideHoverFromClientX = (clientX, target) => {
+        if (!tideChartData?.points?.length || !target) {
+            setMiniTideHoverIndex(null);
+            return;
+        }
+
+        const bounds = target.getBoundingClientRect();
+        const relativeX = Math.min(Math.max(clientX - bounds.left, 0), bounds.width);
+        const ratio = bounds.width ? relativeX / bounds.width : 0;
+        const rawIndex = Math.round(ratio * (tideChartData.points.length - 1));
+        const clampedIndex = Math.min(Math.max(rawIndex, 0), tideChartData.points.length - 1);
+        setMiniTideHoverIndex(clampedIndex);
+    };
+    const compactTideTimes = useMemo(() => {
+        const chips = [];
+
+        if (previousTide) {
+            chips.push({ key: `prev-${previousTide.index}`, label: "Previous", value: `${previousTide.type} ${formatTideTime(previousTide.date)}` });
+        }
+
+        if (nextTide) {
+            chips.push({ key: `next-${nextTide.index}`, label: "Next", value: `${nextTide.type} ${formatTideTime(nextTide.date)}` });
+        }
+
+        if (currentTideMarker?.time) {
+            chips.push({ key: "current", label: "Current", value: formatTideTime(currentTideMarker.time) });
+        }
+
+        return chips;
+    }, [currentTideMarker, formatTideTime, nextTide, previousTide]);
+    const tideWarningSummary = tideRange && !tideRange.includesNow
+        ? "Current time is outside the saved chart range. Refresh tides before planning shoreline access."
+        : isTideSnapshotStale
+          ? "Saved tide snapshot is older than 30 hours. Refresh before relying on timings."
+          : "Estimated windows only. Outgoing tides are particularly dangerous. Do not enter water without strict professional supervision.";
 
     return (
         <div
@@ -1041,11 +1143,11 @@ export default function TidePlanner({
             >
                 <div
                     style={{
-                        padding: isMobile ? "9px" : "9px 11px",
-                        border: "1px solid #dbe3ee",
-                        borderRadius: "12px",
-                        background: "linear-gradient(160deg, #f8fbff 0%, #f2f7ff 62%, #f8fafc 100%)",
-                        boxShadow: "0 8px 20px rgba(15,23,42,0.06)",
+                        padding: isMobile ? "10px" : "11px 12px",
+                        border: "1px solid #d4dfec",
+                        borderRadius: "16px",
+                        background: "linear-gradient(162deg, #f8fbff 0%, #eef5ff 54%, #f6fbff 100%)",
+                        boxShadow: "0 14px 30px rgba(15,23,42,0.08)",
                     }}
                 >
                     <div
@@ -1062,7 +1164,7 @@ export default function TidePlanner({
                             <div style={{ fontSize: "0.68rem", fontWeight: 800, color: "#0f766e", textTransform: "uppercase", letterSpacing: "0.08em" }}>
                                 Cleanup planner
                             </div>
-                            <div style={{ fontSize: "0.92rem", fontWeight: 800, color: "#1e293b" }}>
+                            <div style={{ fontSize: "0.96rem", fontWeight: 800, color: "#1e293b", lineHeight: 1.25 }}>
                                 Lancaster riverside outlook
                             </div>
                         </div>
@@ -1070,15 +1172,23 @@ export default function TidePlanner({
                             onClick={fetchLancasterTides}
                             disabled={isLoadingLancasterTides}
                             style={{
-                                border: "1px solid #cbd5e1",
+                                border: "1px solid #b9c9de",
                                 borderRadius: "999px",
-                                padding: "5px 11px",
-                                background: "#fff",
-                                fontSize: "0.8rem",
-                                minHeight: "32px",
+                                padding: "6px 12px",
+                                background: "linear-gradient(180deg, #ffffff 0%, #f6f9fc 100%)",
+                                color: isLoadingLancasterTides ? "#64748b" : "#1e293b",
+                                fontSize: "0.78rem",
+                                minHeight: "34px",
                                 fontWeight: 700,
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                whiteSpace: "nowrap",
+                                appearance: "none",
+                                WebkitAppearance: "none",
                                 cursor: isLoadingLancasterTides ? "wait" : "pointer",
-                                opacity: 1,
+                                opacity: isLoadingLancasterTides ? 0.9 : 1,
+                                boxShadow: "0 4px 12px rgba(15,23,42,0.08)",
                             }}
                             title="Reload saved Lancaster tide times"
                         >
@@ -1096,9 +1206,9 @@ export default function TidePlanner({
                     >
                         <div
                             style={{
-                                padding: isMobile ? "10px" : "11px 12px",
-                                borderRadius: "12px",
-                                border: "1px solid #bfdbfe",
+                                padding: isMobile ? "11px" : "12px 13px",
+                                borderRadius: "14px",
+                                border: "1px solid #c7dbf7",
                                 background: "linear-gradient(135deg, rgba(219,234,254,0.8), rgba(255,255,255,0.96))",
                             }}
                         >
@@ -1111,12 +1221,12 @@ export default function TidePlanner({
 
                         <div
                             style={{
-                                padding: isMobile ? "10px" : "11px 12px",
-                                borderRadius: "12px",
-                                border: "1px solid #ccfbf1",
+                                padding: isMobile ? "11px" : "12px 13px",
+                                borderRadius: "14px",
+                                border: "1px solid #b4f1e6",
                                 background: "linear-gradient(135deg, rgba(204,251,241,0.86), rgba(255,255,255,0.96))",
                                 display: "grid",
-                                gap: "5px",
+                                gap: "6px",
                             }}
                         >
                             <div style={{ fontSize: "0.7rem", fontWeight: 800, color: "#0f766e", textTransform: "uppercase", letterSpacing: "0.08em" }}>
@@ -1134,9 +1244,235 @@ export default function TidePlanner({
                     <div
                         style={{
                             marginBottom: "7px",
-                            padding: isMobile ? "9px 10px" : "10px 12px",
-                            borderRadius: "12px",
-                            border: "1px solid #dbeafe",
+                            padding: isMobile ? "10px 11px" : "11px 13px",
+                            borderRadius: "14px",
+                            border: "1px solid #c7dbf7",
+                            background: "linear-gradient(180deg, rgba(239,246,255,0.96), rgba(255,255,255,0.98))",
+                            display: "grid",
+                            gap: "8px",
+                        }}
+                    >
+                        <div
+                            style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "flex-start",
+                                gap: "10px",
+                                flexWrap: "wrap",
+                            }}
+                        >
+                            <div style={{ display: "grid", gap: "4px" }}>
+                                <div style={{ fontSize: "0.68rem", fontWeight: 800, color: "#1d4ed8", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                                    Tide planner
+                                </div>
+                                <div style={{ fontSize: "0.9rem", fontWeight: 800, color: "#0f172a", lineHeight: 1.3 }}>
+                                    Compact tide graph and key tide times
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setIsTideDetailsCollapsed((currentState) => !currentState)}
+                                aria-expanded={!isTideDetailsCollapsed}
+                                aria-label={isTideDetailsCollapsed ? "Expand full tide planner details" : "Collapse full tide planner details"}
+                                style={{
+                                    border: "1px solid #bfccdd",
+                                    borderRadius: "999px",
+                                    padding: "6px 11px",
+                                    background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
+                                    color: "#1e293b",
+                                    fontSize: "0.74rem",
+                                    minHeight: "32px",
+                                    fontWeight: 800,
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    gap: "6px",
+                                    whiteSpace: "nowrap",
+                                    cursor: "pointer",
+                                    boxShadow: "0 3px 10px rgba(15,23,42,0.07)",
+                                }}
+                            >
+                                {isTideDetailsCollapsed ? "Show details" : "Hide details"}
+                                <span aria-hidden="true" style={{ fontSize: "0.78rem" }}>{isTideDetailsCollapsed ? "▾" : "▴"}</span>
+                            </button>
+                        </div>
+
+                        {isTideDetailsCollapsed && tideChartData?.points?.length ? (
+                            <div
+                                style={{
+                                    borderRadius: "12px",
+                                    border: "1px solid #dbeafe",
+                                    background: "#ffffff",
+                                    padding: "8px 10px",
+                                    display: "grid",
+                                    gap: "7px",
+                                }}
+                            >
+                                <div
+                                    style={{ position: "relative", height: "74px" }}
+                                    onMouseMove={(event) => updateMiniTideHoverFromClientX(event.clientX, event.currentTarget)}
+                                    onMouseLeave={() => setMiniTideHoverIndex(null)}
+                                    onTouchMove={(event) => {
+                                        const touch = event.touches?.[0];
+                                        if (touch) updateMiniTideHoverFromClientX(touch.clientX, event.currentTarget);
+                                    }}
+                                    onTouchEnd={() => setMiniTideHoverIndex(null)}
+                                >
+                                    <svg
+                                        viewBox={`0 0 ${tideChartData.width} ${tideChartData.height}`}
+                                        preserveAspectRatio="none"
+                                        role="img"
+                                        aria-label="Compact tide shape"
+                                        style={{ width: "100%", height: "74px", display: "block" }}
+                                    >
+                                        <defs>
+                                            <linearGradient id="tideCompactLine" x1="0" x2="0" y1="0" y2="1">
+                                                <stop offset="0%" stopColor="#1d4ed8" />
+                                                <stop offset="100%" stopColor="#0ea5e9" />
+                                            </linearGradient>
+                                        </defs>
+                                        <line
+                                            x1={tideChartData.padding.left}
+                                            x2={tideChartData.width - tideChartData.padding.right}
+                                            y1={tideChartData.baselineY}
+                                            y2={tideChartData.baselineY}
+                                            stroke="#dbeafe"
+                                            strokeWidth="1"
+                                        />
+                                        <path d={compactTidePath} fill="none" stroke="url(#tideCompactLine)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+                                    </svg>
+                                    {miniTideHoverPoint ? (
+                                        <>
+                                            <div
+                                                style={{
+                                                    position: "absolute",
+                                                    left: `${(miniTideHoverPoint.x / tideChartData.width) * 100}%`,
+                                                    top: "0px",
+                                                    bottom: "0px",
+                                                    width: "2px",
+                                                    transform: "translateX(-1px)",
+                                                    background: "linear-gradient(180deg, rgba(29,78,216,0.15) 0%, rgba(29,78,216,0.8) 26%, rgba(29,78,216,0.15) 100%)",
+                                                    borderRadius: "999px",
+                                                    pointerEvents: "none",
+                                                }}
+                                            />
+                                            <div
+                                                style={{
+                                                    position: "absolute",
+                                                    left: `${(miniTideHoverPoint.x / tideChartData.width) * 100}%`,
+                                                    top: `${(miniTideHoverPoint.y / tideChartData.height) * 100}%`,
+                                                    width: "13px",
+                                                    height: "13px",
+                                                    transform: "translate(-6.5px, -6.5px)",
+                                                    borderRadius: "999px",
+                                                    background: "#ffffff",
+                                                    border: "3px solid #1d4ed8",
+                                                    boxShadow: "0 0 0 3px rgba(191,219,254,0.75)",
+                                                    pointerEvents: "none",
+                                                }}
+                                            />
+                                            <div
+                                                style={{
+                                                    position: "absolute",
+                                                    left: `${Math.min(Math.max((miniTideHoverPoint.x / tideChartData.width) * 100, 14), 86)}%`,
+                                                    top: (miniTideHoverPoint.y / tideChartData.height) < 0.48 ? "40px" : "6px",
+                                                    transform: "translateX(-50%)",
+                                                    borderRadius: "999px",
+                                                    border: "1px solid #93c5fd",
+                                                    background: "rgba(255,255,255,0.98)",
+                                                    color: "#0f172a",
+                                                    padding: "4px 11px",
+                                                    fontSize: "0.76rem",
+                                                    fontWeight: 800,
+                                                    whiteSpace: "nowrap",
+                                                    boxShadow: "0 6px 14px rgba(15,23,42,0.09)",
+                                                    pointerEvents: "none",
+                                                }}
+                                            >
+                                                {`${miniTideHoverPoint.type} at ${formatTideClockTime(miniTideHoverPoint.date)}`}
+                                            </div>
+                                        </>
+                                    ) : null}
+                                </div>
+                                <div
+                                    style={{
+                                        fontSize: "0.78rem",
+                                        color: miniTideHoverPoint ? "#0f172a" : "#64748b",
+                                        fontWeight: miniTideHoverPoint ? 800 : 700,
+                                        lineHeight: 1.35,
+                                        borderRadius: "9px",
+                                        border: miniTideHoverPoint ? "1px solid #bfdbfe" : "1px dashed #cbd5e1",
+                                        background: miniTideHoverPoint ? "#eff6ff" : "#f8fafc",
+                                        padding: "6px 8px",
+                                    }}
+                                >
+                                    {miniTideHoverPoint
+                                        ? `${miniTideHoverPoint.type} • ${formatTideTime(miniTideHoverPoint.date)} • ${miniTideHoverPoint.height.toFixed(2)} m`
+                                        : "Move over the mini tide line to preview exact time and height."}
+                                </div>
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                                    {compactTideTimes.map((chip) => (
+                                        <span
+                                            key={chip.key}
+                                            style={{
+                                                borderRadius: "999px",
+                                                border: "1px solid #cbd5e1",
+                                                background: "#f8fafc",
+                                                color: "#334155",
+                                                padding: "4px 8px",
+                                                fontSize: "0.7rem",
+                                                fontWeight: 700,
+                                                whiteSpace: "nowrap",
+                                            }}
+                                        >
+                                            {chip.label}: {chip.value}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : isTideDetailsCollapsed ? (
+                            <div style={{ fontSize: "0.77rem", color: "#475569", lineHeight: 1.45 }}>
+                                {isLoadingLancasterTides
+                                    ? "Loading tide snapshot for compact view..."
+                                    : "No tide snapshot available yet. Refresh tides to populate the compact planner view."}
+                            </div>
+                        ) : null}
+
+                        {isTideDetailsCollapsed ? (
+                            <div
+                                style={{
+                                    borderRadius: "10px",
+                                    border: "1px solid #fecaca",
+                                    background: "#fff5f5",
+                                    color: "#991b1b",
+                                    padding: "7px 9px",
+                                    fontSize: "0.74rem",
+                                    lineHeight: 1.4,
+                                    fontWeight: 700,
+                                }}
+                            >
+                                {tideWarningSummary}
+                            </div>
+                        ) : null}
+                    </div>
+
+                    <div
+                        style={{
+                            maxHeight: isTideDetailsCollapsed ? "0px" : "5200px",
+                            opacity: isTideDetailsCollapsed ? 0 : 1,
+                            transform: isTideDetailsCollapsed ? "translateY(-4px)" : "translateY(0)",
+                            overflow: "hidden",
+                            pointerEvents: isTideDetailsCollapsed ? "none" : "auto",
+                            transition: "max-height 280ms ease, opacity 180ms ease, transform 220ms ease",
+                        }}
+                    >
+
+                    <div
+                        style={{
+                            marginBottom: "7px",
+                            padding: isMobile ? "10px 11px" : "11px 13px",
+                            borderRadius: "14px",
+                            border: "1px solid #d3e2f6",
                             background: "linear-gradient(180deg, rgba(239,246,255,0.95) 0%, rgba(248,250,252,0.98) 100%)",
                             boxShadow: "inset 0 1px 0 rgba(255,255,255,0.7)",
                         }}
@@ -1195,8 +1531,8 @@ export default function TidePlanner({
                         <div
                             style={{
                                 marginTop: "7px",
-                                padding: "8px 10px",
-                                borderRadius: "10px",
+                                padding: "9px 11px",
+                                borderRadius: "12px",
                                 border: "1px solid #fecaca",
                                 background: "linear-gradient(180deg, #fff5f5 0%, #fef2f2 100%)",
                             }}
@@ -1291,11 +1627,12 @@ export default function TidePlanner({
                     {tideChartData ? (
                         <div
                             style={{
-                                border: "1px solid #e2e8f0",
-                                borderRadius: "12px",
+                                border: "1px solid #d4e0ef",
+                                borderRadius: "14px",
                                 background: "#ffffff",
                                 marginBottom: "6px",
-                                padding: isMobile ? "8px" : "8px 10px",
+                                padding: isMobile ? "9px" : "9px 11px",
+                                boxShadow: "0 10px 20px rgba(15,23,42,0.05)",
                             }}
                         >
                             <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
@@ -1667,7 +2004,7 @@ export default function TidePlanner({
                                     }}
                                 >
                                     <div style={{ borderRadius: "10px", border: "1px solid #dbeafe", background: "#eff6ff", padding: "8px 10px" }}>
-                                        <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "#1d4ed8", textTransform: "uppercase", letterSpacing: "0.04em" }}>Previous tide</div>
+                                        <div style={{ fontSize: "0.7rem", fontWeight: 800, color: "#1d4ed8", textTransform: "uppercase", letterSpacing: "0.06em" }}>Previous tide</div>
                                         <div style={{ marginTop: "4px", fontSize: "0.88rem", fontWeight: 700, color: "#0f172a" }}>
                                             {previousTide ? previousTide.type : "Unavailable"}
                                         </div>
@@ -1684,7 +2021,7 @@ export default function TidePlanner({
                                             padding: "8px 10px",
                                         }}
                                     >
-                                        <div style={{ fontSize: "0.72rem", fontWeight: 700, color: selectedTidePoint?.isLowTide ? "#15803d" : "#1d4ed8", textTransform: "uppercase", letterSpacing: "0.04em" }}>Selected tide</div>
+                                        <div style={{ fontSize: "0.7rem", fontWeight: 800, color: selectedTidePoint?.isLowTide ? "#15803d" : "#1d4ed8", textTransform: "uppercase", letterSpacing: "0.06em" }}>Selected tide</div>
                                         <div style={{ marginTop: "4px", fontSize: "0.88rem", fontWeight: 700, color: "#0f172a" }}>
                                             {selectedTidePoint ? selectedTidePoint.type : "Unavailable"}
                                         </div>
@@ -1696,7 +2033,7 @@ export default function TidePlanner({
                                     </div>
 
                                     <div style={{ borderRadius: "10px", border: "1px solid #fecaca", background: "#fef2f2", padding: "8px 10px" }}>
-                                        <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "#b91c1c", textTransform: "uppercase", letterSpacing: "0.04em" }}>Current time</div>
+                                        <div style={{ fontSize: "0.7rem", fontWeight: 800, color: "#b91c1c", textTransform: "uppercase", letterSpacing: "0.06em" }}>Current time</div>
                                         <div style={{ marginTop: "4px", fontSize: "0.88rem", fontWeight: 700, color: "#0f172a" }}>
                                             {formatTideTime(currentTideMarker?.time || currentTideTime)}
                                         </div>
@@ -1720,10 +2057,10 @@ export default function TidePlanner({
                                                 onClick={() => setSelectedTideIndex(point.index)}
                                                 style={{
                                                     border: isSelected ? "1px solid #1d4ed8" : "1px solid #cbd5e1",
-                                                    background: isSelected ? "#dbeafe" : "#fff",
+                                                    background: isSelected ? "#dbeafe" : "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
                                                     color: "#0f172a",
-                                                    borderRadius: "999px",
-                                                    padding: "4px 9px",
+                                                    borderRadius: "10px",
+                                                    padding: "5px 9px",
                                                     fontSize: "0.74rem",
                                                     fontWeight: 700,
                                                     cursor: "pointer",
@@ -1754,15 +2091,17 @@ export default function TidePlanner({
                         </div>
                     ) : null}
 
+                    </div>
+
                     <div style={{ display: "grid", gap: "8px", marginBottom: "8px" }}>
                         <div
                             style={{
-                                padding: isMobile ? "10px" : "11px 12px",
-                                borderRadius: "12px",
-                                border: "1px solid #dbeafe",
+                                padding: isMobile ? "11px" : "12px 13px",
+                                borderRadius: "14px",
+                                border: "1px solid #d3e2f6",
                                 background: "linear-gradient(180deg, rgba(248,250,252,0.92), rgba(255,255,255,0.98))",
                                 display: "grid",
-                                gap: "8px",
+                                gap: "9px",
                             }}
                         >
                             <div
@@ -1779,6 +2118,61 @@ export default function TidePlanner({
                                     title="Live river readings"
                                     subtitle="A compact station table for the latest level and flow context, with expandable history up to the last 24 readings per station."
                                 />
+                                <button
+                                    type="button"
+                                    onClick={() => setIsSensorsSectionCollapsed((currentState) => !currentState)}
+                                    aria-expanded={!isSensorsSectionCollapsed}
+                                    aria-label={isSensorsSectionCollapsed ? "Expand live river readings" : "Collapse live river readings"}
+                                    style={{
+                                        border: "1px solid #bfccdd",
+                                        borderRadius: "999px",
+                                        padding: "6px 11px",
+                                        background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
+                                        color: "#1e293b",
+                                        fontSize: "0.74rem",
+                                        minHeight: "32px",
+                                        fontWeight: 800,
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        gap: "6px",
+                                        whiteSpace: "nowrap",
+                                        cursor: "pointer",
+                                        boxShadow: "0 3px 10px rgba(15,23,42,0.07)",
+                                    }}
+                                >
+                                    {isSensorsSectionCollapsed ? "Show details" : "Hide details"}
+                                    <span aria-hidden="true" style={{ fontSize: "0.78rem" }}>{isSensorsSectionCollapsed ? "▾" : "▴"}</span>
+                                </button>
+                            </div>
+                            {isSensorsSectionCollapsed ? (
+                                <div
+                                    style={{
+                                        padding: "8px 10px",
+                                        borderRadius: "11px",
+                                        border: "1px solid #dbeafe",
+                                        background: "rgba(239,246,255,0.82)",
+                                        color: "#1e293b",
+                                        fontSize: "0.76rem",
+                                        lineHeight: 1.4,
+                                        fontWeight: 700,
+                                    }}
+                                >
+                                    {sensorSummaryLine}
+                                </div>
+                            ) : null}
+                            <div
+                                style={{
+                                    maxHeight: isSensorsSectionCollapsed ? "0px" : "2200px",
+                                    opacity: isSensorsSectionCollapsed ? 0 : 1,
+                                    transform: isSensorsSectionCollapsed ? "translateY(-4px)" : "translateY(0)",
+                                    overflow: "hidden",
+                                    pointerEvents: isSensorsSectionCollapsed ? "none" : "auto",
+                                    display: "grid",
+                                    gap: "9px",
+                                    transition: "max-height 260ms ease, opacity 180ms ease, transform 220ms ease",
+                                }}
+                            >
                                 <div
                                     style={{
                                         display: "flex",
@@ -1800,218 +2194,286 @@ export default function TidePlanner({
                                         onChange={setSensorTypeFilter}
                                     />
                                 </div>
+                                <CleanupSensorTable
+                                    isMobile={isMobile}
+                                    rows={filteredSensorRows}
+                                    expandedSensorId={expandedSensorId}
+                                    onToggleSensor={(sensorId) => setExpandedSensorId((currentId) => currentId === sensorId ? null : sensorId)}
+                                />
                             </div>
-                            <CleanupSensorTable
-                                isMobile={isMobile}
-                                rows={filteredSensorRows}
-                                expandedSensorId={expandedSensorId}
-                                onToggleSensor={(sensorId) => setExpandedSensorId((currentId) => currentId === sensorId ? null : sensorId)}
-                            />
                         </div>
 
                         <div
                             style={{
-                                padding: isMobile ? "9px" : "10px 11px",
+                                padding: isMobile ? "10px" : "11px 12px",
                                 borderRadius: "14px",
-                                border: "1px solid #c7d2fe",
+                                border: "1px solid #c3cff4",
                                 background: "linear-gradient(180deg, rgba(238,242,255,0.68), rgba(255,255,255,0.98))",
                                 display: "grid",
-                                gap: "7px",
+                                gap: "8px",
                             }}
                         >
-                            <SectionTitle
-                                eyebrow="Weather forecast"
-                                title="Near-term cleanup conditions"
-                                subtitle="Short-range conditions are condensed into illustrated forecast cards so you can scan the next working window quickly."
-                            />
-
-                            {isLoadingCleanupForecast && !cleanupForecast ? (
-                                <div style={{ fontSize: "0.8rem", color: "#64748b" }}>Loading weather forecast...</div>
-                            ) : null}
-
-                            {cleanupForecastError ? (
-                                <div
+                            <div
+                                style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "flex-start",
+                                    gap: "10px",
+                                    flexWrap: "wrap",
+                                }}
+                            >
+                                <SectionTitle
+                                    eyebrow="Weather forecast"
+                                    title="Near-term cleanup conditions"
+                                    subtitle="Short-range conditions are condensed into illustrated forecast cards so you can scan the next working window quickly."
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setIsWeatherSectionCollapsed((currentState) => !currentState)}
+                                    aria-expanded={!isWeatherSectionCollapsed}
+                                    aria-label={isWeatherSectionCollapsed ? "Expand near-term cleanup conditions" : "Collapse near-term cleanup conditions"}
                                     style={{
-                                        padding: "9px 10px",
-                                        borderRadius: "10px",
-                                        border: "1px solid #fdba74",
-                                        background: "#fff7ed",
-                                        color: "#9a3412",
-                                        fontSize: "0.8rem",
+                                        border: "1px solid #bfccdd",
+                                        borderRadius: "999px",
+                                        padding: "6px 11px",
+                                        background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
+                                        color: "#1e293b",
+                                        fontSize: "0.74rem",
+                                        minHeight: "32px",
+                                        fontWeight: 800,
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        gap: "6px",
+                                        whiteSpace: "nowrap",
+                                        cursor: "pointer",
+                                        boxShadow: "0 3px 10px rgba(15,23,42,0.07)",
                                     }}
                                 >
-                                    {cleanupForecastError}
+                                    {isWeatherSectionCollapsed ? "Show details" : "Hide details"}
+                                    <span aria-hidden="true" style={{ fontSize: "0.78rem" }}>{isWeatherSectionCollapsed ? "▾" : "▴"}</span>
+                                </button>
+                            </div>
+                            {isWeatherSectionCollapsed ? (
+                                <div
+                                    style={{
+                                        padding: "8px 10px",
+                                        borderRadius: "11px",
+                                        border: "1px solid #d6e3f5",
+                                        background: "rgba(239,246,255,0.78)",
+                                        display: "grid",
+                                        gap: "4px",
+                                    }}
+                                >
+                                    <div style={{ fontSize: "0.78rem", color: "#0f172a", fontWeight: 800, lineHeight: 1.35 }}>
+                                        {weatherSummaryHeadline}
+                                    </div>
+                                    <div style={{ fontSize: "0.71rem", color: "#475569", lineHeight: 1.4, fontWeight: 700 }}>
+                                        {weatherSummaryMetrics}
+                                    </div>
                                 </div>
                             ) : null}
 
-                            {cleanupForecast ? (
-                                <>
+                            <div
+                                style={{
+                                    maxHeight: isWeatherSectionCollapsed ? "0px" : "2800px",
+                                    opacity: isWeatherSectionCollapsed ? 0 : 1,
+                                    transform: isWeatherSectionCollapsed ? "translateY(-4px)" : "translateY(0)",
+                                    overflow: "hidden",
+                                    pointerEvents: isWeatherSectionCollapsed ? "none" : "auto",
+                                    display: "grid",
+                                    gap: "8px",
+                                    transition: "max-height 260ms ease, opacity 180ms ease, transform 220ms ease",
+                                }}
+                            >
+                                {isLoadingCleanupForecast && !cleanupForecast ? (
+                                    <div style={{ fontSize: "0.8rem", color: "#64748b" }}>Loading weather forecast...</div>
+                                ) : null}
+
+                                {cleanupForecastError ? (
                                     <div
                                         style={{
-                                            display: "grid",
-                                            gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1.2fr) minmax(250px, 0.8fr)",
-                                            gap: "7px",
+                                            padding: "9px 10px",
+                                            borderRadius: "10px",
+                                            border: "1px solid #fdba74",
+                                            background: "#fff7ed",
+                                            color: "#9a3412",
+                                            fontSize: "0.8rem",
                                         }}
                                     >
-                                        <div
-                                            style={{
-                                                borderRadius: "16px",
-                                                border: forecastOutlook.border,
-                                                background: forecastOutlook.surface,
-                                                padding: isMobile ? "10px" : "11px 12px",
-                                                display: "grid",
-                                                gridTemplateColumns: isMobile ? "1fr" : "118px minmax(0, 1fr)",
-                                                gap: "10px",
-                                                alignItems: "center",
-                                            }}
-                                        >
-                                            <WeatherArtwork
-                                                summary={cleanupForecast.nextHour?.summary || cleanupForecast.headline}
-                                                rainChance={cleanupForecast.nextHour?.rainChance}
-                                                windSpeed={cleanupForecast.nextHour?.windSpeed}
-                                            />
-                                            <div style={{ display: "grid", gap: "8px", minWidth: 0 }}>
-                                                <div
-                                                    style={{
-                                                        display: "flex",
-                                                        justifyContent: "space-between",
-                                                        gap: "8px",
-                                                        alignItems: "flex-start",
-                                                        flexWrap: "wrap",
-                                                    }}
-                                                >
-                                                    <div style={{ display: "grid", gap: "4px", minWidth: 0 }}>
-                                                        <div style={{ fontSize: "0.69rem", color: "#4f46e5", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                                                            Next hour outlook
-                                                        </div>
-                                                        <div style={{ fontSize: "0.98rem", color: "#0f172a", fontWeight: 800, lineHeight: 1.25 }}>
-                                                            {cleanupForecast.headline}
-                                                        </div>
-                                                    </div>
-                                                    <span
-                                                        style={{
-                                                            display: "inline-flex",
-                                                            alignItems: "center",
-                                                            borderRadius: "999px",
-                                                            background: forecastOutlook.badgeBackground,
-                                                            color: forecastOutlook.badgeColor,
-                                                            padding: "5px 10px",
-                                                            fontSize: "0.67rem",
-                                                            fontWeight: 800,
-                                                            letterSpacing: "0.05em",
-                                                            textTransform: "uppercase",
-                                                        }}
-                                                    >
-                                                        {forecastOutlook.label}
-                                                    </span>
-                                                </div>
-                                                <div style={{ fontSize: "0.74rem", color: "#475569", lineHeight: 1.4 }}>
-                                                    {forecastOutlook.description}
-                                                </div>
-                                                {cleanupForecast.nextHour ? (
-                                                    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                                                        <ForecastMetricChip label="Temp" value={cleanupForecast.nextHour.temperatureLabel} tone="temperature" />
-                                                        <ForecastMetricChip label="Rain" value={cleanupForecast.nextHour.rainChanceLabel} tone="rain" />
-                                                        <ForecastMetricChip label="Wind" value={cleanupForecast.nextHour.windSpeedLabel} tone="wind" />
-                                                    </div>
-                                                ) : null}
-                                                {cleanupForecastUpdatedLabel ? (
-                                                    <div style={{ fontSize: "0.67rem", color: "#64748b" }}>
-                                                        Forecast updated {cleanupForecastUpdatedLabel}
-                                                    </div>
-                                                ) : null}
-                                            </div>
-                                        </div>
-
-                                        <div
-                                            style={{
-                                                display: "grid",
-                                                gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr",
-                                                gap: "7px",
-                                            }}
-                                        >
-                                            {cleanupForecast.highlights.map((highlight) => (
-                                                <ForecastStatCard
-                                                    key={highlight.label}
-                                                    label={highlight.label}
-                                                    value={highlight.value}
-                                                    accentColor={highlight.label === "Rain risk" ? "#0f766e" : "#1d4ed8"}
-                                                    background={highlight.label === "Rain risk"
-                                                        ? "linear-gradient(180deg, rgba(236,254,255,0.96), rgba(255,255,255,1))"
-                                                        : "linear-gradient(180deg, rgba(239,246,255,0.96), rgba(255,255,255,1))"}
-                                                />
-                                            ))}
-                                        </div>
+                                        {cleanupForecastError}
                                     </div>
+                                ) : null}
 
-                                    <div
-                                        style={{
-                                            display: "grid",
-                                            gridTemplateColumns: "1fr",
-                                            gap: "7px",
-                                        }}
-                                    >
+                                {cleanupForecast ? (
+                                    <>
                                         <div
                                             style={{
-                                                borderRadius: "16px",
-                                                border: "1px solid #dbeafe",
-                                                background: "linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(248,250,252,0.98) 100%)",
-                                                padding: "9px 10px",
                                                 display: "grid",
+                                                gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1.2fr) minmax(250px, 0.8fr)",
                                                 gap: "7px",
                                             }}
                                         >
-                                            <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-                                                <div style={{ fontSize: "0.7rem", color: "#1d4ed8", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                                                    Next 6 hours
-                                                </div>
-                                                <div style={{ fontSize: "0.68rem", color: "#64748b", fontWeight: 700 }}>
-                                                    Scroll for the full strip
-                                                </div>
-                                            </div>
                                             <div
                                                 style={{
-                                                    display: "flex",
-                                                    gap: "8px",
-                                                    overflowX: "auto",
-                                                    paddingBottom: "2px",
-                                                    scrollbarWidth: "thin",
+                                                    borderRadius: "14px",
+                                                    border: forecastOutlook.border,
+                                                    background: forecastOutlook.surface,
+                                                    padding: isMobile ? "10px" : "11px 12px",
+                                                    display: "grid",
+                                                    gridTemplateColumns: isMobile ? "1fr" : "118px minmax(0, 1fr)",
+                                                    gap: "10px",
+                                                    alignItems: "center",
                                                 }}
                                             >
-                                                {hourlyForecast.map((hour) => (
-                                                    <HourForecastCard key={hour.time} hour={hour} />
-                                                ))}
+                                                <WeatherArtwork
+                                                    summary={cleanupForecast.nextHour?.summary || cleanupForecast.headline}
+                                                    rainChance={cleanupForecast.nextHour?.rainChance}
+                                                    windSpeed={cleanupForecast.nextHour?.windSpeed}
+                                                />
+                                                <div style={{ display: "grid", gap: "8px", minWidth: 0 }}>
+                                                    <div
+                                                        style={{
+                                                            display: "flex",
+                                                            justifyContent: "space-between",
+                                                            gap: "8px",
+                                                            alignItems: "flex-start",
+                                                            flexWrap: "wrap",
+                                                        }}
+                                                    >
+                                                        <div style={{ display: "grid", gap: "4px", minWidth: 0 }}>
+                                                            <div style={{ fontSize: "0.69rem", color: "#4f46e5", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                                                                Next hour outlook
+                                                            </div>
+                                                            <div style={{ fontSize: "0.95rem", color: "#0f172a", fontWeight: 800, lineHeight: 1.28 }}>
+                                                                {cleanupForecast.headline}
+                                                            </div>
+                                                        </div>
+                                                        <span
+                                                            style={{
+                                                                display: "inline-flex",
+                                                                alignItems: "center",
+                                                                borderRadius: "999px",
+                                                                background: forecastOutlook.badgeBackground,
+                                                                color: forecastOutlook.badgeColor,
+                                                                padding: "5px 10px",
+                                                                fontSize: "0.67rem",
+                                                                fontWeight: 800,
+                                                                letterSpacing: "0.05em",
+                                                                textTransform: "uppercase",
+                                                            }}
+                                                        >
+                                                            {forecastOutlook.label}
+                                                        </span>
+                                                    </div>
+                                                    <div style={{ fontSize: "0.74rem", color: "#475569", lineHeight: 1.4 }}>
+                                                        {forecastOutlook.description}
+                                                    </div>
+                                                    {cleanupForecast.nextHour ? (
+                                                        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                                                            <ForecastMetricChip label="Temp" value={cleanupForecast.nextHour.temperatureLabel} tone="temperature" />
+                                                            <ForecastMetricChip label="Rain" value={cleanupForecast.nextHour.rainChanceLabel} tone="rain" />
+                                                            <ForecastMetricChip label="Wind" value={cleanupForecast.nextHour.windSpeedLabel} tone="wind" />
+                                                        </div>
+                                                    ) : null}
+                                                    {cleanupForecastUpdatedLabel ? (
+                                                        <div style={{ fontSize: "0.67rem", color: "#64748b" }}>
+                                                            Forecast updated {cleanupForecastUpdatedLabel}
+                                                        </div>
+                                                    ) : null}
+                                                </div>
                                             </div>
-                                        </div>
 
-                                        <div
-                                            style={{
-                                                borderRadius: "16px",
-                                                border: "1px solid #dbeafe",
-                                                background: "linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(248,250,252,0.98) 100%)",
-                                                padding: "9px 10px",
-                                                display: "grid",
-                                                gap: "8px",
-                                            }}
-                                        >
-                                            <div style={{ fontSize: "0.7rem", color: "#1d4ed8", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                                                Next 3 days
-                                            </div>
                                             <div
                                                 style={{
                                                     display: "grid",
-                                                    gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))",
-                                                    gap: "8px",
+                                                    gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr",
+                                                    gap: "7px",
                                                 }}
                                             >
-                                                {dailyForecast.map((day) => (
-                                                    <DailyForecastCard key={day.date} day={day} />
+                                                {cleanupForecast.highlights.map((highlight) => (
+                                                    <ForecastStatCard
+                                                        key={highlight.label}
+                                                        label={highlight.label}
+                                                        value={highlight.value}
+                                                        accentColor={highlight.label === "Rain risk" ? "#0f766e" : "#1d4ed8"}
+                                                        background={highlight.label === "Rain risk"
+                                                            ? "linear-gradient(180deg, rgba(236,254,255,0.96), rgba(255,255,255,1))"
+                                                            : "linear-gradient(180deg, rgba(239,246,255,0.96), rgba(255,255,255,1))"}
+                                                    />
                                                 ))}
                                             </div>
                                         </div>
-                                    </div>
-                                </>
-                            ) : null}
+
+                                        <div
+                                            style={{
+                                                display: "grid",
+                                                gridTemplateColumns: "1fr",
+                                                gap: "7px",
+                                            }}
+                                        >
+                                            <div
+                                                style={{
+                                                    borderRadius: "14px",
+                                                    border: "1px solid #d6e3f5",
+                                                    background: "linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(248,250,252,0.98) 100%)",
+                                                    padding: "9px 11px",
+                                                    display: "grid",
+                                                    gap: "7px",
+                                                }}
+                                            >
+                                                <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                                                    <div style={{ fontSize: "0.7rem", color: "#1d4ed8", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                                                        Next 6 hours
+                                                    </div>
+                                                    <div style={{ fontSize: "0.68rem", color: "#64748b", fontWeight: 700 }}>
+                                                        Scroll for the full strip
+                                                    </div>
+                                                </div>
+                                                <div
+                                                    style={{
+                                                        display: "flex",
+                                                        gap: "8px",
+                                                        overflowX: "auto",
+                                                        paddingBottom: "2px",
+                                                        scrollbarWidth: "thin",
+                                                    }}
+                                                >
+                                                    {hourlyForecast.map((hour) => (
+                                                        <HourForecastCard key={hour.time} hour={hour} />
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            <div
+                                                style={{
+                                                    borderRadius: "14px",
+                                                    border: "1px solid #d6e3f5",
+                                                    background: "linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(248,250,252,0.98) 100%)",
+                                                    padding: "9px 11px",
+                                                    display: "grid",
+                                                    gap: "8px",
+                                                }}
+                                            >
+                                                <div style={{ fontSize: "0.7rem", color: "#1d4ed8", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                                                    Next 3 days
+                                                </div>
+                                                <div
+                                                    style={{
+                                                        display: "grid",
+                                                        gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))",
+                                                        gap: "8px",
+                                                    }}
+                                                >
+                                                    {dailyForecast.map((day) => (
+                                                        <DailyForecastCard key={day.date} day={day} />
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </>
+                                ) : null}
+                            </div>
                         </div>
                     </div>
 
@@ -2022,13 +2484,14 @@ export default function TidePlanner({
                             rel="noreferrer"
                             style={{
                                 textDecoration: "none",
-                                border: "1px solid #93c5fd",
+                                border: "1px solid #9ec6f0",
                                 color: "#1d4ed8",
-                                background: "#fff",
+                                background: "linear-gradient(180deg, #ffffff 0%, #f5f9ff 100%)",
                                 borderRadius: "999px",
                                 padding: isMobile ? "9px 12px" : "7px 11px",
-                                fontSize: "0.8rem",
+                                fontSize: "0.78rem",
                                 fontWeight: 700,
+                                boxShadow: "0 5px 12px rgba(15,23,42,0.08)",
                             }}
                         >
                             Open Full Lancaster Chart
