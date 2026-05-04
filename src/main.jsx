@@ -950,13 +950,13 @@ const FACEBOOK_ACTIVE = String(import.meta.env.VITE_FACEBOOK_ACTIVE ?? "true")
 const APPLE_ACTIVE = String(import.meta.env.VITE_APPLE_ACTIVE ?? "false")
     .trim()
     .toLowerCase() !== "false";
-const GOOGLE_ACTIVE = String(import.meta.env.VITE_GOOGLE_ACTIVE ?? "false")
+const GOOGLE_ACTIVE = String(import.meta.env.VITE_GOOGLE_ACTIVE ?? "true")
     .trim()
     .toLowerCase() !== "false";
-const LINKEDIN_ACTIVE = String(import.meta.env.VITE_LINKEDIN_ACTIVE ?? "false")
+const LINKEDIN_ACTIVE = String(import.meta.env.VITE_LINKEDIN_ACTIVE ?? "true")
     .trim()
     .toLowerCase() !== "false";
-const TWITTER_ACTIVE = String(import.meta.env.VITE_TWITTER_ACTIVE ?? "false")
+const TWITTER_ACTIVE = String(import.meta.env.VITE_TWITTER_ACTIVE ?? "true")
     .trim()
     .toLowerCase() !== "false";
 const ENABLE_PUBLIC_REPORTS = String(import.meta.env.VITE_ENABLE_PUBLIC_REPORTS ?? "true")
