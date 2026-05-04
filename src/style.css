@@ -65,6 +65,230 @@ textarea {
   font-family: var(--sans);
 }
 
+.hero-banner {
+  --hero-surface: linear-gradient(152deg, #f8fafc 0%, #eef2f7 48%, #f9fbfd 100%);
+  --hero-border: #d8e1eb;
+  --hero-ink: #0f172a;
+  --hero-subtle-ink: #475569;
+  --hero-badge-ink: #334155;
+  --hero-pill-bg: rgba(255, 255, 255, 0.78);
+  margin-bottom: 4px;
+  padding: 12px 14px 10px;
+  border-radius: 18px;
+  border: 1px solid var(--hero-border);
+  background: var(--hero-surface);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.09);
+}
+
+.hero-banner--mobile {
+  padding: 10px 10px 8px;
+}
+
+.hero-banner__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 2px;
+}
+
+.hero-banner__content {
+  flex: 1 1 420px;
+  min-width: 0;
+}
+
+.hero-banner__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--hero-pill-bg);
+  border: 1px solid #cbd5e1;
+  color: var(--hero-badge-ink);
+  font-size: 0.71rem;
+  font-weight: 700;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.hero-banner__badge-dot {
+  color: #94a3b8;
+}
+
+.hero-banner__title {
+  margin: 8px 0 6px;
+  color: var(--hero-ink);
+  font-size: clamp(1.45rem, 2.3vw, 1.84rem);
+  line-height: 1.06;
+  letter-spacing: -0.03em;
+  font-weight: 650;
+}
+
+.hero-banner__subtitle {
+  margin: 0;
+  color: var(--hero-subtle-ink);
+  font-size: 0.9rem;
+  line-height: 1.4;
+  max-width: 56ch;
+}
+
+.hero-banner__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  flex: 0 0 auto;
+  min-width: 214px;
+}
+
+.hero-banner__action,
+.hero-banner__action-link {
+  min-height: 35px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  color: #0f172a;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 12px;
+  white-space: nowrap;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+  transition: transform 140ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.hero-banner__action:hover,
+.hero-banner__action-link:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.13);
+  border-color: #94a3b8;
+}
+
+.hero-banner__action:focus-visible,
+.hero-banner__action-link:focus-visible {
+  outline: 2px solid #334155;
+  outline-offset: 2px;
+}
+
+.hero-banner__auth {
+  cursor: pointer;
+}
+
+.hero-banner__auth:disabled {
+  opacity: 0.62;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: 0 3px 8px rgba(15, 23, 42, 0.06);
+}
+
+.hero-banner__support-heart {
+  color: #b91c1c;
+}
+
+.hero-banner__facebook {
+  width: 44px;
+  min-width: 44px;
+  padding-inline: 0;
+  color: #0f172a;
+}
+
+.hero-banner__status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: rgba(248, 250, 252, 0.9);
+  color: #334155;
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.hero-banner__status--edit {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.hero-banner__status--view {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.hero-banner__status--loading {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+  color: #475569;
+}
+
+.hero-banner__error {
+  margin-top: 8px;
+  color: #b91c1c;
+  font-size: 0.8rem;
+}
+
+@media (max-width: 1024px) {
+  .hero-banner__actions {
+    min-width: 198px;
+  }
+
+  .hero-banner__title {
+    font-size: clamp(1.36rem, 3.3vw, 1.64rem);
+  }
+}
+
+@media (max-width: 768px) {
+  .hero-banner,
+  .hero-banner--mobile {
+    padding: 10px 10px 8px;
+  }
+
+  .hero-banner__top {
+    gap: 10px;
+  }
+
+  .hero-banner__actions {
+    width: 100%;
+    min-width: 0;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .hero-banner__support,
+  .hero-banner__facebook {
+    flex: 1 1 calc(50% - 4px);
+  }
+
+  .hero-banner__facebook {
+    width: auto;
+    min-width: 0;
+  }
+
+  .hero-banner__auth,
+  .hero-banner__status {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .hero-banner__title {
+    margin-top: 7px;
+    margin-bottom: 5px;
+    font-size: clamp(1.35rem, 4.8vw, 1.56rem);
+  }
+}
+
 /* Keep native dropdown text readable even when the OS/browser is in dark mode. */
 select,
 option,

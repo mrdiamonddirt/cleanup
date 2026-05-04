@@ -4068,103 +4068,37 @@ function HeroBanner({
     const githubLogin = getGitHubLoginFromUser(currentUser);
     const email = currentUser?.email || "";
     const signedInLabel = githubLogin ? `@${githubLogin}` : email || "Signed in";
+    const statusClass = !authReady
+        ? "hero-banner__status hero-banner__status--loading"
+        : canManageItems
+          ? "hero-banner__status hero-banner__status--edit"
+          : "hero-banner__status hero-banner__status--view";
 
     return (
-        <div
-            style={{
-                marginBottom: "4px",
-                padding: isMobile ? "10px 10px 8px" : "12px 14px 10px",
-                borderRadius: UI_TOKENS.radius.lg,
-                border: "1px solid #dbeafe",
-                background: "linear-gradient(135deg, #f8fbff 0%, #eef6ff 52%, #f8fafc 100%)",
-                boxShadow: UI_TOKENS.shadow.soft,
-            }}
-        >
-            <div
-                style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    justifyContent: "space-between",
-                    gap: isMobile ? "10px" : "12px",
-                    flexWrap: "wrap",
-                    marginBottom: "2px",
-                }}
-            >
-                <div
-                    style={{
-                        flex: "1 1 420px",
-                        minWidth: 0,
-                    }}
-                >
-                    <div
-                        style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "6px",
-                            padding: "4px 10px",
-                            borderRadius: "999px",
-                            background: "rgba(255,255,255,0.75)",
-                            border: "1px solid #bfdbfe",
-                            fontSize: "0.72rem",
-                            fontWeight: 700,
-                            letterSpacing: "0.06em",
-                            textTransform: "uppercase",
-                            color: "#1d4ed8",
-                        }}
-                    >
+        <div className={`hero-banner${isMobile ? " hero-banner--mobile" : ""}`}>
+            <div className="hero-banner__top">
+                <div className="hero-banner__content">
+                    <div className="hero-banner__badge">
                         <span>River Lune</span>
-                        <span style={{ color: "#93c5fd" }}>•</span>
+                        <span className="hero-banner__badge-dot">•</span>
                         <span>Cleanup Tracker</span>
                     </div>
 
-                    <h1
-                        style={{
-                            fontSize: isMobile ? "1.5rem" : "1.82rem",
-                            lineHeight: 1.05,
-                            margin: "8px 0 6px",
-                            color: "#0f172a",
-                            letterSpacing: "-0.03em",
-                        }}
-                    >
-                        River Lune Cleanup
-                    </h1>
-                    <p style={{ fontSize: "0.9rem", color: "#475569", margin: 0, lineHeight: 1.4 }}>
+                    <h1 className="hero-banner__title">River Lune Cleanup</h1>
+                    <p className="hero-banner__subtitle">
                         Tap the map to log debris and open markers for counts, photos, and recovery details.
                     </p>
                 </div>
 
-                <div
-                    style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: isMobile ? "stretch" : "flex-end",
-                        gap: "6px",
-                        flex: isMobile ? "1 1 100%" : "0 0 auto",
-                    }}
-                >
+                <div className="hero-banner__actions">
                     <a
                         href="https://buymeacoffee.com/rivercleanv"
                         target="_blank"
                         rel="noreferrer"
-                        style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            gap: "6px",
-                            border: "1px solid #bfdbfe",
-                            background: "linear-gradient(135deg, #ffffff, #eef6ff)",
-                            color: "#1d4ed8",
-                            borderRadius: "999px",
-                            padding: isMobile ? "7px 11px" : "6px 11px",
-                            fontSize: "0.78rem",
-                            fontWeight: 700,
-                            textDecoration: "none",
-                            boxShadow: "0 6px 16px rgba(29,78,216,0.12)",
-                            whiteSpace: "nowrap",
-                        }}
-                        aria-label="Support cleanup costs on Ko-fi"
+                        className="hero-banner__action hero-banner__support"
+                        aria-label="Support cleanup costs"
                     >
-                        <span aria-hidden="true">❤</span>
+                        <span aria-hidden="true" className="hero-banner__support-heart">❤</span>
                         <span>Support The Cleanup</span>
                     </a>
 
@@ -4172,61 +4106,29 @@ function HeroBanner({
                         href="https://www.facebook.com/profile.php?id=61577489848878"
                         target="_blank"
                         rel="noreferrer"
-                        style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            border: "1px solid #1877f2",
-                            background: "#1877f2",
-                            color: "#fff",
-                            borderRadius: "999px",
-                            padding: isMobile ? "7px 11px" : "6px 11px",
-                            boxShadow: "0 6px 16px rgba(24,119,242,0.25)",
-                            textDecoration: "none",
-                            whiteSpace: "nowrap",
-                        }}
+                        className="hero-banner__action hero-banner__facebook"
                         aria-label="Facebook page"
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                             <path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.97h-1.514c-1.491 0-1.956.93-1.956 1.886v2.268h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/>
                         </svg>
                     </a>
 
                     {currentUser ? (
                         <button
+                            type="button"
                             onClick={onSignOut}
                             disabled={!authReady || isAuthActionLoading}
-                            style={{
-                                border: "1px solid #cbd5e1",
-                                background: "#fff",
-                                color: "#0f172a",
-                                borderRadius: "999px",
-                                padding: isMobile ? "8px 12px" : "7px 12px",
-                                fontSize: "0.78rem",
-                                fontWeight: 700,
-                                cursor: !authReady || isAuthActionLoading ? "not-allowed" : "pointer",
-                                opacity: !authReady || isAuthActionLoading ? 0.65 : 1,
-                                minWidth: isMobile ? "100%" : "182px",
-                            }}
+                            className="hero-banner__action hero-banner__auth"
                         >
                             Sign Out
                         </button>
                     ) : (
                         <button
+                            type="button"
                             onClick={onSignIn}
                             disabled={!authReady || isAuthActionLoading}
-                            style={{
-                                border: "1px solid #0f172a",
-                                background: "#111827",
-                                color: "#fff",
-                                borderRadius: "999px",
-                                padding: isMobile ? "8px 12px" : "7px 12px",
-                                fontSize: "0.78rem",
-                                fontWeight: 700,
-                                cursor: !authReady || isAuthActionLoading ? "not-allowed" : "pointer",
-                                opacity: !authReady || isAuthActionLoading ? 0.65 : 1,
-                                minWidth: isMobile ? "100%" : "182px",
-                            }}
+                            className="hero-banner__action hero-banner__auth"
                         >
                             Sign In With GitHub
                         </button>
@@ -4241,21 +4143,7 @@ function HeroBanner({
                                 ? `Signed in as ${signedInLabel} with view-only access`
                                 : "Signed out in view-only mode"
                         }
-                        style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            gap: "6px",
-                            borderRadius: "999px",
-                            border: `1px solid ${canManageItems ? "#bbf7d0" : "#fde68a"}`,
-                            background: canManageItems ? "#f0fdf4" : "#fffbeb",
-                            color: canManageItems ? "#166534" : "#92400e",
-                            fontSize: "0.74rem",
-                            fontWeight: 700,
-                            padding: "4px 10px",
-                            lineHeight: 1.2,
-                            whiteSpace: "nowrap",
-                        }}
+                        className={statusClass}
                     >
                         <span aria-hidden="true">{canManageItems ? "✓" : "🔒"}</span>
                         <span>
@@ -4270,7 +4158,7 @@ function HeroBanner({
             </div>
 
             {authError ? (
-                <div style={{ marginTop: "8px", color: "#b91c1c", fontSize: "0.8rem" }}>
+                <div className="hero-banner__error">
                     {authError}
                 </div>
             ) : null}
