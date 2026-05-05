@@ -12385,6 +12385,9 @@ function App() {
     const selectedPoiIdRef = useRef("");
     const selectedContributorIdRef = useRef("");
     const selectedItemIdRef = useRef("");
+    const poiLikeInFlightRef = useRef(false);
+    const contributorLikeInFlightRef = useRef(false);
+    const itemLikeInFlightRef = useRef(false);
     const leaderboardFetchRequestIdRef = useRef(0);
     pendingItemW3WWordsRef.current = pendingItemW3WWords;
     const isHistoricOverlayEditorModeEnabled =
@@ -17168,6 +17171,9 @@ function App() {
 
     async function handlePoiLike(poi) {
         const targetPoiId = String(poi?.id || "").trim();
+        if (poiLikeInFlightRef.current) {
+            return;
+        }
         if (!currentUser?.id || !hasSupabaseConfig || !targetPoiId) {
             setPoiInteractionError("Sign in to like places.");
             return;
@@ -17178,41 +17184,44 @@ function App() {
             return;
         }
 
+        poiLikeInFlightRef.current = true;
         setIsPoiInteractionSaving(true);
         setPoiInteractionError("");
         setPoiInteractionStatus("");
 
-        const { interaction, summary, error } = await toggleLikeForTarget("poi", targetPoiId, {
-            slug: poi.slug || "",
-        });
+        try {
+            const { interaction, summary, error } = await toggleLikeForTarget("poi", targetPoiId, {
+                slug: poi.slug || "",
+            });
 
-        if (error) {
-            setPoiInteractionError("Could not save your like.");
+            if (error) {
+                setPoiInteractionError("Could not save your like.");
+                return;
+            }
+
+            if (selectedPoiIdRef.current === targetPoiId) {
+                applyPoiInteractionSummary(summary);
+            }
+
+            const hasLiked = typeof interaction?.liked === "boolean"
+                ? interaction.liked
+                : Boolean(summary?.viewerHasLiked);
+            const pointsDelta = Number.isFinite(Number(interaction?.points_delta))
+                ? Number(interaction.points_delta)
+                : 0;
+
+            if (hasLiked) {
+                setPoiInteractionStatus(`Liked. +${Math.max(pointsDelta, 0)} points.`);
+            } else {
+                const pointsRemoved = Math.abs(pointsDelta);
+                setPoiInteractionStatus(pointsRemoved ? `Like removed. -${pointsRemoved} points.` : "Like removed.");
+            }
+
+            void fetchLeaderboardData();
+        } finally {
+            poiLikeInFlightRef.current = false;
             setIsPoiInteractionSaving(false);
-            return;
         }
-
-        if (selectedPoiIdRef.current === targetPoiId) {
-            applyPoiInteractionSummary(summary);
-        }
-
-        const hasLiked = typeof interaction?.liked === "boolean"
-            ? interaction.liked
-            : Boolean(summary?.viewerHasLiked);
-        const pointsDelta = Number.isFinite(Number(interaction?.points_delta))
-            ? Number(interaction.points_delta)
-            : 0;
-
-        if (hasLiked) {
-            setPoiInteractionStatus(`Liked. +${Math.max(pointsDelta, 0)} points.`);
-        } else {
-            const pointsRemoved = Math.abs(pointsDelta);
-            setPoiInteractionStatus(pointsRemoved ? `Like removed. -${pointsRemoved} points.` : "Like removed.");
-        }
-
-        void fetchLeaderboardData();
-
-        setIsPoiInteractionSaving(false);
     }
 
     async function handlePoiShare(poi) {
@@ -17270,6 +17279,9 @@ function App() {
 
     async function handleContributorLike(contributor) {
         const targetContributorId = String(contributor?.id || "").trim();
+        if (contributorLikeInFlightRef.current) {
+            return;
+        }
         if (!currentUser?.id || !hasSupabaseConfig || !targetContributorId) {
             setContributorInteractionError("Sign in to like contributors.");
             return;
@@ -17280,41 +17292,44 @@ function App() {
             return;
         }
 
+        contributorLikeInFlightRef.current = true;
         setIsContributorInteractionSaving(true);
         setContributorInteractionError("");
         setContributorInteractionStatus("");
 
-        const { interaction, summary, error } = await toggleLikeForTarget("contributor", targetContributorId, {
-            name: contributor.name || "",
-        });
+        try {
+            const { interaction, summary, error } = await toggleLikeForTarget("contributor", targetContributorId, {
+                name: contributor.name || "",
+            });
 
-        if (error) {
-            setContributorInteractionError("Could not save your like.");
+            if (error) {
+                setContributorInteractionError("Could not save your like.");
+                return;
+            }
+
+            if (selectedContributorIdRef.current === targetContributorId) {
+                applyContributorInteractionSummary(summary);
+            }
+
+            const hasLiked = typeof interaction?.liked === "boolean"
+                ? interaction.liked
+                : Boolean(summary?.viewerHasLiked);
+            const pointsDelta = Number.isFinite(Number(interaction?.points_delta))
+                ? Number(interaction.points_delta)
+                : 0;
+
+            if (hasLiked) {
+                setContributorInteractionStatus(`Liked. +${Math.max(pointsDelta, 0)} points.`);
+            } else {
+                const pointsRemoved = Math.abs(pointsDelta);
+                setContributorInteractionStatus(pointsRemoved ? `Like removed. -${pointsRemoved} points.` : "Like removed.");
+            }
+
+            void fetchLeaderboardData();
+        } finally {
+            contributorLikeInFlightRef.current = false;
             setIsContributorInteractionSaving(false);
-            return;
         }
-
-        if (selectedContributorIdRef.current === targetContributorId) {
-            applyContributorInteractionSummary(summary);
-        }
-
-        const hasLiked = typeof interaction?.liked === "boolean"
-            ? interaction.liked
-            : Boolean(summary?.viewerHasLiked);
-        const pointsDelta = Number.isFinite(Number(interaction?.points_delta))
-            ? Number(interaction.points_delta)
-            : 0;
-
-        if (hasLiked) {
-            setContributorInteractionStatus(`Liked. +${Math.max(pointsDelta, 0)} points.`);
-        } else {
-            const pointsRemoved = Math.abs(pointsDelta);
-            setContributorInteractionStatus(pointsRemoved ? `Like removed. -${pointsRemoved} points.` : "Like removed.");
-        }
-
-        void fetchLeaderboardData();
-
-        setIsContributorInteractionSaving(false);
     }
 
     async function handleContributorShare(contributor) {
@@ -17372,6 +17387,9 @@ function App() {
 
     async function handleItemLike(itemId) {
         const targetItemId = String(itemId || "").trim();
+        if (itemLikeInFlightRef.current) {
+            return;
+        }
         if (!currentUser?.id || !hasSupabaseConfig || !targetItemId) {
             setItemInteractionError("Sign in to like items.");
             return;
@@ -17382,39 +17400,42 @@ function App() {
             return;
         }
 
+        itemLikeInFlightRef.current = true;
         setIsItemInteractionSaving(true);
         setItemInteractionError("");
         setItemInteractionStatus("");
 
-        const { interaction, summary, error } = await toggleLikeForTarget("item", targetItemId, {});
+        try {
+            const { interaction, summary, error } = await toggleLikeForTarget("item", targetItemId, {});
 
-        if (error) {
-            setItemInteractionError("Could not save your like.");
+            if (error) {
+                setItemInteractionError("Could not save your like.");
+                return;
+            }
+
+            if (selectedItemIdRef.current === targetItemId) {
+                applyItemInteractionSummary(summary);
+            }
+
+            const hasLiked = typeof interaction?.liked === "boolean"
+                ? interaction.liked
+                : Boolean(summary?.viewerHasLiked);
+            const pointsDelta = Number.isFinite(Number(interaction?.points_delta))
+                ? Number(interaction.points_delta)
+                : 0;
+
+            if (hasLiked) {
+                setItemInteractionStatus(`Liked. +${Math.max(pointsDelta, 0)} points.`);
+            } else {
+                const pointsRemoved = Math.abs(pointsDelta);
+                setItemInteractionStatus(pointsRemoved ? `Like removed. -${pointsRemoved} points.` : "Like removed.");
+            }
+
+            void fetchLeaderboardData();
+        } finally {
+            itemLikeInFlightRef.current = false;
             setIsItemInteractionSaving(false);
-            return;
         }
-
-        if (selectedItemIdRef.current === targetItemId) {
-            applyItemInteractionSummary(summary);
-        }
-
-        const hasLiked = typeof interaction?.liked === "boolean"
-            ? interaction.liked
-            : Boolean(summary?.viewerHasLiked);
-        const pointsDelta = Number.isFinite(Number(interaction?.points_delta))
-            ? Number(interaction.points_delta)
-            : 0;
-
-        if (hasLiked) {
-            setItemInteractionStatus(`Liked. +${Math.max(pointsDelta, 0)} points.`);
-        } else {
-            const pointsRemoved = Math.abs(pointsDelta);
-            setItemInteractionStatus(pointsRemoved ? `Like removed. -${pointsRemoved} points.` : "Like removed.");
-        }
-
-        void fetchLeaderboardData();
-
-        setIsItemInteractionSaving(false);
     }
 
     async function recordItemShareInteraction(itemId) {

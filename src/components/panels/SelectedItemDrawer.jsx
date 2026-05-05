@@ -263,6 +263,7 @@ export default function SelectedItemDrawer({
                     <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
                         {typeof onLikeItem === "function" ? (
                             <button
+                                type="button"
                                 onClick={() => onLikeItem(selectedItem.id)}
                                 disabled={Boolean(isSubmittingItemInteraction)}
                                 style={{
