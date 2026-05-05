@@ -5775,6 +5775,12 @@ function LeaderboardModal({
     const isInteractiveScope = scope === "items" || scope === "pois" || scope === "contributors";
     const isCompactMobileUsers = isMobile && scope === "users";
     const mobileNameMaxWidth = isCompactMobileUsers ? "190px" : (isMobile ? "170px" : "280px");
+    const fmtNum = (n) => {
+        const v = Number.isFinite(Number(n)) ? Number(n) : 0;
+        if (Math.abs(v) >= 1_000_000) return { short: `${+(v / 1_000_000).toPrecision(3)}m`, full: v.toLocaleString() };
+        if (Math.abs(v) >= 1_000) return { short: `${+(v / 1_000).toPrecision(3)}k`, full: v.toLocaleString() };
+        return { short: String(v), full: null };
+    };
     const getRankStyle = (rank) => {
         if (rank === 1) {
             return {
@@ -5806,12 +5812,22 @@ function LeaderboardModal({
             };
         }
 
+        if (rank >= 4 && rank <= 10) {
+            return {
+                rowBackground: "linear-gradient(90deg, #f0fdf9 0%, #f8fffd 100%)",
+                borderColor: "#5eead4",
+                badgeBackground: "#0d9488",
+                badgeColor: "#ffffff",
+                totalColor: "#0f766e",
+            };
+        }
+
         return {
             rowBackground: "#ffffff",
             borderColor: "#e2e8f0",
             badgeBackground: "#e2e8f0",
             badgeColor: "#334155",
-            totalColor: "#0f766e",
+            totalColor: "#64748b",
         };
     };
     const activateRow = (row) => {
@@ -5922,12 +5938,12 @@ function LeaderboardModal({
                                         aria-expanded={isUserDetailOpen ? "true" : "false"}
                                         aria-label={`${isUserDetailOpen ? "Hide" : "Show"} details for ${String(row?.label || "User")}`}
                                         style={{
-                                            borderLeft: rank <= 3 ? `3px solid ${rankStyle.borderColor}` : "3px solid transparent",
+                                            borderLeft: rank <= 10 ? `3px solid ${rankStyle.borderColor}` : "3px solid transparent",
                                             background: rankStyle.rowBackground,
                                             borderBottom: isUserDetailOpen || isLastRow ? "none" : "1px solid #eff6ff",
                                         }}
                                     >
-                                        <span style={{ display: "inline-grid", placeItems: "center", minWidth: "30px", height: "30px", padding: "0 6px", borderRadius: "999px", fontSize: "0.78rem", fontWeight: 800, color: rankStyle.badgeColor, background: rankStyle.badgeBackground, boxShadow: rank <= 3 ? "0 6px 12px rgba(15,23,42,0.14)" : "none", flexShrink: 0 }}>
+                                        <span style={{ display: "inline-grid", placeItems: "center", minWidth: "30px", height: "30px", padding: "0 6px", borderRadius: "999px", fontSize: "0.78rem", fontWeight: 800, color: rankStyle.badgeColor, background: rankStyle.badgeBackground, boxShadow: rank <= 10 ? "0 6px 12px rgba(15,23,42,0.14)" : "none", flexShrink: 0 }}>
                                             #{rank}
                                         </span>
                                         <ProfileAvatar imageUrl={String(row?.avatarUrl || "")} label={String(row?.label || "User")} size={30} />
@@ -5964,7 +5980,7 @@ function LeaderboardModal({
                                             style={{
                                                 background: rankStyle.rowBackground,
                                                 borderBottom: isLastRow ? "none" : "1px solid #eff6ff",
-                                                borderLeft: rank <= 3 ? `3px solid ${rankStyle.borderColor}` : "3px solid transparent",
+                                                borderLeft: rank <= 10 ? `3px solid ${rankStyle.borderColor}` : "3px solid transparent",
                                             }}
                                         >
                                             <div className="leaderboard-compact-detail-inner">
@@ -6021,12 +6037,12 @@ function LeaderboardModal({
                                     onClick={() => activateRow(row)}
                                     aria-label={`Open ${scope.slice(0, -1)} ${String(row?.label || "-")}`}
                                     style={{
-                                        borderLeft: rank <= 3 ? `3px solid ${rankStyle.borderColor}` : "3px solid transparent",
+                                        borderLeft: rank <= 10 ? `3px solid ${rankStyle.borderColor}` : "3px solid transparent",
                                         background: rankStyle.rowBackground,
                                         borderBottom: isLastRow ? "none" : "1px solid #eff6ff",
                                     }}
                                 >
-                                    <span style={{ display: "inline-grid", placeItems: "center", minWidth: "30px", height: "30px", padding: "0 6px", borderRadius: "999px", fontSize: "0.78rem", fontWeight: 800, color: rankStyle.badgeColor, background: rankStyle.badgeBackground, boxShadow: rank <= 3 ? "0 6px 12px rgba(15,23,42,0.14)" : "none", flexShrink: 0 }}>
+                                    <span style={{ display: "inline-grid", placeItems: "center", minWidth: "30px", height: "30px", padding: "0 6px", borderRadius: "999px", fontSize: "0.78rem", fontWeight: 800, color: rankStyle.badgeColor, background: rankStyle.badgeBackground, boxShadow: rank <= 10 ? "0 6px 12px rgba(15,23,42,0.14)" : "none", flexShrink: 0 }}>
                                         #{rank}
                                     </span>
                                     <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
@@ -6075,6 +6091,22 @@ function LeaderboardModal({
                             );
                         })()}
                         <div className="leaderboard-compact-list">
+                            {scope === "users" && (
+                                <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "7px 14px", borderLeft: "3px solid transparent", background: "#f1f5f9", borderBottom: "1px solid #dbeafe" }}>
+                                    <span style={{ width: "34px", flexShrink: 0 }} />
+                                    <span style={{ width: "36px", flexShrink: 0 }} />
+                                    <span style={{ flex: "1 1 0", minWidth: 0, fontSize: "0.59rem", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em" }}>Name</span>
+                                    <div className="leaderboard-desktop-stats">
+                                        <div className="leaderboard-desktop-stat-item" style={{ background: "transparent" }}><span className="leaderboard-desktop-stat-label">Likes</span></div>
+                                        <div className="leaderboard-desktop-stat-item" style={{ background: "transparent" }}><span className="leaderboard-desktop-stat-label">Shares</span></div>
+                                        <div className="leaderboard-desktop-stat-item" style={{ background: "transparent" }}><span className="leaderboard-desktop-stat-label">Comments</span></div>
+                                        <div className="leaderboard-desktop-stat-item" style={{ background: "transparent" }}><span className="leaderboard-desktop-stat-label" style={{ color: "#d97706" }}>Support</span></div>
+                                        <div className="leaderboard-desktop-stat-item" style={{ background: "transparent" }}><span className="leaderboard-desktop-stat-label" style={{ color: "#0f766e" }}>Community</span></div>
+                                        <div className="leaderboard-desktop-stat-item" style={{ background: "transparent" }}><span className="leaderboard-desktop-stat-label" style={{ color: "#2563eb" }}>FB Bonus</span></div>
+                                    </div>
+                                    <div style={{ flexShrink: 0, paddingLeft: "16px", fontSize: "0.59rem", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em", minWidth: "46px", textAlign: "right" }}>Total</div>
+                                </div>
+                            )}
                             {rows.map((row, index) => {
                                 const rank = Number.isFinite(Number(row?.rank)) ? Number(row.rank) : index + 1;
                                 const rankStyle = getRankStyle(rank);
@@ -6089,14 +6121,14 @@ function LeaderboardModal({
                                             key={rowId}
                                             className="leaderboard-compact-row leaderboard-desktop-user-row"
                                             style={{
-                                                borderLeft: rank <= 3 ? `3px solid ${rankStyle.borderColor}` : "3px solid transparent",
+                                                borderLeft: rank <= 10 ? `3px solid ${rankStyle.borderColor}` : "3px solid transparent",
                                                 background: rankStyle.rowBackground,
                                                 borderBottom: isLastRow ? "none" : "1px solid #eff6ff",
                                                 cursor: "default",
                                                 padding: "12px 14px",
                                             }}
                                         >
-                                            <span style={{ display: "inline-grid", placeItems: "center", minWidth: "34px", height: "34px", padding: "0 6px", borderRadius: "999px", fontSize: "0.8rem", fontWeight: 800, color: rankStyle.badgeColor, background: rankStyle.badgeBackground, boxShadow: rank <= 3 ? "0 6px 12px rgba(15,23,42,0.14)" : "none", flexShrink: 0 }}>
+                                            <span style={{ display: "inline-grid", placeItems: "center", minWidth: "34px", height: "34px", padding: "0 6px", borderRadius: "999px", fontSize: "0.8rem", fontWeight: 800, color: rankStyle.badgeColor, background: rankStyle.badgeBackground, boxShadow: rank <= 10 ? "0 6px 12px rgba(15,23,42,0.14)" : "none", flexShrink: 0 }}>
                                                 #{rank}
                                             </span>
                                             <ProfileAvatar imageUrl={String(row?.avatarUrl || "")} label={String(row?.label || "User")} size={36} />
@@ -6124,35 +6156,18 @@ function LeaderboardModal({
                                                 </div>
                                             </div>
                                             <div className="leaderboard-desktop-stats">
-                                                <div className="leaderboard-desktop-stat-item">
-                                                    <span className="leaderboard-desktop-stat-label">Likes</span>
-                                                    <span className="leaderboard-desktop-stat-value">{Number.isFinite(Number(row?.likes)) ? Number(row.likes) : 0}</span>
-                                                </div>
-                                                <div className="leaderboard-desktop-stat-item">
-                                                    <span className="leaderboard-desktop-stat-label">Shares</span>
-                                                    <span className="leaderboard-desktop-stat-value">{Number.isFinite(Number(row?.shares)) ? Number(row.shares) : 0}</span>
-                                                </div>
-                                                <div className="leaderboard-desktop-stat-item">
-                                                    <span className="leaderboard-desktop-stat-label">Comments</span>
-                                                    <span className="leaderboard-desktop-stat-value">{Number.isFinite(Number(row?.comments)) ? Number(row.comments) : 0}</span>
-                                                </div>
-                                                <div className="leaderboard-desktop-stat-item">
-                                                    <span className="leaderboard-desktop-stat-label" style={{ color: "#d97706" }}>Support</span>
-                                                    <span className="leaderboard-desktop-stat-value" style={{ color: "#f59e0b" }}>{Number.isFinite(Number(row?.support ?? row?.bmc)) ? Number(row.support ?? row.bmc) : 0}</span>
-                                                </div>
-                                                <div className="leaderboard-desktop-stat-item">
-                                                    <span className="leaderboard-desktop-stat-label" style={{ color: "#0f766e" }}>Community</span>
-                                                    <span className="leaderboard-desktop-stat-value" style={{ color: "#0f766e" }}>{Number.isFinite(Number(row?.communityPoints)) ? Number(row.communityPoints) : 0}</span>
-                                                </div>
-                                                {Boolean(row?.isFacebookGroupMember) && (
-                                                    <div className="leaderboard-desktop-stat-item">
-                                                        <span className="leaderboard-desktop-stat-label" style={{ color: "#2563eb" }}>FB Bonus</span>
-                                                        <span className="leaderboard-desktop-stat-value" style={{ color: "#1d4ed8" }}>{Number.isFinite(Number(row?.facebookGroupPoints)) ? Number(row.facebookGroupPoints) : 0}</span>
-                                                    </div>
-                                                )}
+                                                {[row?.likes, row?.shares, row?.comments, row?.support ?? row?.bmc, row?.communityPoints, row?.facebookGroupPoints].map((val, si) => {
+                                                    const colors = [null, null, null, "#f59e0b", "#0f766e", "#1d4ed8"];
+                                                    const { short, full } = fmtNum(val);
+                                                    return (
+                                                        <div key={si} className="leaderboard-desktop-stat-item">
+                                                            <span className="leaderboard-desktop-stat-value" style={colors[si] ? { color: colors[si] } : undefined} title={full ?? undefined}>{short}</span>
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
                                             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", flexShrink: 0, gap: "2px", paddingLeft: "16px" }}>
-                                                <span style={{ fontWeight: 800, color: rankStyle.totalColor, fontSize: "1.15rem", lineHeight: 1 }}>{row.total}</span>
+                                                {(() => { const { short, full } = fmtNum(row.total); return <span style={{ fontWeight: 800, color: rankStyle.totalColor, fontSize: "1.15rem", lineHeight: 1 }} title={full ?? undefined}>{short}</span>; })()}
                                                 <span style={{ fontSize: "0.62rem", color: "#94a3b8", fontWeight: 700, letterSpacing: "0.03em", textTransform: "uppercase" }}>pts</span>
                                             </div>
                                         </div>
@@ -6167,13 +6182,13 @@ function LeaderboardModal({
                                         onKeyDown={(event) => handleRowKeyDown(event, row)}
                                         aria-label={`Open ${scope.slice(0, -1)} ${String(row?.label || "-")}`}
                                         style={{
-                                            borderLeft: rank <= 3 ? `3px solid ${rankStyle.borderColor}` : "3px solid transparent",
+                                            borderLeft: rank <= 10 ? `3px solid ${rankStyle.borderColor}` : "3px solid transparent",
                                             background: rankStyle.rowBackground,
                                             borderBottom: isLastRow ? "none" : "1px solid #eff6ff",
                                             padding: "12px 14px",
                                         }}
                                     >
-                                        <span style={{ display: "inline-grid", placeItems: "center", minWidth: "34px", height: "34px", padding: "0 6px", borderRadius: "999px", fontSize: "0.8rem", fontWeight: 800, color: rankStyle.badgeColor, background: rankStyle.badgeBackground, boxShadow: rank <= 3 ? "0 6px 12px rgba(15,23,42,0.14)" : "none", flexShrink: 0 }}>
+                                        <span style={{ display: "inline-grid", placeItems: "center", minWidth: "34px", height: "34px", padding: "0 6px", borderRadius: "999px", fontSize: "0.8rem", fontWeight: 800, color: rankStyle.badgeColor, background: rankStyle.badgeBackground, boxShadow: rank <= 10 ? "0 6px 12px rgba(15,23,42,0.14)" : "none", flexShrink: 0 }}>
                                             #{rank}
                                         </span>
                                         <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
@@ -16532,7 +16547,15 @@ function App() {
             if (right.shares !== left.shares) return right.shares - left.shares;
             return String(left.label).localeCompare(String(right.label), undefined, { sensitivity: "base" });
         });
-        const withRanks = (rows) => rows.map((row, index) => ({ ...row, rank: index + 1 }));
+        const withRanks = (rows) => {
+            let rank = 1;
+            return rows.map((row, index) => {
+                if (index > 0 && rows[index - 1].total !== row.total) {
+                    rank = index + 1;
+                }
+                return { ...row, rank };
+            });
+        };
 
         const contributorsRows = withRanks(sortRows(
             contributors.map((contributor) => {
