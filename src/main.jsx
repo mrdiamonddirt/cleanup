@@ -16,6 +16,7 @@ import "leaflet/dist/leaflet.css";
 import "./style.css";
 import { hasSupabaseConfig, supabase } from "./supabaseClient";
 import {
+    awardCommunityPointsForAdmin,
     approveCommentForAdmin,
     banProfileForAdmin,
     cancelAccountDeletion,
@@ -1723,6 +1724,48 @@ const readSelectedPoiSlugFromQuery = () => {
         const normalized = normalizePoiSlug(poiSlugFromPath);
         return normalized || null;
     }
+};
+
+const LEADERBOARD_SCOPE_OPTIONS = ["users", "items", "pois", "contributors"];
+
+const normalizeLeaderboardScope = (value) => {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (!normalized) return "contributors";
+    return LEADERBOARD_SCOPE_OPTIONS.includes(normalized) ? normalized : "contributors";
+};
+
+const readLeaderboardIntentFromLocation = () => {
+    if (typeof window === "undefined") {
+        return {
+            isOpen: false,
+            scope: "contributors",
+        };
+    }
+
+    const searchParams = new URLSearchParams(window.location.search);
+    const leaderboardFromQuery = searchParams.get("leaderboard") === "1";
+    const scopeFromQuery = normalizeLeaderboardScope(
+        searchParams.get("leaderboardScope") || searchParams.get("scope"),
+    );
+
+    const pathSegments = window.location.pathname
+        .split("/")
+        .map((segment) => segment.trim())
+        .filter(Boolean);
+
+    let leaderboardScopeFromPath = "";
+    let hasLeaderboardPath = false;
+
+    for (let i = 0; i < pathSegments.length; i += 1) {
+        if (pathSegments[i].toLowerCase() !== "leaderboard") continue;
+        hasLeaderboardPath = true;
+        leaderboardScopeFromPath = pathSegments[i + 1] || "";
+    }
+
+    return {
+        isOpen: leaderboardFromQuery || hasLeaderboardPath,
+        scope: normalizeLeaderboardScope(leaderboardScopeFromPath || scopeFromQuery),
+    };
 };
 
 const buildGpsLookupKey = (latitude, longitude) => {
@@ -5785,7 +5828,7 @@ function LeaderboardModal({
     return (
         <ModalShell isMobile={isMobile} title="Leaderboards" onClose={onClose} width="min(760px, calc(100vw - 32px))">
             <p style={{ margin: 0, fontSize: isMobile ? "0.88rem" : "0.82rem", color: "#334155", lineHeight: 1.45 }}>
-                {scope === "users" ? "Ranked by total points (likes + shares + approved comments + BMC support points + Facebook group bonus, weighted by point values)." : "Ranked by total points (likes + shares + approved comments, weighted by point values)."}
+                {scope === "users" ? "Ranked by total points (likes + shares + approved comments + BMC support points + community points + Facebook group bonus, weighted by point values)." : "Ranked by total points (likes + shares + approved comments, weighted by point values)."}
             </p>
 
             <div style={{ marginTop: "12px", display: "flex", flexWrap: "wrap", gap: "8px" }}>
@@ -5869,6 +5912,7 @@ function LeaderboardModal({
                             const isUserDetailOpen = activeUserDetailId === rowId;
                             const isLastRow = index === rows.length - 1;
                             const hasBmacSupportPoints = Number.isFinite(Number(row?.bmc)) && Number(row.bmc) > 0;
+                            const hasCommunityPoints = Number.isFinite(Number(row?.communityPoints)) && Number(row.communityPoints) !== 0;
                             return (
                                 <React.Fragment key={rowId}>
                                     <button
@@ -5891,10 +5935,13 @@ function LeaderboardModal({
                                             <div style={{ fontWeight: 800, color: "#0f172a", fontSize: "0.88rem", lineHeight: 1.3, wordBreak: "break-word" }}>
                                                 {String(row?.label || "User")}
                                             </div>
-                                            {(hasBmacSupportPoints || Boolean(row?.isFacebookGroupMember)) && (
+                                            {(hasBmacSupportPoints || hasCommunityPoints || Boolean(row?.isFacebookGroupMember)) && (
                                                 <div style={{ display: "flex", alignItems: "center", gap: "5px", flexWrap: "wrap", marginTop: "4px" }}>
                                                     {hasBmacSupportPoints && (
                                                         <span className="leaderboard-bmac-support-pill">BMAC</span>
+                                                    )}
+                                                    {hasCommunityPoints && (
+                                                        <span className="leaderboard-community-points-pill">Community</span>
                                                     )}
                                                     {Boolean(row?.isFacebookGroupMember) && (
                                                         <span className="leaderboard-fb-group-pill">FB Group</span>
@@ -5926,10 +5973,13 @@ function LeaderboardModal({
                                                     <div style={{ fontWeight: 800, color: "#0f172a", fontSize: "0.9rem", lineHeight: 1.3, wordBreak: "break-word" }}>
                                                         {String(row?.label || "User")}
                                                     </div>
-                                                    {(hasBmacSupportPoints || Boolean(row?.isFacebookGroupMember)) && (
+                                                    {(hasBmacSupportPoints || hasCommunityPoints || Boolean(row?.isFacebookGroupMember)) && (
                                                         <div style={{ display: "flex", alignItems: "center", gap: "5px", marginTop: "3px", flexWrap: "wrap" }}>
                                                             {hasBmacSupportPoints && (
                                                                 <span className="leaderboard-bmac-support-pill">BMAC</span>
+                                                            )}
+                                                            {hasCommunityPoints && (
+                                                                <span className="leaderboard-community-points-pill">Community</span>
                                                             )}
                                                             {Boolean(row?.isFacebookGroupMember) && (
                                                                 <span className="leaderboard-fb-group-pill">FB Group</span>
@@ -5943,6 +5993,7 @@ function LeaderboardModal({
                                                 <span>Shares</span><span>{Number.isFinite(Number(row?.shares)) ? Number(row.shares) : 0}</span>
                                                 <span>Comments</span><span>{Number.isFinite(Number(row?.comments)) ? Number(row.comments) : 0}</span>
                                                 <span>Support</span><span>{Number.isFinite(Number(row?.support ?? row?.bmc)) ? Number(row.support ?? row.bmc) : 0}</span>
+                                                <span>Community</span><span>{Number.isFinite(Number(row?.communityPoints)) ? Number(row.communityPoints) : 0}</span>
                                                 {Boolean(row?.isFacebookGroupMember) && (
                                                     <><span>FB Bonus</span><span>{Number.isFinite(Number(row?.facebookGroupPoints)) ? Number(row.facebookGroupPoints) : 0}</span></>
                                                 )}
@@ -6032,6 +6083,7 @@ function LeaderboardModal({
                                 if (scope === "users") {
                                     const providerPillStyle = getAuthProviderPillStyle(row?.authProvider);
                                     const hasBmacSupportPoints = Number.isFinite(Number(row?.bmc)) && Number(row.bmc) > 0;
+                                    const hasCommunityPoints = Number.isFinite(Number(row?.communityPoints)) && Number(row.communityPoints) !== 0;
                                     return (
                                         <div
                                             key={rowId}
@@ -6056,10 +6108,13 @@ function LeaderboardModal({
                                                     <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: "999px", padding: "2px 8px", fontSize: "0.65rem", fontWeight: 700, border: providerPillStyle.border, background: providerPillStyle.background, color: providerPillStyle.color, whiteSpace: "nowrap" }}>
                                                         {providerPillStyle.label}
                                                     </span>
-                                                    {(hasBmacSupportPoints || Boolean(row?.isFacebookGroupMember)) && (
+                                                    {(hasBmacSupportPoints || hasCommunityPoints || Boolean(row?.isFacebookGroupMember)) && (
                                                         <span style={{ display: "inline-flex", alignItems: "center", gap: "5px", whiteSpace: "nowrap" }}>
                                                             {hasBmacSupportPoints && (
                                                                 <span className="leaderboard-bmac-support-pill">BMAC</span>
+                                                            )}
+                                                            {hasCommunityPoints && (
+                                                                <span className="leaderboard-community-points-pill">Community</span>
                                                             )}
                                                             {Boolean(row?.isFacebookGroupMember) && (
                                                                 <span className="leaderboard-fb-group-pill">FB Group</span>
@@ -6084,6 +6139,10 @@ function LeaderboardModal({
                                                 <div className="leaderboard-desktop-stat-item">
                                                     <span className="leaderboard-desktop-stat-label" style={{ color: "#d97706" }}>Support</span>
                                                     <span className="leaderboard-desktop-stat-value" style={{ color: "#f59e0b" }}>{Number.isFinite(Number(row?.support ?? row?.bmc)) ? Number(row.support ?? row.bmc) : 0}</span>
+                                                </div>
+                                                <div className="leaderboard-desktop-stat-item">
+                                                    <span className="leaderboard-desktop-stat-label" style={{ color: "#0f766e" }}>Community</span>
+                                                    <span className="leaderboard-desktop-stat-value" style={{ color: "#0f766e" }}>{Number.isFinite(Number(row?.communityPoints)) ? Number(row.communityPoints) : 0}</span>
                                                 </div>
                                                 {Boolean(row?.isFacebookGroupMember) && (
                                                     <div className="leaderboard-desktop-stat-item">
@@ -6178,12 +6237,19 @@ function ProfilePanel({
     onAdminBmacAmountPenceChange,
     onAdminBmacNoteChange,
     onRecordAdminBmacContribution,
+    adminBmacAmountPenceByProfileId,
+    adminBmacNoteByProfileId,
+    onAdminCommunityPointsDeltaChange,
+    onAdminCommunityReasonChange,
+    onRecordAdminCommunityPoints,
     onAdminUnmatchedBmacProfileChange,
     onAdminUnmatchedBmacResolutionNoteChange,
     onResolveAdminUnmatchedBmacEvent,
     onLoadPointHistoryForAdminProfile,
     adminPointEventsByProfileId,
     isAdminPointHistoryLoadingByProfileId,
+    adminCommunityPointsDeltaByProfileId,
+    adminCommunityReasonByProfileId,
     adminActionError,
     adminActionStatus,
     isProfileLoading,
@@ -6474,6 +6540,7 @@ function ProfilePanel({
                                                 <input
                                                     type="number"
                                                     min={1}
+                                                    value={String(adminBmacAmountPenceByProfileId?.[profile.id] || "")}
                                                     placeholder="e.g. 500"
                                                     onChange={(event) => onAdminBmacAmountPenceChange(profile.id, event.target.value)}
                                                     style={{
@@ -6491,8 +6558,48 @@ function ProfilePanel({
                                                 <span style={{ fontSize: "0.72rem", color: "#57534e", fontWeight: 700 }}>BMAC note</span>
                                                 <input
                                                     type="text"
+                                                    value={String(adminBmacNoteByProfileId?.[profile.id] || "")}
                                                     placeholder="Optional reference"
                                                     onChange={(event) => onAdminBmacNoteChange(profile.id, event.target.value)}
+                                                    style={{
+                                                        width: "100%",
+                                                        minHeight: "34px",
+                                                        borderRadius: "10px",
+                                                        border: "1px solid #d6d3d1",
+                                                        padding: "0 10px",
+                                                        fontSize: "0.82rem",
+                                                        boxSizing: "border-box",
+                                                    }}
+                                                />
+                                            </label>
+                                        </div>
+
+                                        <div style={{ display: "grid", gap: "8px", gridTemplateColumns: isMobile ? "1fr" : "minmax(0,1fr) minmax(0,1fr)" }}>
+                                            <label style={{ display: "grid", gap: "4px" }}>
+                                                <span style={{ fontSize: "0.72rem", color: "#57534e", fontWeight: 700 }}>Community points (+/-)</span>
+                                                <input
+                                                    type="number"
+                                                    value={String(adminCommunityPointsDeltaByProfileId?.[profile.id] || "")}
+                                                    placeholder="e.g. 50 or -20"
+                                                    onChange={(event) => onAdminCommunityPointsDeltaChange(profile.id, event.target.value)}
+                                                    style={{
+                                                        width: "100%",
+                                                        minHeight: "34px",
+                                                        borderRadius: "10px",
+                                                        border: "1px solid #d6d3d1",
+                                                        padding: "0 10px",
+                                                        fontSize: "0.82rem",
+                                                        boxSizing: "border-box",
+                                                    }}
+                                                />
+                                            </label>
+                                            <label style={{ display: "grid", gap: "4px" }}>
+                                                <span style={{ fontSize: "0.72rem", color: "#57534e", fontWeight: 700 }}>Community reason</span>
+                                                <input
+                                                    type="text"
+                                                    value={String(adminCommunityReasonByProfileId?.[profile.id] || "")}
+                                                    placeholder="Required reason"
+                                                    onChange={(event) => onAdminCommunityReasonChange(profile.id, event.target.value)}
                                                     style={{
                                                         width: "100%",
                                                         minHeight: "34px",
@@ -6523,6 +6630,23 @@ function ProfilePanel({
                                                 }}
                                             >
                                                 Award BMAC points
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => onRecordAdminCommunityPoints(profile.id)}
+                                                style={{
+                                                    minHeight: "32px",
+                                                    borderRadius: "8px",
+                                                    border: "1px solid #0f766e",
+                                                    background: "#ccfbf1",
+                                                    color: "#115e59",
+                                                    padding: "0 10px",
+                                                    fontSize: "0.76rem",
+                                                    fontWeight: 700,
+                                                    cursor: "pointer",
+                                                }}
+                                            >
+                                                Award community points
                                             </button>
                                             <button
                                                 type="button"
@@ -11930,6 +12054,8 @@ function App() {
     const [isAdminPointHistoryLoadingByProfileId, setIsAdminPointHistoryLoadingByProfileId] = useState({});
     const [adminBmacAmountPenceByProfileId, setAdminBmacAmountPenceByProfileId] = useState({});
     const [adminBmacNoteByProfileId, setAdminBmacNoteByProfileId] = useState({});
+    const [adminCommunityPointsDeltaByProfileId, setAdminCommunityPointsDeltaByProfileId] = useState({});
+    const [adminCommunityReasonByProfileId, setAdminCommunityReasonByProfileId] = useState({});
     const [adminBanReasonByProfileId, setAdminBanReasonByProfileId] = useState({});
     const [isAuthProviderModalOpen, setIsAuthProviderModalOpen] = useState(false);
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -11971,8 +12097,10 @@ function App() {
     const [isRegionalFlowStationsVisible, setIsRegionalFlowStationsVisible] = useState(true);
     const [isContributorsVisible, setIsContributorsVisible] = useState(true);
     const [contributors, setContributors] = useState([]);
-    const [isLeaderboardModalOpen, setIsLeaderboardModalOpen] = useState(false);
-    const [leaderboardScope, setLeaderboardScope] = useState("contributors");
+    const initialLeaderboardIntent = readLeaderboardIntentFromLocation();
+    const [isLeaderboardModalOpen, setIsLeaderboardModalOpen] = useState(Boolean(initialLeaderboardIntent.isOpen));
+    const [leaderboardScope, setLeaderboardScope] = useState(initialLeaderboardIntent.scope);
+    const [isLeaderboardReturnPending, setIsLeaderboardReturnPending] = useState(false);
     const [leaderboardTotals, setLeaderboardTotals] = useState([]);
     const [leaderboardProfiles, setLeaderboardProfiles] = useState([]);
     const [leaderboardPointsRules, setLeaderboardPointsRules] = useState([]);
@@ -12093,6 +12221,12 @@ function App() {
     const pickerFocusHandlerRef = useRef(null);
     const pickerInputRef = useRef(null);
     const pickerLaunchSuppressedUntilRef = useRef(0);
+    const previousOverlayOpenStateRef = useRef({
+        hasItemDrawer: false,
+        hasPoiCard: false,
+        hasContributorSheet: false,
+        hasContributorPanel: false,
+    });
     pendingItemW3WWordsRef.current = pendingItemW3WWords;
     const isHistoricOverlayEditorModeEnabled =
         canManageItems && isHistoricOverlayEditorModeRequested;
@@ -12136,11 +12270,18 @@ function App() {
         setSelectedItemHasShared(Boolean(summary?.viewerHasShared));
     };
     const closeAuthProviderModal = () => setIsAuthProviderModalOpen(false);
-    const openLeaderboardModal = () => {
+    const openLeaderboardModal = (scopeOverride = null) => {
         setLeaderboardError("");
+        if (scopeOverride) {
+            setLeaderboardScope(normalizeLeaderboardScope(scopeOverride));
+        }
+        setIsLeaderboardReturnPending(false);
         setIsLeaderboardModalOpen(true);
     };
-    const closeLeaderboardModal = () => setIsLeaderboardModalOpen(false);
+    const closeLeaderboardModal = () => {
+        setIsLeaderboardReturnPending(false);
+        setIsLeaderboardModalOpen(false);
+    };
     const openProfileModal = async () => {
         setProfileError("");
         setProfileStatus("");
@@ -13107,6 +13248,10 @@ function App() {
                 setAdminUnmatchedBmacEvents([]);
                 setAdminAuditLogs([]);
                 setAdminPointEventsByProfileId({});
+                setAdminBmacAmountPenceByProfileId({});
+                setAdminBmacNoteByProfileId({});
+                setAdminCommunityPointsDeltaByProfileId({});
+                setAdminCommunityReasonByProfileId({});
             }
             return undefined;
         }
@@ -13342,6 +13487,95 @@ function App() {
         setEditingHistoricalPoiId(null);
         setQuerySelectedPoiSlug(null);
     }, [historicalPois, querySelectedItemId, querySelectedPoiSlug]);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+
+        const searchParams = new URLSearchParams(window.location.search);
+        const shouldPersistLeaderboardRoute = isLeaderboardModalOpen || isLeaderboardReturnPending;
+
+        if (shouldPersistLeaderboardRoute) {
+            searchParams.set("leaderboard", "1");
+            searchParams.set("leaderboardScope", normalizeLeaderboardScope(leaderboardScope));
+        } else {
+            searchParams.delete("leaderboard");
+            searchParams.delete("leaderboardScope");
+        }
+
+        const pathSegments = window.location.pathname
+            .split("/")
+            .map((segment) => segment.trim())
+            .filter(Boolean);
+        const leaderboardPathIndex = pathSegments.findIndex((segment) => segment.toLowerCase() === "leaderboard");
+
+        let nextPathname = window.location.pathname;
+        if (!shouldPersistLeaderboardRoute && leaderboardPathIndex >= 0) {
+            const baseSegments = pathSegments.slice(0, leaderboardPathIndex);
+            nextPathname = `/${baseSegments.join("/")}`;
+            if (nextPathname === "") {
+                nextPathname = "/";
+            }
+        }
+
+        const nextSearch = searchParams.toString();
+        const nextUrl = `${nextPathname}${nextSearch ? `?${nextSearch}` : ""}${window.location.hash || ""}`;
+        const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash || ""}`;
+
+        if (nextUrl !== currentUrl) {
+            window.history.replaceState(window.history.state, "", nextUrl);
+        }
+    }, [isLeaderboardModalOpen, isLeaderboardReturnPending, leaderboardScope]);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return undefined;
+
+        const handlePopState = () => {
+            const intent = readLeaderboardIntentFromLocation();
+            setLeaderboardScope(intent.scope);
+            setIsLeaderboardModalOpen(Boolean(intent.isOpen));
+            if (!intent.isOpen) {
+                setIsLeaderboardReturnPending(false);
+            }
+        };
+
+        window.addEventListener("popstate", handlePopState);
+        return () => {
+            window.removeEventListener("popstate", handlePopState);
+        };
+    }, []);
+
+    useEffect(() => {
+        const hasItemDrawer = selectedItemId !== null;
+        const hasPoiCard = selectedHistoricalPoiId !== null;
+        const hasContributorSheet = selectedContributorId !== null;
+        const hasContributorPanel = Boolean(isContributorPanelOpen);
+        const hasAnyOverlayOpen = hasItemDrawer || hasPoiCard || hasContributorSheet || hasContributorPanel;
+
+        const previousState = previousOverlayOpenStateRef.current;
+        const hadAnyOverlayOpen =
+            previousState.hasItemDrawer ||
+            previousState.hasPoiCard ||
+            previousState.hasContributorSheet ||
+            previousState.hasContributorPanel;
+
+        if (isLeaderboardReturnPending && hadAnyOverlayOpen && !hasAnyOverlayOpen) {
+            setIsLeaderboardModalOpen(true);
+            setIsLeaderboardReturnPending(false);
+        }
+
+        previousOverlayOpenStateRef.current = {
+            hasItemDrawer,
+            hasPoiCard,
+            hasContributorSheet,
+            hasContributorPanel,
+        };
+    }, [
+        isContributorPanelOpen,
+        isLeaderboardReturnPending,
+        selectedContributorId,
+        selectedHistoricalPoiId,
+        selectedItemId,
+    ]);
 
     useEffect(() => {
         if (canManageItems) return;
@@ -14737,6 +14971,64 @@ function App() {
 
         setAdminActionStatus(`Recorded BMAC contribution (${contribution?.amount_pence || amountPence}p).`);
         setAdminBmacAmountPenceByProfileId((prev) => ({ ...prev, [profileId]: "" }));
+    }
+
+    async function recordAdminCommunityPoints(profileId) {
+        if (!canManageItems || !hasSupabaseConfig || !profileId) return;
+
+        const pointsDeltaRaw = String(adminCommunityPointsDeltaByProfileId?.[profileId] || "").trim();
+        const pointsDelta = Number.parseInt(pointsDeltaRaw, 10);
+        if (!Number.isFinite(pointsDelta) || pointsDelta === 0) {
+            setAdminActionError("Enter a community points delta (for example +50 or -20).");
+            return;
+        }
+
+        const reason = String(adminCommunityReasonByProfileId?.[profileId] || "").trim();
+        if (!reason) {
+            setAdminActionError("Community points reason is required.");
+            return;
+        }
+
+        setAdminActionError("");
+        setAdminActionStatus("");
+
+        const { pointEvent, error } = await awardCommunityPointsForAdmin(profileId, pointsDelta, reason);
+
+        if (error) {
+            setAdminActionError("Could not record community points.");
+            return;
+        }
+
+        const [profilesResult, auditLogsResult] = await Promise.all([
+            listProfilesForAdmin(),
+            listAdminAuditLogs(),
+        ]);
+
+        if (!profilesResult.error) {
+            setAdminProfiles(profilesResult.profiles || []);
+            if (currentProfile?.id === profileId) {
+                const updatedCurrent = (profilesResult.profiles || []).find((entry) => entry.id === profileId);
+                if (updatedCurrent) {
+                    setCurrentProfile(updatedCurrent);
+                }
+            }
+        }
+
+        if (!auditLogsResult.error) {
+            setAdminAuditLogs(auditLogsResult.logs || []);
+        }
+
+        if (isLeaderboardModalOpen || isContributorPanelOpen) {
+            void fetchLeaderboardData();
+        }
+
+        await loadPointHistoryForAdminProfile(profileId);
+
+        setAdminActionStatus(
+            `Community points recorded (${pointEvent?.points_delta >= 0 ? "+" : ""}${pointEvent?.points_delta || pointsDelta}).`,
+        );
+        setAdminCommunityPointsDeltaByProfileId((prev) => ({ ...prev, [profileId]: "" }));
+        setAdminCommunityReasonByProfileId((prev) => ({ ...prev, [profileId]: "" }));
     }
 
     function onAdminUnmatchedBmacProfileChange(eventId, profileId) {
@@ -16160,6 +16452,7 @@ function App() {
                     shares: 0,
                     comments: 0,
                     bmc,
+                    communityPoints: 0,
                     isFacebookGroupMember,
                     facebookGroupPoints,
                     total: bmc + facebookGroupPoints,
@@ -16178,6 +16471,9 @@ function App() {
             const shares = Number.isFinite(Number(row?.share_count)) ? Number(row.share_count) : 0;
             const comments = Number.isFinite(Number(row?.comment_count)) ? Number(row.comment_count) : 0;
             const existing = map[`${entityType}:${entityId}`] || {};
+            const communityPoints = Number.isFinite(Number(row?.community_points))
+                ? Number(row.community_points)
+                : (Number.isFinite(Number(existing?.communityPoints)) ? Number(existing.communityPoints) : 0);
             const bmc = Number.isFinite(Number(row?.bmc_points))
                 ? Number(row.bmc_points)
                 : (Number.isFinite(Number(existing?.bmc)) ? Number(existing.bmc) : 0);
@@ -16189,14 +16485,21 @@ function App() {
                 ? facebookGroupJoinBonusPts
                 : 0;
             // Compute a points-weighted total using rule values rather than raw counts.
-            // bmc_points is already stored in points (sum of points_awarded), so it is not multiplied.
-            const total = (likes * likePts) + (shares * sharePts) + (comments * commentPts) + bmc + facebookGroupPoints;
+            // support/community values are already stored as points balances, so they are not multiplied.
+            const total =
+                (likes * likePts) +
+                (shares * sharePts) +
+                (comments * commentPts) +
+                bmc +
+                communityPoints +
+                facebookGroupPoints;
 
             map[`${entityType}:${entityId}`] = {
                 likes,
                 shares,
                 comments,
                 bmc,
+                communityPoints,
                 isFacebookGroupMember,
                 facebookGroupPoints,
                 total,
@@ -16289,6 +16592,7 @@ function App() {
                     shares: Number.isFinite(Number(totals?.shares)) ? Number(totals.shares) : 0,
                     comments: Number.isFinite(Number(totals?.comments)) ? Number(totals.comments) : 0,
                     bmc: Number.isFinite(Number(totals?.bmc)) ? Number(totals.bmc) : 0,
+                    communityPoints: Number.isFinite(Number(totals?.communityPoints)) ? Number(totals.communityPoints) : 0,
                     isFacebookGroupMember: Boolean(totals?.isFacebookGroupMember),
                     facebookGroupPoints: Number.isFinite(Number(totals?.facebookGroupPoints)) ? Number(totals.facebookGroupPoints) : 0,
                     support: Number.isFinite(Number(totals?.bmc)) ? Number(totals.bmc) : 0,
@@ -16480,6 +16784,7 @@ function App() {
     );
 
     const closeNonRelevantOverlayUi = () => {
+        setIsLeaderboardReturnPending(false);
         setSelectedItemId(null);
         setEditingItemId(null);
         setSelectedContributorId(null);
@@ -16497,6 +16802,9 @@ function App() {
     const handleLeaderboardRowActivate = (rowScope, row) => {
         const entityId = String(row?.id || "").trim();
         if (!entityId) return;
+
+        setIsLeaderboardReturnPending(true);
+        setLeaderboardScope(normalizeLeaderboardScope(rowScope));
 
         if (rowScope === "items") {
             setIsLeaderboardModalOpen(false);
@@ -18674,12 +18982,23 @@ function App() {
                         setAdminBmacNoteByProfileId((prev) => ({ ...prev, [profileId]: value }));
                     }}
                     onRecordAdminBmacContribution={recordAdminBmacContribution}
+                    adminBmacAmountPenceByProfileId={adminBmacAmountPenceByProfileId}
+                    adminBmacNoteByProfileId={adminBmacNoteByProfileId}
+                    onAdminCommunityPointsDeltaChange={(profileId, value) => {
+                        setAdminCommunityPointsDeltaByProfileId((prev) => ({ ...prev, [profileId]: value }));
+                    }}
+                    onAdminCommunityReasonChange={(profileId, value) => {
+                        setAdminCommunityReasonByProfileId((prev) => ({ ...prev, [profileId]: value }));
+                    }}
+                    onRecordAdminCommunityPoints={recordAdminCommunityPoints}
                     onAdminUnmatchedBmacProfileChange={onAdminUnmatchedBmacProfileChange}
                     onAdminUnmatchedBmacResolutionNoteChange={onAdminUnmatchedBmacResolutionNoteChange}
                     onResolveAdminUnmatchedBmacEvent={resolveAdminUnmatchedBmacEvent}
                     onLoadPointHistoryForAdminProfile={loadPointHistoryForAdminProfile}
                     adminPointEventsByProfileId={adminPointEventsByProfileId}
                     isAdminPointHistoryLoadingByProfileId={isAdminPointHistoryLoadingByProfileId}
+                    adminCommunityPointsDeltaByProfileId={adminCommunityPointsDeltaByProfileId}
+                    adminCommunityReasonByProfileId={adminCommunityReasonByProfileId}
                     adminActionError={adminActionError}
                     adminActionStatus={adminActionStatus}
                     isProfileLoading={isProfileLoading}

@@ -519,6 +519,21 @@ export async function recordBmacContributionAmount(profileId, amountPence, note 
     return { contribution: data || null, error: null };
 }
 
+export async function awardCommunityPointsForAdmin(profileId, pointsDelta, reason = "") {
+    const parsedPointsDelta = Number.parseInt(String(pointsDelta), 10);
+    const { data, error } = await supabase.rpc("award_community_points", {
+        p_profile_id: profileId,
+        p_points_delta: Number.isFinite(parsedPointsDelta) ? parsedPointsDelta : 0,
+        p_reason: reason,
+    });
+
+    if (error) {
+        return { pointEvent: null, error };
+    }
+
+    return { pointEvent: data || null, error: null };
+}
+
 export async function listUnmatchedBmacEventsForAdmin() {
     const { data, error } = await supabase
         .from("bmac_unmatched_events")
