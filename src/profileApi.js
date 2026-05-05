@@ -176,6 +176,29 @@ function logInteractionApiWarning(message, context = {}) {
     console.warn(`[profileApi] ${message}`, context);
 }
 
+function normalizeRpcBoolean(value) {
+    if (typeof value === "boolean") return value;
+
+    if (typeof value === "number") {
+        if (Number.isNaN(value)) return false;
+        return value !== 0;
+    }
+
+    if (typeof value === "string") {
+        const normalized = value.trim().toLowerCase();
+        if (!normalized) return false;
+        if (["true", "t", "1", "yes", "y"].includes(normalized)) return true;
+        if (["false", "f", "0", "no", "n"].includes(normalized)) return false;
+    }
+
+    return Boolean(value);
+}
+
+function normalizeRpcNumber(value, fallback = 0) {
+    const next = Number(value);
+    return Number.isFinite(next) ? next : fallback;
+}
+
 export async function ensureProfileForUser(user) {
     if (!user?.id) {
         return { profile: null, error: new Error("Missing user id") };
@@ -461,10 +484,10 @@ function normalizeInteractionSummaryResponse(data) {
     const row = Array.isArray(data) ? data[0] || null : data || null;
 
     return {
-        likeCount: Number.isFinite(Number(row?.like_count)) ? Number(row.like_count) : 0,
-        shareCount: Number.isFinite(Number(row?.share_count)) ? Number(row.share_count) : 0,
-        viewerHasLiked: Boolean(row?.viewer_has_liked),
-        viewerHasShared: Boolean(row?.viewer_has_shared),
+        likeCount: normalizeRpcNumber(row?.like_count ?? row?.likeCount, 0),
+        shareCount: normalizeRpcNumber(row?.share_count ?? row?.shareCount, 0),
+        viewerHasLiked: normalizeRpcBoolean(row?.viewer_has_liked ?? row?.viewerHasLiked),
+        viewerHasShared: normalizeRpcBoolean(row?.viewer_has_shared ?? row?.viewerHasShared),
     };
 }
 
@@ -566,10 +589,18 @@ export async function toggleLikeForTarget(targetType, targetId, metadata = {}) {
     }
 
     const row = Array.isArray(data) ? data[0] || null : data || null;
+    const normalizedInteraction = row
+        ? {
+            ...row,
+            liked: normalizeRpcBoolean(row?.liked),
+            points_delta: normalizeRpcNumber(row?.points_delta, 0),
+            points_balance_after: normalizeRpcNumber(row?.points_balance_after, 0),
+        }
+        : null;
 
     return {
-        interaction: row,
-        summary: normalizeInteractionSummaryResponse(row),
+        interaction: normalizedInteraction,
+        summary: normalizeInteractionSummaryResponse(normalizedInteraction),
         error: null,
     };
 }
@@ -755,6 +786,68 @@ export async function listPointEventsForProfile(profileId, limit = 100) {
     }
 
     return { events: Array.isArray(data) ? data : [], error: null };
+}
+
+export async function listRecentPointDeltasByActionForAdmin(hoursBack = 72, limit = 2000) {
+    const parsedHoursBack = Number.parseInt(String(hoursBack), 10);
+    const safeHoursBack = Number.isFinite(parsedHoursBack) && parsedHoursBack > 0
+        ? parsedHoursBack
+        : 72;
+    const parsedLimit = Number.parseInt(String(limit), 10);
+    const safeLimit = Number.isFinite(parsedLimit) && parsedLimit > 0
+        ? Math.min(parsedLimit, 5000)
+        : 2000;
+    const cutoff = new Date(Date.now() - safeHoursBack * 60 * 60 * 1000).toISOString();
+
+    const { data, error } = await supabase
+        .from("point_events_ledger")
+        .select("action_code, points_delta, created_at")
+        .gte("created_at", cutoff)
+        .order("created_at", { ascending: false })
+        .limit(safeLimit);
+
+    if (error) {
+        return { rows: [], error };
+    }
+
+    const grouped = new Map();
+    (Array.isArray(data) ? data : []).forEach((row) => {
+        const actionCode = normalizeText(row?.action_code) || "unknown";
+        const pointsDelta = Number.parseInt(String(row?.points_delta ?? 0), 10);
+        const safePointsDelta = Number.isFinite(pointsDelta) ? pointsDelta : 0;
+        const createdAt = normalizeText(row?.created_at);
+        const existing = grouped.get(actionCode) || {
+            actionCode,
+            eventCount: 0,
+            netDelta: 0,
+            positiveDelta: 0,
+            negativeDelta: 0,
+            latestCreatedAt: "",
+        };
+
+        existing.eventCount += 1;
+        existing.netDelta += safePointsDelta;
+        if (safePointsDelta >= 0) {
+            existing.positiveDelta += safePointsDelta;
+        } else {
+            existing.negativeDelta += safePointsDelta;
+        }
+        if (!existing.latestCreatedAt || (createdAt && createdAt > existing.latestCreatedAt)) {
+            existing.latestCreatedAt = createdAt;
+        }
+
+        grouped.set(actionCode, existing);
+    });
+
+    return {
+        rows: Array.from(grouped.values()).sort((left, right) => {
+            if (Math.abs(right.netDelta) !== Math.abs(left.netDelta)) {
+                return Math.abs(right.netDelta) - Math.abs(left.netDelta);
+            }
+            return right.eventCount - left.eventCount;
+        }),
+        error: null,
+    };
 }
 
 export async function listAdminAuditLogs(limit = 200) {

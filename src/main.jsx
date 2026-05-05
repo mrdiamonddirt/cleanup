@@ -12283,6 +12283,10 @@ function App() {
         hasContributorSheet: false,
         hasContributorPanel: false,
     });
+    const selectedPoiIdRef = useRef("");
+    const selectedContributorIdRef = useRef("");
+    const selectedItemIdRef = useRef("");
+    const leaderboardFetchRequestIdRef = useRef(0);
     pendingItemW3WWordsRef.current = pendingItemW3WWords;
     const isHistoricOverlayEditorModeEnabled =
         canManageItems && isHistoricOverlayEditorModeRequested;
@@ -14019,7 +14023,14 @@ function App() {
     }
 
     async function fetchLeaderboardData() {
+        const requestId = leaderboardFetchRequestIdRef.current + 1;
+        leaderboardFetchRequestIdRef.current = requestId;
+        const isStaleRequest = () => leaderboardFetchRequestIdRef.current !== requestId;
+
         if (!hasSupabaseConfig) {
+            if (isStaleRequest()) {
+                return false;
+            }
             setLeaderboardTotals([]);
             setLeaderboardProfiles([]);
             setLeaderboardError("Supabase is not configured for this deployment.");
@@ -14059,14 +14070,25 @@ function App() {
             };
         }
 
+        if (isStaleRequest()) {
+            return false;
+        }
+
         if (totalsResult?.error) {
             console.error("Leaderboard totals RPC failed", {
                 code: totalsResult.error.code,
                 message: totalsResult.error.message,
             });
+            if (isStaleRequest()) {
+                return false;
+            }
             setLeaderboardTotals([]);
             setLeaderboardError("Could not load leaderboard totals right now.");
             setIsLeaderboardLoading(false);
+            return false;
+        }
+
+        if (isStaleRequest()) {
             return false;
         }
 
@@ -14087,6 +14109,10 @@ function App() {
                 code: pointsRulesResult.error.code,
                 message: pointsRulesResult.error.message,
             });
+        }
+
+        if (isStaleRequest()) {
+            return false;
         }
 
         setIsLeaderboardLoading(false);
@@ -16532,9 +16558,7 @@ function App() {
                 if (!profileId) return;
 
                 const isFacebookGroupMember = Boolean(profile?.is_facebook_group_member);
-                const bmc = Number.isFinite(Number(profile?.supporter_points))
-                    ? Number(profile.supporter_points)
-                    : 0;
+                const bmc = 0;
                 const facebookGroupPoints = isFacebookGroupMember ? facebookGroupJoinBonusPts : 0;
 
                 map[`user:${profileId}`] = {
@@ -16729,6 +16753,9 @@ function App() {
                 ) || null,
         [historicalPois, selectedHistoricalPoiId],
     );
+    selectedPoiIdRef.current = String(selectedHistoricalPoi?.id || "").trim();
+    selectedContributorIdRef.current = String(selectedContributor?.id || "").trim();
+    selectedItemIdRef.current = String(selectedItem?.id || "").trim();
     const selectedHistoricalPoiPublicUrl = useMemo(() => {
         if (!selectedHistoricalPoi) return "";
         if (selectedHistoricalPoi.status !== HISTORICAL_POI_STATUS_PUBLISHED) return "";
@@ -16997,7 +17024,8 @@ function App() {
     };
 
     async function handlePoiLike(poi) {
-        if (!currentUser?.id || !hasSupabaseConfig || !poi?.id) {
+        const targetPoiId = String(poi?.id || "").trim();
+        if (!currentUser?.id || !hasSupabaseConfig || !targetPoiId) {
             setPoiInteractionError("Sign in to like places.");
             return;
         }
@@ -17006,7 +17034,7 @@ function App() {
         setPoiInteractionError("");
         setPoiInteractionStatus("");
 
-        const { interaction, summary, error } = await toggleLikeForTarget("poi", poi.id, {
+        const { interaction, summary, error } = await toggleLikeForTarget("poi", targetPoiId, {
             slug: poi.slug || "",
         });
 
@@ -17016,14 +17044,25 @@ function App() {
             return;
         }
 
-        applyPoiInteractionSummary(summary);
+        if (selectedPoiIdRef.current === targetPoiId) {
+            applyPoiInteractionSummary(summary);
+        }
 
-        if (interaction?.liked) {
-            setPoiInteractionStatus(`Liked. +${Math.max(Number(interaction?.points_delta || 0), 0)} points.`);
+        const hasLiked = typeof interaction?.liked === "boolean"
+            ? interaction.liked
+            : Boolean(summary?.viewerHasLiked);
+        const pointsDelta = Number.isFinite(Number(interaction?.points_delta))
+            ? Number(interaction.points_delta)
+            : 0;
+
+        if (hasLiked) {
+            setPoiInteractionStatus(`Liked. +${Math.max(pointsDelta, 0)} points.`);
         } else {
-            const pointsRemoved = Math.abs(Number(interaction?.points_delta || 0));
+            const pointsRemoved = Math.abs(pointsDelta);
             setPoiInteractionStatus(pointsRemoved ? `Like removed. -${pointsRemoved} points.` : "Like removed.");
         }
+
+        void fetchLeaderboardData();
 
         setIsPoiInteractionSaving(false);
     }
@@ -17082,7 +17121,8 @@ function App() {
     }
 
     async function handleContributorLike(contributor) {
-        if (!currentUser?.id || !hasSupabaseConfig || !contributor?.id) {
+        const targetContributorId = String(contributor?.id || "").trim();
+        if (!currentUser?.id || !hasSupabaseConfig || !targetContributorId) {
             setContributorInteractionError("Sign in to like contributors.");
             return;
         }
@@ -17091,7 +17131,7 @@ function App() {
         setContributorInteractionError("");
         setContributorInteractionStatus("");
 
-        const { interaction, summary, error } = await toggleLikeForTarget("contributor", contributor.id, {
+        const { interaction, summary, error } = await toggleLikeForTarget("contributor", targetContributorId, {
             name: contributor.name || "",
         });
 
@@ -17101,14 +17141,25 @@ function App() {
             return;
         }
 
-        applyContributorInteractionSummary(summary);
+        if (selectedContributorIdRef.current === targetContributorId) {
+            applyContributorInteractionSummary(summary);
+        }
 
-        if (interaction?.liked) {
-            setContributorInteractionStatus(`Liked. +${Math.max(Number(interaction?.points_delta || 0), 0)} points.`);
+        const hasLiked = typeof interaction?.liked === "boolean"
+            ? interaction.liked
+            : Boolean(summary?.viewerHasLiked);
+        const pointsDelta = Number.isFinite(Number(interaction?.points_delta))
+            ? Number(interaction.points_delta)
+            : 0;
+
+        if (hasLiked) {
+            setContributorInteractionStatus(`Liked. +${Math.max(pointsDelta, 0)} points.`);
         } else {
-            const pointsRemoved = Math.abs(Number(interaction?.points_delta || 0));
+            const pointsRemoved = Math.abs(pointsDelta);
             setContributorInteractionStatus(pointsRemoved ? `Like removed. -${pointsRemoved} points.` : "Like removed.");
         }
+
+        void fetchLeaderboardData();
 
         setIsContributorInteractionSaving(false);
     }
@@ -17167,7 +17218,8 @@ function App() {
     }
 
     async function handleItemLike(itemId) {
-        if (!currentUser?.id || !hasSupabaseConfig || !itemId) {
+        const targetItemId = String(itemId || "").trim();
+        if (!currentUser?.id || !hasSupabaseConfig || !targetItemId) {
             setItemInteractionError("Sign in to like items.");
             return;
         }
@@ -17176,7 +17228,7 @@ function App() {
         setItemInteractionError("");
         setItemInteractionStatus("");
 
-        const { interaction, summary, error } = await toggleLikeForTarget("item", itemId, {});
+        const { interaction, summary, error } = await toggleLikeForTarget("item", targetItemId, {});
 
         if (error) {
             setItemInteractionError("Could not save your like.");
@@ -17184,14 +17236,25 @@ function App() {
             return;
         }
 
-        applyItemInteractionSummary(summary);
+        if (selectedItemIdRef.current === targetItemId) {
+            applyItemInteractionSummary(summary);
+        }
 
-        if (interaction?.liked) {
-            setItemInteractionStatus(`Liked. +${Math.max(Number(interaction?.points_delta || 0), 0)} points.`);
+        const hasLiked = typeof interaction?.liked === "boolean"
+            ? interaction.liked
+            : Boolean(summary?.viewerHasLiked);
+        const pointsDelta = Number.isFinite(Number(interaction?.points_delta))
+            ? Number(interaction.points_delta)
+            : 0;
+
+        if (hasLiked) {
+            setItemInteractionStatus(`Liked. +${Math.max(pointsDelta, 0)} points.`);
         } else {
-            const pointsRemoved = Math.abs(Number(interaction?.points_delta || 0));
+            const pointsRemoved = Math.abs(pointsDelta);
             setItemInteractionStatus(pointsRemoved ? `Like removed. -${pointsRemoved} points.` : "Like removed.");
         }
+
+        void fetchLeaderboardData();
 
         setIsItemInteractionSaving(false);
     }
