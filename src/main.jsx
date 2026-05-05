@@ -11341,6 +11341,7 @@ function ContributorMobileSheet({
     interactionError,
     isLoadingComments,
     commentsError,
+    isMobile = true,
 }) {
     const shareStatusTimeoutRef = useRef(null);
     const [shareStatus, setShareStatus] = useState("");
@@ -11456,7 +11457,7 @@ function ContributorMobileSheet({
                 role="dialog"
                 aria-modal="true"
                 aria-label={`${contributor.name || "Contributor"} details`}
-                style={{
+                style={isMobile ? {
                     position: "fixed",
                     left: "8px",
                     right: "8px",
@@ -11470,19 +11471,36 @@ function ContributorMobileSheet({
                     display: "flex",
                     flexDirection: "column",
                     overflow: "hidden",
+                } : {
+                    position: "fixed",
+                    top: "50%",
+                    left: "50%",
+                    transform: "translate(-50%, -50%)",
+                    width: "min(520px, calc(100vw - 32px))",
+                    maxHeight: "calc(100dvh - 48px)",
+                    borderRadius: "18px",
+                    border: "1px solid #dbe5f4",
+                    background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
+                    boxShadow: "0 28px 56px rgba(2, 6, 23, 0.32)",
+                    zIndex: 1502,
+                    display: "flex",
+                    flexDirection: "column",
+                    overflow: "hidden",
                 }}
             >
-                <div
-                    aria-hidden="true"
-                    style={{
-                        width: "44px",
-                        height: "5px",
-                        borderRadius: "999px",
-                        background: "#d5dde9",
-                        margin: "10px auto 8px",
-                        flexShrink: 0,
-                    }}
-                />
+                {isMobile ? (
+                    <div
+                        aria-hidden="true"
+                        style={{
+                            width: "44px",
+                            height: "5px",
+                            borderRadius: "999px",
+                            background: "#d5dde9",
+                            margin: "10px auto 8px",
+                            flexShrink: 0,
+                        }}
+                    />
+                ) : null}
 
                 <div
                     style={{
@@ -11551,7 +11569,7 @@ function ContributorMobileSheet({
                 <div
                     style={{
                         overflowY: "auto",
-                        padding: "10px 12px calc(env(safe-area-inset-bottom, 0px) + 12px)",
+                        padding: isMobile ? "10px 12px calc(env(safe-area-inset-bottom, 0px) + 12px)" : "10px 14px 14px",
                         display: "grid",
                         gap: "10px",
                     }}
@@ -18796,6 +18814,7 @@ function App() {
                     isLoadingComments={isSelectedContributorCommentsLoading}
                     commentsError={selectedContributorCommentsError}
                     onClose={() => setSelectedContributorId(null)}
+                    isMobile={isMobile}
                 />
             ) : null}
 
