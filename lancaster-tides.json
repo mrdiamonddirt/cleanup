@@ -1,118 +1,123 @@
 {
   "location": "Lancaster, UK",
   "sourceUrl": "https://www.tide-forecast.com/locations/Lancaster/tides/latest",
-  "updatedAt": "2026-05-05T01:54:26.322Z",
+  "updatedAt": "2026-05-04T19:24:08.610Z",
   "metadata": {
-    "mergedFromExistingRows": 0,
+    "mergedFromExistingRows": 21,
     "mergedFromFetchedRows": 20,
-    "retainedRows": 20,
+    "retainedRows": 21,
     "retentionHours": {
       "past": 30,
       "future": 132
     },
-    "coverageStart": "2026-05-05T01:54:00.000Z",
-    "coverageEnd": "2026-05-09T23:54:00.000Z"
+    "coverageStart": "2026-05-03T18:36:00.000Z",
+    "coverageEnd": "2026-05-08T21:53:00.000Z"
   },
   "rows": [
     {
+      "type": "Low Tide",
+      "time": "7:36 PM (Sun 03 May)",
+      "height": "1.17 m (3.84 ft)"
+    },
+    {
+      "type": "High Tide",
+      "time": "1:19 AM (Mon 04 May)",
+      "height": "8.62 m (28.28 ft)"
+    },
+    {
+      "type": "Low Tide",
+      "time": "7:54 AM (Mon 04 May)",
+      "height": "1.12 m (3.67 ft)"
+    },
+    {
+      "type": "High Tide",
+      "time": "1:39 PM (Mon 04 May)",
+      "height": "8.42 m (27.63 ft)"
+    },
+    {
+      "type": "Low Tide",
+      "time": "8:09 PM (Mon 04 May)",
+      "height": "1.42 m (4.66 ft)"
+    },
+    {
       "type": "High Tide",
       "time": "1:54 AM (Tue 05 May)",
-      "height": "27.59 ft (8.41 m)"
+      "height": "8.41 m (27.59 ft)"
     },
     {
       "type": "Low Tide",
       "time": "8:29 AM (Tue 05 May)",
-      "height": "4.46 ft (1.36 m)"
+      "height": "1.36 m (4.46 ft)"
     },
     {
       "type": "High Tide",
       "time": "2:14 PM (Tue 05 May)",
-      "height": "26.54 ft (8.09 m)"
+      "height": "8.09 m (26.54 ft)"
     },
     {
       "type": "Low Tide",
       "time": "8:43 PM (Tue 05 May)",
-      "height": "5.68 ft (1.73 m)"
+      "height": "1.73 m (5.68 ft)"
     },
     {
       "type": "High Tide",
       "time": "2:29 AM (Wed 06 May)",
-      "height": "26.58 ft (8.1 m)"
+      "height": "8.1 m (26.58 ft)"
     },
     {
       "type": "Low Tide",
       "time": "9:07 AM (Wed 06 May)",
-      "height": "5.54 ft (1.69 m)"
+      "height": "1.69 m (5.54 ft)"
     },
     {
       "type": "High Tide",
       "time": "2:51 PM (Wed 06 May)",
-      "height": "25.17 ft (7.67 m)"
+      "height": "7.67 m (25.17 ft)"
     },
     {
       "type": "Low Tide",
       "time": "9:21 PM (Wed 06 May)",
-      "height": "6.82 ft (2.08 m)"
+      "height": "2.08 m (6.82 ft)"
     },
     {
       "type": "High Tide",
       "time": "3:08 AM (Thu 07 May)",
-      "height": "25.33 ft (7.72 m)"
+      "height": "7.72 m (25.33 ft)"
     },
     {
       "type": "Low Tide",
       "time": "9:49 AM (Thu 07 May)",
-      "height": "6.79 ft (2.07 m)"
+      "height": "2.07 m (6.79 ft)"
     },
     {
       "type": "High Tide",
       "time": "3:31 PM (Thu 07 May)",
-      "height": "23.66 ft (7.21 m)"
+      "height": "7.21 m (23.66 ft)"
     },
     {
       "type": "Low Tide",
       "time": "10:03 PM (Thu 07 May)",
-      "height": "7.97 ft (2.43 m)"
+      "height": "2.43 m (7.97 ft)"
     },
     {
       "type": "High Tide",
       "time": "3:51 AM (Fri 08 May)",
-      "height": "24.05 ft (7.33 m)"
+      "height": "7.33 m (24.05 ft)"
     },
     {
       "type": "Low Tide",
       "time": "10:38 AM (Fri 08 May)",
-      "height": "7.94 ft (2.42 m)"
+      "height": "2.42 m (7.94 ft)"
     },
     {
       "type": "High Tide",
       "time": "4:18 PM (Fri 08 May)",
-      "height": "22.25 ft (6.78 m)"
+      "height": "6.78 m (22.25 ft)"
     },
     {
       "type": "Low Tide",
       "time": "10:53 PM (Fri 08 May)",
-      "height": "8.96 ft (2.73 m)"
-    },
-    {
-      "type": "High Tide",
-      "time": "4:43 AM (Sat 09 May)",
-      "height": "22.93 ft (6.99 m)"
-    },
-    {
-      "type": "Low Tide",
-      "time": "11:36 AM (Sat 09 May)",
-      "height": "8.69 ft (2.65 m)"
-    },
-    {
-      "type": "High Tide",
-      "time": "5:17 PM (Sat 09 May)",
-      "height": "21.16 ft (6.45 m)"
-    },
-    {
-      "type": "Low Tide",
-      "time": "11:54 PM (Sat 09 May)",
-      "height": "9.58 ft (2.92 m)"
+      "height": "2.73 m (8.96 ft)"
     }
   ]
 }

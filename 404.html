@@ -76,6 +76,14 @@
           poiParams.set("poi", poiSlug);
           redirectUrl = "/?" + poiParams.toString() + hash;
           message = "This POI page was not pre-generated. Redirecting to the live map entry.";
+        } else if (segments.length >= 1 && segments[0] === "leaderboard") {
+          var leaderboardParams = new URLSearchParams(search);
+          leaderboardParams.set("leaderboard", "1");
+          if (segments.length >= 2 && segments[1]) {
+            leaderboardParams.set("leaderboardScope", decodeSegment(segments[1]));
+          }
+          redirectUrl = "/?" + leaderboardParams.toString() + hash;
+          message = "Redirecting to the live leaderboard.";
         }
 
         var messageNode = document.getElementById("message");
