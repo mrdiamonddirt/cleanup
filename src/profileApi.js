@@ -348,34 +348,66 @@ export async function submitCommentForReview(targetType, targetId, body, parentC
     return { comment: data || null, error: null };
 }
 
+function normalizeInteractionSummaryResponse(data) {
+    const row = Array.isArray(data) ? data[0] || null : data || null;
+
+    return {
+        likeCount: Number.isFinite(Number(row?.like_count)) ? Number(row.like_count) : 0,
+        shareCount: Number.isFinite(Number(row?.share_count)) ? Number(row.share_count) : 0,
+        viewerHasLiked: Boolean(row?.viewer_has_liked),
+        viewerHasShared: Boolean(row?.viewer_has_shared),
+    };
+}
+
 export async function getInteractionCountsForTarget(targetType, targetId) {
-    const { data, error } = await supabase
-        .from("social_interactions")
-        .select("interaction_type")
-        .eq("target_entity_type", targetType)
-        .eq("target_entity_id", String(targetId || "").trim());
+    const { data, error } = await supabase.rpc("get_target_interaction_summary", {
+        p_target_entity_type: targetType,
+        p_target_entity_id: String(targetId || "").trim(),
+    });
 
     if (error) {
         return {
             likeCount: 0,
             shareCount: 0,
+            viewerHasLiked: false,
+            viewerHasShared: false,
             error,
         };
     }
 
-    let likeCount = 0;
-    let shareCount = 0;
-
-    if (Array.isArray(data)) {
-        for (const row of data) {
-            if (row?.interaction_type === "like") likeCount += 1;
-            if (row?.interaction_type === "share") shareCount += 1;
-        }
-    }
+    const summary = normalizeInteractionSummaryResponse(data);
 
     return {
-        likeCount,
-        shareCount,
+        ...summary,
+        error: null,
+    };
+}
+
+export async function toggleLikeForTarget(targetType, targetId, metadata = {}) {
+    const { data, error } = await supabase.rpc("toggle_like_interaction", {
+        p_target_entity_type: targetType,
+        p_target_entity_id: String(targetId || "").trim(),
+        p_metadata: metadata,
+    });
+
+    if (error) {
+        return {
+            interaction: null,
+            summary: {
+                likeCount: 0,
+                shareCount: 0,
+                viewerHasLiked: false,
+                viewerHasShared: false,
+            },
+            error,
+        };
+    }
+
+    const row = Array.isArray(data) ? data[0] || null : data || null;
+
+    return {
+        interaction: row,
+        summary: normalizeInteractionSummaryResponse(row),
         error: null,
     };
 }

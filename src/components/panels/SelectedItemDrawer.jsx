@@ -51,6 +51,8 @@ export default function SelectedItemDrawer({
     onLikeItem,
     itemLikeCount,
     itemShareCount,
+    itemHasLiked,
+    itemHasShared,
     itemInteractionStatus,
     itemInteractionError,
     itemCommentDraft,
@@ -89,8 +91,22 @@ export default function SelectedItemDrawer({
     const shareCountLabel = Number.isFinite(Number(itemShareCount)) ? Number(itemShareCount) : 0;
     const likeCountLabel = Number.isFinite(Number(itemLikeCount)) ? Number(itemLikeCount) : 0;
     const shareButtonLabel = copiedShareItemId === selectedItem.id && shareCopyStatus
-        ? `Copied (${shareCountLabel})`
-        : `Share (${shareCountLabel})`;
+        ? "Copied"
+        : itemHasShared ? "Shared" : "Share";
+    const interactionCountBadgeStyle = {
+        minWidth: "21px",
+        height: "21px",
+        padding: "0 6px",
+        borderRadius: "999px",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "rgba(255,255,255,0.72)",
+        border: "1px solid rgba(15,23,42,0.12)",
+        fontSize: "0.72rem",
+        fontWeight: 800,
+        lineHeight: 1,
+    };
     const useDenseDesktopCard = !useBottomSheet && !isEditingThisItem;
     const timeInRiverLabel = formatTimeInRiver(
         selectedStory?.knownSinceDate,
@@ -250,8 +266,8 @@ export default function SelectedItemDrawer({
                                 onClick={() => onLikeItem(selectedItem.id)}
                                 disabled={Boolean(isSubmittingItemInteraction)}
                                 style={{
-                                    border: "1px solid #86efac",
-                                    background: "#dcfce7",
+                                    border: itemHasLiked ? "1px solid #16a34a" : "1px solid #86efac",
+                                    background: itemHasLiked ? "#bbf7d0" : "#dcfce7",
                                     color: "#166534",
                                     borderRadius: "999px",
                                     height: "34px",
@@ -268,7 +284,8 @@ export default function SelectedItemDrawer({
                                     opacity: Boolean(isSubmittingItemInteraction) ? 0.7 : 1,
                                 }}
                             >
-                                Like ({likeCountLabel})
+                                <span>{itemHasLiked ? "Liked" : "Like"}</span>
+                                <span style={interactionCountBadgeStyle}>{likeCountLabel}</span>
                             </button>
                         ) : null}
                         {onCopyShareLink ? (
@@ -278,6 +295,8 @@ export default function SelectedItemDrawer({
                                     border: "1px solid #bfdbfe",
                                     background: copiedShareItemId === selectedItem.id && shareCopyStatus
                                         ? "linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)"
+                                        : itemHasShared
+                                            ? "linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)"
                                         : "linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)",
                                     color: copiedShareItemId === selectedItem.id && shareCopyStatus ? "#166534" : "#1d4ed8",
                                     borderRadius: "999px",
@@ -300,7 +319,8 @@ export default function SelectedItemDrawer({
                                 <span aria-hidden="true" style={{ fontSize: "0.95rem", transform: "translateY(-0.5px)" }}>
                                     {copiedShareItemId === selectedItem.id && shareCopyStatus ? "✓" : "↗"}
                                 </span>
-                                {shareButtonLabel}
+                                <span>{shareButtonLabel}</span>
+                                <span style={interactionCountBadgeStyle}>{shareCountLabel}</span>
                             </button>
                         ) : null}
                         <button

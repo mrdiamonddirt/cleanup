@@ -18,6 +18,8 @@ export default function PoiCard({
     comments = [],
     likeCount = 0,
     shareCount = 0,
+    viewerHasLiked = false,
+    viewerHasShared = false,
     isSubmittingInteraction = false,
     interactionStatus = "",
     interactionError = "",
@@ -134,6 +136,20 @@ export default function PoiCard({
     const statusBg = poi.status === "published" ? "#d1fae5" : "#fef3c7";
     const likeCountLabel = Number.isFinite(Number(likeCount)) ? Number(likeCount) : 0;
     const shareCountLabel = Number.isFinite(Number(shareCount)) ? Number(shareCount) : 0;
+    const interactionCountBadgeStyle = {
+        minWidth: "20px",
+        height: "20px",
+        padding: "0 6px",
+        borderRadius: "999px",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "rgba(255,255,255,0.72)",
+        border: "1px solid rgba(15,23,42,0.12)",
+        fontSize: "0.7rem",
+        fontWeight: 800,
+        lineHeight: 1,
+    };
 
     const cardStyle = isMobileView
         ? {
@@ -337,20 +353,24 @@ export default function PoiCard({
                                 onClick={handleShare}
                                 style={{
                                     padding: "5px 9px",
-                                    border: "1px solid #fed7aa",
-                                    background: "#ffedd5",
+                                    border: viewerHasShared ? "1px solid #fdba74" : "1px solid #fed7aa",
+                                    background: viewerHasShared ? "#fed7aa" : "#ffedd5",
                                     color: "#9a3412",
                                     borderRadius: "6px",
                                     cursor: "pointer",
                                     fontSize: "0.74rem",
                                     fontWeight: 700,
                                     lineHeight: 1.1,
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "7px",
                                     flex: "0 0 auto",
                                     whiteSpace: "nowrap",
                                 }}
                                 aria-label="Share point of interest"
                             >
-                                Share ({shareCountLabel})
+                                <span>{viewerHasShared ? "Shared" : "Share"}</span>
+                                <span style={interactionCountBadgeStyle}>{shareCountLabel}</span>
                             </button>
                         ) : null}
                         {typeof onLike === "function" ? (
@@ -360,21 +380,25 @@ export default function PoiCard({
                                 disabled={isSubmittingInteraction}
                                 style={{
                                     padding: "5px 9px",
-                                    border: "1px solid #bbf7d0",
-                                    background: "#dcfce7",
+                                    border: viewerHasLiked ? "1px solid #16a34a" : "1px solid #bbf7d0",
+                                    background: viewerHasLiked ? "#bbf7d0" : "#dcfce7",
                                     color: "#166534",
                                     borderRadius: "6px",
                                     cursor: isSubmittingInteraction ? "not-allowed" : "pointer",
                                     fontSize: "0.74rem",
                                     fontWeight: 700,
                                     lineHeight: 1.1,
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "7px",
                                     flex: "0 0 auto",
                                     whiteSpace: "nowrap",
                                     opacity: isSubmittingInteraction ? 0.65 : 1,
                                 }}
                                 aria-label="Like point of interest"
                             >
-                                Like ({likeCountLabel})
+                                <span>{viewerHasLiked ? "Liked" : "Like"}</span>
+                                <span style={interactionCountBadgeStyle}>{likeCountLabel}</span>
                             </button>
                         ) : null}
                         <button

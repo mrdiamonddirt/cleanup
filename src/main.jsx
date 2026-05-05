@@ -34,8 +34,8 @@ import {
     rejectCommentForAdmin,
     setFacebookGroupMembershipWithBonus,
     submitCommentForReview,
-    submitLike,
     submitShare,
+    toggleLikeForTarget,
     unbanProfileForAdmin,
     requestAccountDeletion,
     resolveUnmatchedBmacEventForAdmin,
@@ -11334,6 +11334,8 @@ function ContributorMobileSheet({
     comments,
     likeCount,
     shareCount,
+    viewerHasLiked,
+    viewerHasShared,
     isSubmittingInteraction,
     interactionStatus,
     interactionError,
@@ -11365,6 +11367,20 @@ function ContributorMobileSheet({
 
     const likeCountLabel = Number.isFinite(Number(likeCount)) ? Number(likeCount) : 0;
     const shareCountLabel = Number.isFinite(Number(shareCount)) ? Number(shareCount) : 0;
+    const interactionCountBadgeStyle = {
+        minWidth: "20px",
+        height: "20px",
+        padding: "0 6px",
+        borderRadius: "999px",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "rgba(255,255,255,0.72)",
+        border: "1px solid rgba(15,23,42,0.12)",
+        fontSize: "0.7rem",
+        fontWeight: 800,
+        lineHeight: 1,
+    };
 
     const setShareStatusWithTimeout = (message) => {
         setShareStatus(message);
@@ -11616,10 +11632,11 @@ function ContributorMobileSheet({
                                         display: "inline-flex",
                                         alignItems: "center",
                                         justifyContent: "center",
+                                        gap: "7px",
                                         minHeight: "34px",
                                         borderRadius: "999px",
-                                        border: "1px solid #86efac",
-                                        background: "#dcfce7",
+                                        border: viewerHasLiked ? "1px solid #16a34a" : "1px solid #86efac",
+                                        background: viewerHasLiked ? "#bbf7d0" : "#dcfce7",
                                         color: "#166534",
                                         fontSize: "0.76rem",
                                         fontWeight: 700,
@@ -11628,7 +11645,8 @@ function ContributorMobileSheet({
                                         opacity: isSubmittingInteraction ? 0.7 : 1,
                                     }}
                                 >
-                                    Like ({likeCountLabel})
+                                    <span>{viewerHasLiked ? "Liked" : "Like"}</span>
+                                    <span style={interactionCountBadgeStyle}>{likeCountLabel}</span>
                                 </button>
                             ) : null}
                             <button
@@ -11639,10 +11657,11 @@ function ContributorMobileSheet({
                                     display: "inline-flex",
                                     alignItems: "center",
                                     justifyContent: "center",
+                                    gap: "7px",
                                     minHeight: "34px",
                                     borderRadius: "999px",
-                                    border: "1px solid #fed7aa",
-                                    background: "#ffedd5",
+                                    border: viewerHasShared ? "1px solid #fdba74" : "1px solid #fed7aa",
+                                    background: viewerHasShared ? "#fed7aa" : "#ffedd5",
                                     color: "#9a3412",
                                     fontSize: "0.76rem",
                                     fontWeight: 700,
@@ -11651,7 +11670,8 @@ function ContributorMobileSheet({
                                     opacity: isSubmittingInteraction ? 0.7 : 1,
                                 }}
                             >
-                                Share ({shareCountLabel})
+                                <span>{viewerHasShared ? "Shared" : "Share"}</span>
+                                <span style={interactionCountBadgeStyle}>{shareCountLabel}</span>
                             </button>
                             {contributor.website_url ? (
                                 <a
@@ -11955,6 +11975,8 @@ function App() {
     const [poiInteractionError, setPoiInteractionError] = useState("");
     const [selectedPoiLikeCount, setSelectedPoiLikeCount] = useState(0);
     const [selectedPoiShareCount, setSelectedPoiShareCount] = useState(0);
+    const [selectedPoiHasLiked, setSelectedPoiHasLiked] = useState(false);
+    const [selectedPoiHasShared, setSelectedPoiHasShared] = useState(false);
     const [selectedContributorComments, setSelectedContributorComments] = useState([]);
     const [isSelectedContributorCommentsLoading, setIsSelectedContributorCommentsLoading] = useState(false);
     const [selectedContributorCommentsError, setSelectedContributorCommentsError] = useState("");
@@ -11964,6 +11986,8 @@ function App() {
     const [contributorInteractionError, setContributorInteractionError] = useState("");
     const [selectedContributorLikeCount, setSelectedContributorLikeCount] = useState(0);
     const [selectedContributorShareCount, setSelectedContributorShareCount] = useState(0);
+    const [selectedContributorHasLiked, setSelectedContributorHasLiked] = useState(false);
+    const [selectedContributorHasShared, setSelectedContributorHasShared] = useState(false);
     const [selectedItemComments, setSelectedItemComments] = useState([]);
     const [isSelectedItemCommentsLoading, setIsSelectedItemCommentsLoading] = useState(false);
     const [selectedItemCommentsError, setSelectedItemCommentsError] = useState("");
@@ -11973,6 +11997,8 @@ function App() {
     const [itemInteractionError, setItemInteractionError] = useState("");
     const [selectedItemLikeCount, setSelectedItemLikeCount] = useState(0);
     const [selectedItemShareCount, setSelectedItemShareCount] = useState(0);
+    const [selectedItemHasLiked, setSelectedItemHasLiked] = useState(false);
+    const [selectedItemHasShared, setSelectedItemHasShared] = useState(false);
     const [selectedContributorId, setSelectedContributorId] = useState(null);
     const [isContributorPanelOpen, setIsContributorPanelOpen] = useState(false);
     const [floodAlerts, setFloodAlerts] = useState([]);
@@ -12072,6 +12098,24 @@ function App() {
     const openAuthProviderModal = () => {
         setIsProfileModalOpen(false);
         setIsAuthProviderModalOpen(true);
+    };
+    const applyPoiInteractionSummary = (summary) => {
+        setSelectedPoiLikeCount(Number.isFinite(Number(summary?.likeCount)) ? Number(summary.likeCount) : 0);
+        setSelectedPoiShareCount(Number.isFinite(Number(summary?.shareCount)) ? Number(summary.shareCount) : 0);
+        setSelectedPoiHasLiked(Boolean(summary?.viewerHasLiked));
+        setSelectedPoiHasShared(Boolean(summary?.viewerHasShared));
+    };
+    const applyContributorInteractionSummary = (summary) => {
+        setSelectedContributorLikeCount(Number.isFinite(Number(summary?.likeCount)) ? Number(summary.likeCount) : 0);
+        setSelectedContributorShareCount(Number.isFinite(Number(summary?.shareCount)) ? Number(summary.shareCount) : 0);
+        setSelectedContributorHasLiked(Boolean(summary?.viewerHasLiked));
+        setSelectedContributorHasShared(Boolean(summary?.viewerHasShared));
+    };
+    const applyItemInteractionSummary = (summary) => {
+        setSelectedItemLikeCount(Number.isFinite(Number(summary?.likeCount)) ? Number(summary.likeCount) : 0);
+        setSelectedItemShareCount(Number.isFinite(Number(summary?.shareCount)) ? Number(summary.shareCount) : 0);
+        setSelectedItemHasLiked(Boolean(summary?.viewerHasLiked));
+        setSelectedItemHasShared(Boolean(summary?.viewerHasShared));
     };
     const closeAuthProviderModal = () => setIsAuthProviderModalOpen(false);
     const openLeaderboardModal = () => {
@@ -16273,6 +16317,8 @@ function App() {
             setPoiInteractionError("");
             setSelectedPoiLikeCount(0);
             setSelectedPoiShareCount(0);
+            setSelectedPoiHasLiked(false);
+            setSelectedPoiHasShared(false);
             return;
         }
 
@@ -16300,8 +16346,7 @@ function App() {
                     ? commentsResult.comments.filter((entry) => entry.status === "approved")
                     : [],
             );
-            setSelectedPoiLikeCount(Number.isFinite(Number(countsResult.likeCount)) ? Number(countsResult.likeCount) : 0);
-            setSelectedPoiShareCount(Number.isFinite(Number(countsResult.shareCount)) ? Number(countsResult.shareCount) : 0);
+            applyPoiInteractionSummary(countsResult);
             setIsSelectedPoiCommentsLoading(false);
         })();
 
@@ -16320,6 +16365,8 @@ function App() {
             setContributorInteractionError("");
             setSelectedContributorLikeCount(0);
             setSelectedContributorShareCount(0);
+            setSelectedContributorHasLiked(false);
+            setSelectedContributorHasShared(false);
             return;
         }
 
@@ -16347,8 +16394,7 @@ function App() {
                     ? commentsResult.comments.filter((entry) => entry.status === "approved")
                     : [],
             );
-            setSelectedContributorLikeCount(Number.isFinite(Number(countsResult.likeCount)) ? Number(countsResult.likeCount) : 0);
-            setSelectedContributorShareCount(Number.isFinite(Number(countsResult.shareCount)) ? Number(countsResult.shareCount) : 0);
+            applyContributorInteractionSummary(countsResult);
             setIsSelectedContributorCommentsLoading(false);
         })();
 
@@ -16367,6 +16413,8 @@ function App() {
             setItemInteractionError("");
             setSelectedItemLikeCount(0);
             setSelectedItemShareCount(0);
+            setSelectedItemHasLiked(false);
+            setSelectedItemHasShared(false);
             return;
         }
 
@@ -16394,8 +16442,7 @@ function App() {
                     ? commentsResult.comments.filter((entry) => entry.status === "approved")
                     : [],
             );
-            setSelectedItemLikeCount(Number.isFinite(Number(countsResult.likeCount)) ? Number(countsResult.likeCount) : 0);
-            setSelectedItemShareCount(Number.isFinite(Number(countsResult.shareCount)) ? Number(countsResult.shareCount) : 0);
+            applyItemInteractionSummary(countsResult);
             setIsSelectedItemCommentsLoading(false);
         })();
 
@@ -16506,7 +16553,7 @@ function App() {
         setPoiInteractionError("");
         setPoiInteractionStatus("");
 
-        const { interaction, error } = await submitLike("poi", poi.id, {
+        const { interaction, summary, error } = await toggleLikeForTarget("poi", poi.id, {
             slug: poi.slug || "",
         });
 
@@ -16516,11 +16563,13 @@ function App() {
             return;
         }
 
-        if (interaction?.created) {
-            setPoiInteractionStatus(`Liked. +${interaction?.points_awarded || 0} points.`);
-            setSelectedPoiLikeCount((prev) => prev + 1);
+        applyPoiInteractionSummary(summary);
+
+        if (interaction?.liked) {
+            setPoiInteractionStatus(`Liked. +${Math.max(Number(interaction?.points_delta || 0), 0)} points.`);
         } else {
-            setPoiInteractionStatus("You already liked this POI.");
+            const pointsRemoved = Math.abs(Number(interaction?.points_delta || 0));
+            setPoiInteractionStatus(pointsRemoved ? `Like removed. -${pointsRemoved} points.` : "Like removed.");
         }
 
         setIsPoiInteractionSaving(false);
@@ -16543,8 +16592,10 @@ function App() {
         if (interaction?.created) {
             setPoiInteractionStatus(`Share recorded. +${interaction?.points_awarded || 0} points.`);
             setSelectedPoiShareCount((prev) => prev + 1);
+            setSelectedPoiHasShared(true);
         } else {
             setPoiInteractionStatus("Share already counted for this POI.");
+            setSelectedPoiHasShared(true);
         }
     }
 
@@ -16587,7 +16638,7 @@ function App() {
         setContributorInteractionError("");
         setContributorInteractionStatus("");
 
-        const { interaction, error } = await submitLike("contributor", contributor.id, {
+        const { interaction, summary, error } = await toggleLikeForTarget("contributor", contributor.id, {
             name: contributor.name || "",
         });
 
@@ -16597,11 +16648,13 @@ function App() {
             return;
         }
 
-        if (interaction?.created) {
-            setContributorInteractionStatus(`Liked. +${interaction?.points_awarded || 0} points.`);
-            setSelectedContributorLikeCount((prev) => prev + 1);
+        applyContributorInteractionSummary(summary);
+
+        if (interaction?.liked) {
+            setContributorInteractionStatus(`Liked. +${Math.max(Number(interaction?.points_delta || 0), 0)} points.`);
         } else {
-            setContributorInteractionStatus("You already liked this contributor.");
+            const pointsRemoved = Math.abs(Number(interaction?.points_delta || 0));
+            setContributorInteractionStatus(pointsRemoved ? `Like removed. -${pointsRemoved} points.` : "Like removed.");
         }
 
         setIsContributorInteractionSaving(false);
@@ -16624,8 +16677,10 @@ function App() {
         if (interaction?.created) {
             setContributorInteractionStatus(`Share recorded. +${interaction?.points_awarded || 0} points.`);
             setSelectedContributorShareCount((prev) => prev + 1);
+            setSelectedContributorHasShared(true);
         } else {
             setContributorInteractionStatus("Share already counted for this contributor.");
+            setSelectedContributorHasShared(true);
         }
     }
 
@@ -16668,7 +16723,7 @@ function App() {
         setItemInteractionError("");
         setItemInteractionStatus("");
 
-        const { interaction, error } = await submitLike("item", itemId, {});
+        const { interaction, summary, error } = await toggleLikeForTarget("item", itemId, {});
 
         if (error) {
             setItemInteractionError("Could not save your like.");
@@ -16676,11 +16731,13 @@ function App() {
             return;
         }
 
-        if (interaction?.created) {
-            setItemInteractionStatus(`Liked. +${interaction?.points_awarded || 0} points.`);
-            setSelectedItemLikeCount((prev) => prev + 1);
+        applyItemInteractionSummary(summary);
+
+        if (interaction?.liked) {
+            setItemInteractionStatus(`Liked. +${Math.max(Number(interaction?.points_delta || 0), 0)} points.`);
         } else {
-            setItemInteractionStatus("You already liked this item.");
+            const pointsRemoved = Math.abs(Number(interaction?.points_delta || 0));
+            setItemInteractionStatus(pointsRemoved ? `Like removed. -${pointsRemoved} points.` : "Like removed.");
         }
 
         setIsItemInteractionSaving(false);
@@ -16701,8 +16758,10 @@ function App() {
         if (interaction?.created) {
             setItemInteractionStatus(`Share recorded. +${interaction?.points_awarded || 0} points.`);
             setSelectedItemShareCount((prev) => prev + 1);
+            setSelectedItemHasShared(true);
         } else {
             setItemInteractionStatus("Share already counted for this item.");
+            setSelectedItemHasShared(true);
         }
     }
 
@@ -18004,320 +18063,13 @@ function App() {
                                           contributor.name,
                                       )}
                                       eventHandlers={{
-                                          click: (event) => {
-                                              if (isMobile) {
-                                                  setSelectedContributorId(
-                                                      contributor.id,
-                                                  );
-                                                  return;
-                                              }
-
-                                              event.target.openPopup();
+                                          click: () => {
+                                              setSelectedContributorId(
+                                                  contributor.id,
+                                              );
                                           },
                                       }}
                                   >
-                                      {!isMobile ? (
-                                          <Popup
-                                              className="contributor-popup"
-                                              autoPan
-                                              keepInView
-                                              autoPanPadding={[20, 20]}
-                                              maxWidth={520}
-                                              minWidth={260}
-                                          >
-                                              <div
-                                                  className="contributor-popup-content"
-                                                  style={{
-                                                      display: "flex",
-                                                      flexDirection: "row",
-                                                      flexWrap: "wrap",
-                                                      alignItems: "stretch",
-                                                      gap: "8px",
-                                                      minWidth: 0,
-                                                      width: "min(468px, calc(100vw - 44px))",
-                                                      maxWidth: "100%",
-                                                      boxSizing: "border-box",
-                                                  }}
-                                              >
-                                                  <div
-                                                      className="contributor-popup-panel contributor-popup-header"
-                                                      style={{
-                                                          borderRadius: "12px",
-                                                          border: "1px solid #dbe5f4",
-                                                          background:
-                                                              "linear-gradient(140deg, #f8fafc 0%, #eef4ff 100%)",
-                                                          display: "grid",
-                                                          justifyItems:
-                                                              "center",
-                                                          gap: "10px",
-                                                          padding:
-                                                              "12px 12px 10px",
-                                                          flex: "0 1 160px",
-                                                          minWidth: "136px",
-                                                          overflow: "hidden",
-                                                      }}
-                                                  >
-                                                      <div
-                                                          className="contributor-popup-logo-frame"
-                                                          style={{
-                                                              width: "84px",
-                                                              height: "84px",
-                                                              borderRadius:
-                                                                  "14px",
-                                                              border: "1px solid #cbd5e1",
-                                                              background:
-                                                                  "#f8fafc",
-                                                              boxShadow:
-                                                                  "inset 0 1px 0 rgba(255, 255, 255, 0.7)",
-                                                              display: "grid",
-                                                              placeItems:
-                                                                  "center",
-                                                              overflow:
-                                                                  "hidden",
-                                                          }}
-                                                      >
-                                                          {contributor.logo_url ? (
-                                                              <img
-                                                                  src={
-                                                                      contributor.logo_url
-                                                                  }
-                                                                  alt={`${contributor.name || "Business"} logo`}
-                                                                  className="contributor-popup-logo"
-                                                                  style={{
-                                                                      width: "100%",
-                                                                      height: "100%",
-                                                                      maxWidth:
-                                                                          "74px",
-                                                                      maxHeight:
-                                                                          "74px",
-                                                                      objectFit:
-                                                                          "contain",
-                                                                      borderRadius:
-                                                                          "8px",
-                                                                      flexShrink: 0,
-                                                                  }}
-                                                              />
-                                                          ) : (
-                                                              <div
-                                                                  className="contributor-popup-logo-placeholder"
-                                                                  aria-hidden="true"
-                                                                  style={{
-                                                                      width: "100%",
-                                                                      height: "100%",
-                                                                      maxWidth:
-                                                                          "74px",
-                                                                      maxHeight:
-                                                                          "74px",
-                                                                      borderRadius:
-                                                                          "10px",
-                                                                      border: "1px dashed #94a3b8",
-                                                                      background:
-                                                                          "linear-gradient(140deg, #e2e8f0, #cbd5e1)",
-                                                                      flexShrink: 0,
-                                                                  }}
-                                                              />
-                                                          )}
-                                                      </div>
-                                                      <div
-                                                          className="contributor-popup-title-row"
-                                                          style={{
-                                                              display: "flex",
-                                                              flexDirection:
-                                                                  "column",
-                                                              alignItems:
-                                                                  "center",
-                                                              gap: "4px",
-                                                              marginBottom: 0,
-                                                              minWidth: 0,
-                                                              width: "100%",
-                                                          }}
-                                                      >
-                                                          <strong
-                                                              style={{
-                                                                  color: "#0f172a",
-                                                                  fontSize:
-                                                                      "0.94rem",
-                                                                  fontWeight: 700,
-                                                                  lineHeight: 1.2,
-                                                                  overflowWrap:
-                                                                      "anywhere",
-                                                                  wordBreak:
-                                                                      "break-word",
-                                                                  textAlign:
-                                                                      "center",
-                                                              }}
-                                                          >
-                                                              {contributor.name ||
-                                                                  "Contributor"}
-                                                          </strong>
-                                                          <span className="contributor-popup-badge">
-                                                              Contributed
-                                                          </span>
-                                                      </div>
-                                                      <div
-                                                          style={{
-                                                              display: "flex",
-                                                              flexDirection:
-                                                                  "column",
-                                                              gap: "6px",
-                                                              width: "100%",
-                                                              minWidth: 0,
-                                                          }}
-                                                      >
-                                                          {contributor.website_url ? (
-                                                              <a
-                                                                  href={
-                                                                      contributor.website_url
-                                                                  }
-                                                                  target="_blank"
-                                                                  rel="noreferrer"
-                                                                  style={{
-                                                                      display:
-                                                                          "inline-flex",
-                                                                      justifyContent:
-                                                                          "center",
-                                                                      alignItems:
-                                                                          "center",
-                                                                      width: "100%",
-                                                                      minHeight:
-                                                                          "30px",
-                                                                      padding:
-                                                                          "0 9px",
-                                                                      borderRadius:
-                                                                          "999px",
-                                                                      border: "1px solid #93c5fd",
-                                                                      background:
-                                                                          "#eff6ff",
-                                                                      color: "#1d4ed8",
-                                                                      fontSize:
-                                                                          "0.74rem",
-                                                                      fontWeight: 700,
-                                                                      textDecoration:
-                                                                          "none",
-                                                                      boxSizing:
-                                                                          "border-box",
-                                                                  }}
-                                                              >
-                                                                  Visit Website
-                                                              </a>
-                                                          ) : null}
-                                                          {contributorMapsUrl ? (
-                                                              <a
-                                                                  href={
-                                                                      contributorMapsUrl
-                                                                  }
-                                                                  target="_blank"
-                                                                  rel="noreferrer"
-                                                                  style={{
-                                                                      display:
-                                                                          "inline-flex",
-                                                                      justifyContent:
-                                                                          "center",
-                                                                      alignItems:
-                                                                          "center",
-                                                                      width: "100%",
-                                                                      minHeight:
-                                                                          "30px",
-                                                                      padding:
-                                                                          "0 9px",
-                                                                      borderRadius:
-                                                                          "999px",
-                                                                      border: "1px solid #2563eb",
-                                                                      background:
-                                                                          "linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%)",
-                                                                      color: "#ffffff",
-                                                                      fontSize:
-                                                                          "0.74rem",
-                                                                      fontWeight: 700,
-                                                                      textDecoration:
-                                                                          "none",
-                                                                      boxSizing:
-                                                                          "border-box",
-                                                                  }}
-                                                              >
-                                                                  Open In Google
-                                                                  Maps
-                                                              </a>
-                                                          ) : null}
-                                                      </div>
-                                                  </div>
-                                                  <div
-                                                      className="contributor-popup-panel contributor-popup-details"
-                                                      style={{
-                                                          borderRadius: "12px",
-                                                          border: "1px solid #dbe5f4",
-                                                          background: "#ffffff",
-                                                          display: "grid",
-                                                          gap: "8px",
-                                                          flex: "1 1 240px",
-                                                          minWidth: 0,
-                                                          padding: "10px 11px",
-                                                          textAlign: "left",
-                                                          overflow: "hidden",
-                                                      }}
-                                                  >
-                                                      {contributor.description ? (
-                                                          <div
-                                                              style={{
-                                                                  borderRadius:
-                                                                      "8px",
-                                                                  border: "1px solid #e2e8f0",
-                                                                  background:
-                                                                      "#f8fafc",
-                                                                  padding:
-                                                                      "6px 7px",
-                                                                  maxHeight:
-                                                                      "108px",
-                                                                  overflowX:
-                                                                      "hidden",
-                                                                  overflowY:
-                                                                      "auto",
-                                                              }}
-                                                          >
-                                                              <p
-                                                                  style={{
-                                                                      margin: 0,
-                                                                      color: "#334155",
-                                                                      fontSize:
-                                                                          "0.8rem",
-                                                                      lineHeight: 1.45,
-                                                                      overflowWrap:
-                                                                          "anywhere",
-                                                                      wordBreak:
-                                                                          "break-word",
-                                                                  }}
-                                                              >
-                                                                  {
-                                                                      contributor.description
-                                                                  }
-                                                              </p>
-                                                          </div>
-                                                      ) : null}
-                                                      {contributor.contribution_note ? (
-                                                          <p
-                                                              className="contributor-popup-note"
-                                                              style={{
-                                                                  margin: 0,
-                                                                  color: "#1e3a8a",
-                                                                  fontSize:
-                                                                      "0.8rem",
-                                                                  fontWeight: 600,
-                                                                  lineHeight: 1.45,
-                                                                  overflowWrap:
-                                                                      "anywhere",
-                                                                  wordBreak:
-                                                                      "break-word",
-                                                              }}
-                                                          >
-                                                              {
-                                                                  contributor.contribution_note
-                                                              }
-                                                          </p>
-                                                      ) : null}
-                                                  </div>
-                                              </div>
-                                          </Popup>
-                                      ) : null}
                                   </Marker>
                               );
                           })
@@ -19024,7 +18776,7 @@ function App() {
                 </>
             ) : null}
 
-            {isMobile && selectedContributor ? (
+            {selectedContributor ? (
                 <ContributorMobileSheet
                     contributor={selectedContributor}
                     mapsUrl={selectedContributorMapsUrl}
@@ -19036,6 +18788,8 @@ function App() {
                     comments={selectedContributorComments}
                     likeCount={selectedContributorLikeCount}
                     shareCount={selectedContributorShareCount}
+                    viewerHasLiked={selectedContributorHasLiked}
+                    viewerHasShared={selectedContributorHasShared}
                     isSubmittingInteraction={isContributorInteractionSaving}
                     interactionStatus={contributorInteractionStatus}
                     interactionError={contributorInteractionError}
@@ -19087,6 +18841,8 @@ function App() {
                     comments={selectedPoiComments}
                     likeCount={selectedPoiLikeCount}
                     shareCount={selectedPoiShareCount}
+                    viewerHasLiked={selectedPoiHasLiked}
+                    viewerHasShared={selectedPoiHasShared}
                     isSubmittingInteraction={isPoiInteractionSaving}
                     interactionStatus={poiInteractionStatus}
                     interactionError={poiInteractionError}
@@ -19128,6 +18884,8 @@ function App() {
                     onLikeItem={handleItemLike}
                     itemLikeCount={selectedItemLikeCount}
                     itemShareCount={selectedItemShareCount}
+                    itemHasLiked={selectedItemHasLiked}
+                    itemHasShared={selectedItemHasShared}
                     itemInteractionStatus={itemInteractionStatus}
                     itemInteractionError={itemInteractionError}
                     itemCommentDraft={selectedItemCommentDraft}
