@@ -29,6 +29,7 @@ import {
     listCommentsForTarget,
     getInteractionCountsForTarget,
     listPendingCommentsForAdmin,
+    listRecentPointDeltasByActionForAdmin,
     listPointEventsForProfile,
     listProfilesForAdmin,
     recordBmacContributionAmount,
@@ -6266,6 +6267,11 @@ function ProfilePanel({
     onLoadPointHistoryForAdminProfile,
     adminPointEventsByProfileId,
     isAdminPointHistoryLoadingByProfileId,
+    adminRecentPointDeltasByAction,
+    isAdminRecentPointDeltasLoading,
+    adminRecentPointDeltasError,
+    adminRecentPointDeltasWindowHours,
+    onLoadRecentPointDeltasForAdmin,
     adminCommunityPointsDeltaByProfileId,
     adminCommunityReasonByProfileId,
     adminActionError,
@@ -6807,6 +6813,95 @@ function ProfilePanel({
                     {adminActionError ? (
                         <div style={{ marginTop: "8px", color: "#b91c1c", fontSize: "0.76rem", fontWeight: 700 }}>{adminActionError}</div>
                     ) : null}
+
+                    <details style={{ marginTop: "10px" }}>
+                        <summary style={{ cursor: "pointer", fontSize: "0.76rem", fontWeight: 800, color: "#7c2d12", letterSpacing: "0.03em", textTransform: "uppercase" }}>
+                            Reveal point delta diagnostics
+                        </summary>
+                        <div style={{ marginTop: "8px", display: "grid", gap: "8px" }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", flexWrap: "wrap" }}>
+                                <div style={{ fontSize: "0.73rem", color: "#57534e" }}>
+                                    Net point movement by action code for the selected recent window.
+                                </div>
+                                <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                                    <select
+                                        value={String(adminRecentPointDeltasWindowHours || 72)}
+                                        onChange={(event) => onLoadRecentPointDeltasForAdmin(event.target.value)}
+                                        style={{
+                                            minHeight: "30px",
+                                            borderRadius: "8px",
+                                            border: "1px solid #d6d3d1",
+                                            background: "#fff",
+                                            color: "#334155",
+                                            padding: "0 8px",
+                                            fontSize: "0.74rem",
+                                            fontWeight: 700,
+                                        }}
+                                    >
+                                        <option value="24">Last 24h</option>
+                                        <option value="72">Last 72h</option>
+                                        <option value="168">Last 7d</option>
+                                    </select>
+                                    <button
+                                        type="button"
+                                        onClick={() => onLoadRecentPointDeltasForAdmin(adminRecentPointDeltasWindowHours)}
+                                        disabled={isAdminRecentPointDeltasLoading}
+                                        style={{
+                                            minHeight: "30px",
+                                            borderRadius: "8px",
+                                            border: "1px solid #334155",
+                                            background: "#f8fafc",
+                                            color: "#334155",
+                                            padding: "0 9px",
+                                            fontSize: "0.74rem",
+                                            fontWeight: 700,
+                                            cursor: isAdminRecentPointDeltasLoading ? "not-allowed" : "pointer",
+                                        }}
+                                    >
+                                        {isAdminRecentPointDeltasLoading ? "Refreshing..." : "Refresh"}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {adminRecentPointDeltasError ? (
+                                <div style={{ fontSize: "0.75rem", color: "#b91c1c" }}>{adminRecentPointDeltasError}</div>
+                            ) : null}
+
+                            {isAdminRecentPointDeltasLoading ? (
+                                <div style={{ fontSize: "0.75rem", color: "#57534e" }}>Loading point delta diagnostics...</div>
+                            ) : (
+                                <div style={{ display: "grid", gap: "6px", maxHeight: "220px", overflowY: "auto", paddingRight: "2px" }}>
+                                    {Array.isArray(adminRecentPointDeltasByAction) && adminRecentPointDeltasByAction.length ? (
+                                        adminRecentPointDeltasByAction.map((row) => {
+                                            const netDelta = Number.isFinite(Number(row?.netDelta)) ? Number(row.netDelta) : 0;
+                                            const positiveDelta = Number.isFinite(Number(row?.positiveDelta)) ? Number(row.positiveDelta) : 0;
+                                            const negativeDelta = Number.isFinite(Number(row?.negativeDelta)) ? Number(row.negativeDelta) : 0;
+                                            const eventCount = Number.isFinite(Number(row?.eventCount)) ? Number(row.eventCount) : 0;
+
+                                            return (
+                                                <div key={row?.actionCode || "unknown"} style={{ border: "1px solid #e2e8f0", borderRadius: "8px", padding: "7px 8px", background: "#f8fafc" }}>
+                                                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", flexWrap: "wrap" }}>
+                                                        <div style={{ fontSize: "0.76rem", fontWeight: 700, color: "#0f172a", overflowWrap: "anywhere" }}>
+                                                            {row?.actionCode || "unknown"}
+                                                        </div>
+                                                        <div style={{ fontSize: "0.76rem", fontWeight: 800, color: netDelta >= 0 ? "#166534" : "#b91c1c" }}>
+                                                            Net {netDelta >= 0 ? "+" : ""}{netDelta}
+                                                        </div>
+                                                    </div>
+                                                    <div style={{ marginTop: "4px", fontSize: "0.7rem", color: "#64748b" }}>
+                                                        {eventCount} events • +{positiveDelta} / {negativeDelta}
+                                                        {row?.latestCreatedAt ? ` • latest ${new Date(row.latestCreatedAt).toLocaleString("en-GB")}` : ""}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                    ) : (
+                                        <div style={{ fontSize: "0.75rem", color: "#57534e" }}>No point events found in this window.</div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </details>
 
                     <details style={{ marginTop: "10px" }}>
                         <summary style={{ cursor: "pointer", fontSize: "0.76rem", fontWeight: 800, color: "#7c2d12", letterSpacing: "0.03em", textTransform: "uppercase" }}>
@@ -12108,6 +12203,10 @@ function App() {
     const [adminActionStatus, setAdminActionStatus] = useState("");
     const [adminPointEventsByProfileId, setAdminPointEventsByProfileId] = useState({});
     const [isAdminPointHistoryLoadingByProfileId, setIsAdminPointHistoryLoadingByProfileId] = useState({});
+    const [adminRecentPointDeltasByAction, setAdminRecentPointDeltasByAction] = useState([]);
+    const [isAdminRecentPointDeltasLoading, setIsAdminRecentPointDeltasLoading] = useState(false);
+    const [adminRecentPointDeltasError, setAdminRecentPointDeltasError] = useState("");
+    const [adminRecentPointDeltasWindowHours, setAdminRecentPointDeltasWindowHours] = useState(72);
     const [adminBmacAmountPenceByProfileId, setAdminBmacAmountPenceByProfileId] = useState({});
     const [adminBmacNoteByProfileId, setAdminBmacNoteByProfileId] = useState({});
     const [adminCommunityPointsDeltaByProfileId, setAdminCommunityPointsDeltaByProfileId] = useState({});
@@ -13318,6 +13417,8 @@ function App() {
                 setAdminBans([]);
                 setAdminUnmatchedBmacEvents([]);
                 setAdminAuditLogs([]);
+                setAdminRecentPointDeltasByAction([]);
+                setAdminRecentPointDeltasError("");
                 setAdminPointEventsByProfileId({});
                 setAdminBmacAmountPenceByProfileId({});
                 setAdminBmacNoteByProfileId({});
@@ -13333,11 +13434,13 @@ function App() {
         setIsAdminBansLoading(true);
         setIsAdminUnmatchedBmacEventsLoading(true);
         setIsAdminAuditLogsLoading(true);
+        setIsAdminRecentPointDeltasLoading(true);
         setAdminProfilesError("");
         setAdminPendingCommentsError("");
         setAdminBansError("");
         setAdminUnmatchedBmacEventsError("");
         setAdminAuditLogsError("");
+        setAdminRecentPointDeltasError("");
         setAdminProfilesStatus("");
         setAdminActionError("");
         setAdminActionStatus("");
@@ -13349,12 +13452,14 @@ function App() {
                 bansResult,
                 unmatchedBmacEventsResult,
                 auditLogsResult,
+                recentDeltasResult,
             ] = await Promise.all([
                 listProfilesForAdmin(),
                 listPendingCommentsForAdmin(),
                 listBansForAdmin(),
                 listUnmatchedBmacEventsForAdmin(),
                 listAdminAuditLogs(),
+                listRecentPointDeltasByActionForAdmin(adminRecentPointDeltasWindowHours, 3000),
             ]);
 
             if (!isMounted) return;
@@ -13394,17 +13499,25 @@ function App() {
                 setAdminAuditLogs(auditLogsResult.logs || []);
             }
 
+            if (recentDeltasResult.error) {
+                setAdminRecentPointDeltasByAction([]);
+                setAdminRecentPointDeltasError("Unable to load recent point delta diagnostics.");
+            } else {
+                setAdminRecentPointDeltasByAction(recentDeltasResult.rows || []);
+            }
+
             setIsAdminProfilesLoading(false);
             setIsAdminPendingCommentsLoading(false);
             setIsAdminBansLoading(false);
             setIsAdminUnmatchedBmacEventsLoading(false);
             setIsAdminAuditLogsLoading(false);
+            setIsAdminRecentPointDeltasLoading(false);
         })();
 
         return () => {
             isMounted = false;
         };
-    }, [isProfileModalOpen, canManageItems]);
+    }, [isProfileModalOpen, canManageItems, adminRecentPointDeltasWindowHours]);
 
     useEffect(() => {
         localStorage.setItem(ITEMS_STORAGE_KEY, JSON.stringify(items));
@@ -15055,6 +15168,31 @@ function App() {
         }));
     }
 
+    async function loadRecentPointDeltasForAdmin(hoursBack = adminRecentPointDeltasWindowHours) {
+        if (!canManageItems || !hasSupabaseConfig) return;
+
+        const parsedHoursBack = Number.parseInt(String(hoursBack), 10);
+        const safeHoursBack = Number.isFinite(parsedHoursBack) && parsedHoursBack > 0
+            ? parsedHoursBack
+            : 72;
+
+        setAdminRecentPointDeltasWindowHours(safeHoursBack);
+        setIsAdminRecentPointDeltasLoading(true);
+        setAdminRecentPointDeltasError("");
+
+        const { rows, error } = await listRecentPointDeltasByActionForAdmin(safeHoursBack, 3000);
+
+        if (error) {
+            setAdminRecentPointDeltasByAction([]);
+            setAdminRecentPointDeltasError("Could not load recent action-code point deltas.");
+            setIsAdminRecentPointDeltasLoading(false);
+            return;
+        }
+
+        setAdminRecentPointDeltasByAction(Array.isArray(rows) ? rows : []);
+        setIsAdminRecentPointDeltasLoading(false);
+    }
+
     async function recordAdminBmacContribution(profileId) {
         if (!canManageItems || !hasSupabaseConfig || !profileId) return;
 
@@ -15087,6 +15225,7 @@ function App() {
 
         setAdminActionStatus(`Recorded BMAC contribution (${contribution?.amount_pence || amountPence}p).`);
         setAdminBmacAmountPenceByProfileId((prev) => ({ ...prev, [profileId]: "" }));
+        void loadRecentPointDeltasForAdmin();
     }
 
     async function recordAdminCommunityPoints(profileId) {
@@ -15145,6 +15284,7 @@ function App() {
         );
         setAdminCommunityPointsDeltaByProfileId((prev) => ({ ...prev, [profileId]: "" }));
         setAdminCommunityReasonByProfileId((prev) => ({ ...prev, [profileId]: "" }));
+        void loadRecentPointDeltasForAdmin();
     }
 
     function onAdminUnmatchedBmacProfileChange(eventId, profileId) {
@@ -15219,6 +15359,7 @@ function App() {
         });
         setAdminActionStatus(`Resolved unmatched BMAC event (${contribution?.amount_pence || 0}p).`);
         setResolvingUnmatchedBmacEventId("");
+        void loadRecentPointDeltasForAdmin();
     }
 
     async function approvePendingComment(commentId) {
@@ -15243,6 +15384,8 @@ function App() {
         if (comment?.profile_id) {
             await loadPointHistoryForAdminProfile(comment.profile_id);
         }
+
+        void loadRecentPointDeltasForAdmin();
     }
 
     async function rejectPendingComment(commentId) {
@@ -19190,6 +19333,11 @@ function App() {
                     onLoadPointHistoryForAdminProfile={loadPointHistoryForAdminProfile}
                     adminPointEventsByProfileId={adminPointEventsByProfileId}
                     isAdminPointHistoryLoadingByProfileId={isAdminPointHistoryLoadingByProfileId}
+                    adminRecentPointDeltasByAction={adminRecentPointDeltasByAction}
+                    isAdminRecentPointDeltasLoading={isAdminRecentPointDeltasLoading}
+                    adminRecentPointDeltasError={adminRecentPointDeltasError}
+                    adminRecentPointDeltasWindowHours={adminRecentPointDeltasWindowHours}
+                    onLoadRecentPointDeltasForAdmin={loadRecentPointDeltasForAdmin}
                     adminCommunityPointsDeltaByProfileId={adminCommunityPointsDeltaByProfileId}
                     adminCommunityReasonByProfileId={adminCommunityReasonByProfileId}
                     adminActionError={adminActionError}
