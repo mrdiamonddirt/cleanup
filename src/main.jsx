@@ -6218,6 +6218,9 @@ function LeaderboardModal({
 function ProfilePanel({
     currentUser,
     currentProfile,
+    profilePointsTotal,
+    leaderboardTotalsByEntityKey,
+    facebookGroupJoinBonusPoints,
     canManageItems,
     profileForm,
     onProfileFieldChange,
@@ -6296,8 +6299,10 @@ function ProfilePanel({
             ? { label: "Cleanup Supporter", tone: "amber" }
             : null,
     ].filter(Boolean);
-    const pointsLabel = Number.isFinite(Number(currentProfile?.supporter_points))
-        ? Number(currentProfile.supporter_points)
+    const pointsLabel = Number.isFinite(Number(profilePointsTotal))
+        ? Number(profilePointsTotal)
+        : Number.isFinite(Number(currentProfile?.supporter_points))
+            ? Number(currentProfile.supporter_points)
         : 0;
     const activeAdminProfileCount = Array.isArray(adminProfiles)
         ? adminProfiles.filter((profile) => !profile?.delete_requested_at).length
@@ -6448,6 +6453,21 @@ function ProfilePanel({
                                 const adminDisplayName = getProfileDisplayName(profile, null);
                                 const adminAvatarUrl = getProfileAvatarUrl(profile, null);
                                 const isSavingThisProfile = savingAdminProfileId === profile.id;
+                                const profileId = String(profile?.id || "").trim();
+                                const ownerTotals = profileId
+                                    ? leaderboardTotalsByEntityKey?.[`user:${profileId}`]
+                                    : null;
+                                const supportPoints = Number.isFinite(Number(profile?.supporter_points))
+                                    ? Number(profile.supporter_points)
+                                    : 0;
+                                const interactionAndCommunityPoints = Number.isFinite(Number(ownerTotals?.total))
+                                    ? Number(ownerTotals.total)
+                                        - (Number.isFinite(Number(ownerTotals?.bmc)) ? Number(ownerTotals.bmc) : 0)
+                                        - (Number.isFinite(Number(ownerTotals?.facebookGroupPoints)) ? Number(ownerTotals.facebookGroupPoints) : 0)
+                                    : 0;
+                                const totalPointsLabel = interactionAndCommunityPoints
+                                    + supportPoints
+                                    + (Boolean(profile?.is_facebook_group_member) ? Number(facebookGroupJoinBonusPoints || 0) : 0);
                                 return (
                                     <div
                                         key={profile.id}
@@ -6493,7 +6513,7 @@ function ProfilePanel({
 
                                         <div style={{ display: "grid", gap: "8px", gridTemplateColumns: isMobile ? "1fr" : "120px minmax(0,1fr) auto" }}>
                                             <label style={{ display: "grid", gap: "4px" }}>
-                                                <span style={{ fontSize: "0.72rem", color: "#57534e", fontWeight: 700 }}>Points</span>
+                                                <span style={{ fontSize: "0.72rem", color: "#57534e", fontWeight: 700 }}>Support points</span>
                                                 <input
                                                     type="number"
                                                     value={profile.supporter_points ?? 0}
@@ -6508,6 +6528,9 @@ function ProfilePanel({
                                                         boxSizing: "border-box",
                                                     }}
                                                 />
+                                                <span style={{ fontSize: "0.68rem", color: "#475569", fontWeight: 700 }}>
+                                                    Total points: {Number.isFinite(Number(totalPointsLabel)) ? Number(totalPointsLabel) : 0}
+                                                </span>
                                             </label>
                                             <label style={{ display: "grid", gap: "4px" }}>
                                                 <span style={{ fontSize: "0.72rem", color: "#57534e", fontWeight: 700 }}>Note</span>
@@ -12310,6 +12333,7 @@ function App() {
         }
 
         setIsProfileLoading(true);
+        const leaderboardRefreshPromise = fetchLeaderboardData();
 
         const { profile, error } = await ensureProfileForUser(currentUser);
 
@@ -12324,6 +12348,7 @@ function App() {
             display_name: profile?.display_name || "",
             avatar_url: profile?.avatar_url || "",
         });
+        await leaderboardRefreshPromise;
         setIsProfileLoading(false);
     };
     const closeProfileModal = () => {
@@ -14951,7 +14976,7 @@ function App() {
         setAdminProfilesStatus(`Saved ${getProfileDisplayName(nextProfile, null)}`);
         setSavingAdminProfileId("");
 
-        if (isLeaderboardModalOpen || isContributorPanelOpen) {
+        if (isLeaderboardModalOpen || isContributorPanelOpen || isProfileModalOpen) {
             void fetchLeaderboardData();
         }
     }
@@ -16555,6 +16580,20 @@ function App() {
 
         return map;
     }, [leaderboardProfiles, leaderboardTotals, leaderboardPointsRules]);
+    const currentProfileLeaderboardTotal = useMemo(() => {
+        const profileId = String(currentProfile?.id || "").trim();
+        if (!profileId) return null;
+
+        const currentRow = leaderboardTotalsByEntityKey[`user:${profileId}`];
+        const total = Number(currentRow?.total);
+        return Number.isFinite(total) ? total : null;
+    }, [currentProfile?.id, leaderboardTotalsByEntityKey]);
+    const facebookGroupJoinBonusPoints = useMemo(() => {
+        if (!Array.isArray(leaderboardPointsRules)) return 0;
+        const rule = leaderboardPointsRules.find((entry) => entry?.rule_code === "facebook_group_join_bonus");
+        const points = Number(rule?.points_value);
+        return Number.isFinite(points) ? points : 0;
+    }, [leaderboardPointsRules]);
     const sortedContributorsByEngagement = useMemo(
         () => [...contributors].sort((left, right) => {
             const leftTotals = leaderboardTotalsByEntityKey[`contributor:${String(left?.id || "")}`];
@@ -18995,6 +19034,9 @@ function App() {
                 <ProfilePanel
                     currentUser={currentUser}
                     currentProfile={currentProfile}
+                    profilePointsTotal={currentProfileLeaderboardTotal}
+                    leaderboardTotalsByEntityKey={leaderboardTotalsByEntityKey}
+                    facebookGroupJoinBonusPoints={facebookGroupJoinBonusPoints}
                     canManageItems={canManageItems}
                     profileForm={profileForm}
                     onProfileFieldChange={(field, value) => {
