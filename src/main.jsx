@@ -6482,9 +6482,28 @@ function ProfilePanel({
                                     >
                                         <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
                                             <ProfileAvatar imageUrl={adminAvatarUrl} label={adminDisplayName} size={34} />
-                                            <div style={{ minWidth: 0, flex: "1 1 auto" }}>
-                                                <div style={{ fontSize: "0.82rem", fontWeight: 800, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                                    {adminDisplayName}
+                                            <div style={{ minWidth: 0, flex: "1 1 auto", display: "grid", gap: "3px" }}>
+                                                <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
+                                                    <div style={{ fontSize: "0.82rem", fontWeight: 800, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
+                                                        {adminDisplayName}
+                                                    </div>
+                                                    <span
+                                                        style={{
+                                                            display: "inline-flex",
+                                                            alignItems: "center",
+                                                            justifyContent: "center",
+                                                            borderRadius: "999px",
+                                                            padding: "2px 8px",
+                                                            fontSize: "0.68rem",
+                                                            fontWeight: 800,
+                                                            border: "1px solid #0ea5e9",
+                                                            background: "#e0f2fe",
+                                                            color: "#0c4a6e",
+                                                            flexShrink: 0,
+                                                        }}
+                                                    >
+                                                        {Number.isFinite(Number(totalPointsLabel)) ? Number(totalPointsLabel) : 0} pts
+                                                    </span>
                                                 </div>
                                                 <div style={{ fontSize: "0.7rem", color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                                     {profile.id}
@@ -6528,9 +6547,6 @@ function ProfilePanel({
                                                         boxSizing: "border-box",
                                                     }}
                                                 />
-                                                <span style={{ fontSize: "0.68rem", color: "#475569", fontWeight: 700 }}>
-                                                    Total points: {Number.isFinite(Number(totalPointsLabel)) ? Number(totalPointsLabel) : 0}
-                                                </span>
                                             </label>
                                             <label style={{ display: "grid", gap: "4px" }}>
                                                 <span style={{ fontSize: "0.72rem", color: "#57534e", fontWeight: 700 }}>Note</span>
@@ -6572,7 +6588,7 @@ function ProfilePanel({
                                             </button>
                                         </div>
 
-                                        <div style={{ display: "grid", gap: "8px", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0,1fr))" }}>
+                                        <div style={{ display: "grid", gap: "8px", gridTemplateColumns: isMobile ? "1fr" : "minmax(0,1fr) minmax(0,1fr) auto" }}>
                                             <label style={{ display: "grid", gap: "4px" }}>
                                                 <span style={{ fontSize: "0.72rem", color: "#57534e", fontWeight: 700 }}>BMAC amount (pence)</span>
                                                 <input
@@ -6610,9 +6626,27 @@ function ProfilePanel({
                                                     }}
                                                 />
                                             </label>
+                                            <button
+                                                type="button"
+                                                onClick={() => onRecordAdminBmacContribution(profile.id)}
+                                                style={{
+                                                    minHeight: "34px",
+                                                    alignSelf: isMobile ? "stretch" : "end",
+                                                    borderRadius: "10px",
+                                                    border: "1px solid #166534",
+                                                    background: "#dcfce7",
+                                                    color: "#166534",
+                                                    padding: "0 10px",
+                                                    fontSize: "0.76rem",
+                                                    fontWeight: 700,
+                                                    cursor: "pointer",
+                                                }}
+                                            >
+                                                Award BMAC
+                                            </button>
                                         </div>
 
-                                        <div style={{ display: "grid", gap: "8px", gridTemplateColumns: isMobile ? "1fr" : "minmax(0,1fr) minmax(0,1fr)" }}>
+                                        <div style={{ display: "grid", gap: "8px", gridTemplateColumns: isMobile ? "1fr" : "minmax(0,1fr) minmax(0,1fr) auto" }}>
                                             <label style={{ display: "grid", gap: "4px" }}>
                                                 <span style={{ fontSize: "0.72rem", color: "#57534e", fontWeight: 700 }}>Community points (+/-)</span>
                                                 <input
@@ -6649,32 +6683,13 @@ function ProfilePanel({
                                                     }}
                                                 />
                                             </label>
-                                        </div>
-
-                                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                                            <button
-                                                type="button"
-                                                onClick={() => onRecordAdminBmacContribution(profile.id)}
-                                                style={{
-                                                    minHeight: "32px",
-                                                    borderRadius: "8px",
-                                                    border: "1px solid #166534",
-                                                    background: "#dcfce7",
-                                                    color: "#166534",
-                                                    padding: "0 10px",
-                                                    fontSize: "0.76rem",
-                                                    fontWeight: 700,
-                                                    cursor: "pointer",
-                                                }}
-                                            >
-                                                Award BMAC points
-                                            </button>
                                             <button
                                                 type="button"
                                                 onClick={() => onRecordAdminCommunityPoints(profile.id)}
                                                 style={{
-                                                    minHeight: "32px",
-                                                    borderRadius: "8px",
+                                                    minHeight: "34px",
+                                                    alignSelf: isMobile ? "stretch" : "end",
+                                                    borderRadius: "10px",
                                                     border: "1px solid #0f766e",
                                                     background: "#ccfbf1",
                                                     color: "#115e59",
@@ -6684,8 +6699,11 @@ function ProfilePanel({
                                                     cursor: "pointer",
                                                 }}
                                             >
-                                                Award community points
+                                                Award Community
                                             </button>
+                                        </div>
+
+                                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "space-between" }}>
                                             <button
                                                 type="button"
                                                 onClick={() => onLoadPointHistoryForAdminProfile(profile.id)}
