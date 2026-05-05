@@ -16962,7 +16962,7 @@ function App() {
         return () => {
             isMounted = false;
         };
-    }, [selectedHistoricalPoi?.id, hasSupabaseConfig]);
+    }, [selectedHistoricalPoi?.id, hasSupabaseConfig, currentUser?.id]);
 
     useEffect(() => {
         if (!selectedContributor?.id || !hasSupabaseConfig) {
@@ -17015,7 +17015,7 @@ function App() {
         return () => {
             isMounted = false;
         };
-    }, [selectedContributor?.id, hasSupabaseConfig]);
+    }, [selectedContributor?.id, hasSupabaseConfig, currentUser?.id]);
 
     useEffect(() => {
         if (!selectedItem?.id || !hasSupabaseConfig) {
@@ -17068,7 +17068,7 @@ function App() {
         return () => {
             isMounted = false;
         };
-    }, [selectedItem?.id, hasSupabaseConfig]);
+    }, [selectedItem?.id, hasSupabaseConfig, currentUser?.id]);
 
     const editingHistoricalPoi = useMemo(
         () =>
@@ -17173,6 +17173,11 @@ function App() {
             return;
         }
 
+        if (isProfileLoading || !currentProfile?.id) {
+            setPoiInteractionError("Your profile is still loading. Please try again in a moment.");
+            return;
+        }
+
         setIsPoiInteractionSaving(true);
         setPoiInteractionError("");
         setPoiInteractionStatus("");
@@ -17270,6 +17275,11 @@ function App() {
             return;
         }
 
+        if (isProfileLoading || !currentProfile?.id) {
+            setContributorInteractionError("Your profile is still loading. Please try again in a moment.");
+            return;
+        }
+
         setIsContributorInteractionSaving(true);
         setContributorInteractionError("");
         setContributorInteractionStatus("");
@@ -17364,6 +17374,11 @@ function App() {
         const targetItemId = String(itemId || "").trim();
         if (!currentUser?.id || !hasSupabaseConfig || !targetItemId) {
             setItemInteractionError("Sign in to like items.");
+            return;
+        }
+
+        if (isProfileLoading || !currentProfile?.id) {
+            setItemInteractionError("Your profile is still loading. Please try again in a moment.");
             return;
         }
 
