@@ -139,6 +139,43 @@ function isMissingProfileError(error) {
     return code === "PGRST116" || message.includes("no rows");
 }
 
+function isUniqueViolationError(error) {
+    return String(error?.code || "").trim() === "23505";
+}
+
+const VALID_INTERACTION_TARGET_TYPES = new Set(["poi", "item", "contributor"]);
+
+function normalizeInteractionTarget(targetType, targetId) {
+    const normalizedType = normalizeText(targetType).toLowerCase();
+    const normalizedId = normalizeText(String(targetId || ""));
+
+    if (!VALID_INTERACTION_TARGET_TYPES.has(normalizedType)) {
+        return {
+            targetEntityType: "",
+            targetEntityId: "",
+            error: new Error(`Invalid target type: ${String(targetType || "")}`),
+        };
+    }
+
+    if (!normalizedId) {
+        return {
+            targetEntityType: normalizedType,
+            targetEntityId: "",
+            error: new Error("Missing target id"),
+        };
+    }
+
+    return {
+        targetEntityType: normalizedType,
+        targetEntityId: normalizedId,
+        error: null,
+    };
+}
+
+function logInteractionApiWarning(message, context = {}) {
+    console.warn(`[profileApi] ${message}`, context);
+}
+
 export async function ensureProfileForUser(user) {
     if (!user?.id) {
         return { profile: null, error: new Error("Missing user id") };
@@ -167,6 +204,21 @@ export async function ensureProfileForUser(user) {
         .insert(seed)
         .select(PROFILE_SELECT_FIELDS)
         .single();
+
+    if (isUniqueViolationError(error)) {
+        const {
+            data: existingAfterConflict,
+            error: existingAfterConflictError,
+        } = await supabase
+            .from("profiles")
+            .select(PROFILE_SELECT_FIELDS)
+            .eq("id", user.id)
+            .single();
+
+        if (!existingAfterConflictError && existingAfterConflict) {
+            return { profile: existingAfterConflict, error: null };
+        }
+    }
 
     if (error) {
         return { profile: null, error };
@@ -304,14 +356,33 @@ export async function cancelAccountDeletion(userId) {
 }
 
 export async function submitLike(targetType, targetId, metadata = {}) {
+    const { targetEntityType, targetEntityId, error: targetError } = normalizeInteractionTarget(
+        targetType,
+        targetId,
+    );
+    if (targetError) {
+        logInteractionApiWarning("submitLike skipped due to invalid target", {
+            targetType,
+            targetId,
+            message: targetError.message,
+        });
+        return { interaction: null, error: targetError };
+    }
+
     const { data, error } = await supabase.rpc("submit_social_interaction", {
         p_interaction_type: "like",
-        p_target_entity_type: targetType,
-        p_target_entity_id: String(targetId || "").trim(),
+        p_target_entity_type: targetEntityType,
+        p_target_entity_id: targetEntityId,
         p_metadata: metadata,
     });
 
     if (error) {
+        logInteractionApiWarning("submitLike RPC failed", {
+            targetEntityType,
+            targetEntityId,
+            code: error.code,
+            message: error.message,
+        });
         return { interaction: null, error };
     }
 
@@ -319,14 +390,33 @@ export async function submitLike(targetType, targetId, metadata = {}) {
 }
 
 export async function submitShare(targetType, targetId, metadata = {}) {
+    const { targetEntityType, targetEntityId, error: targetError } = normalizeInteractionTarget(
+        targetType,
+        targetId,
+    );
+    if (targetError) {
+        logInteractionApiWarning("submitShare skipped due to invalid target", {
+            targetType,
+            targetId,
+            message: targetError.message,
+        });
+        return { interaction: null, error: targetError };
+    }
+
     const { data, error } = await supabase.rpc("submit_social_interaction", {
         p_interaction_type: "share",
-        p_target_entity_type: targetType,
-        p_target_entity_id: String(targetId || "").trim(),
+        p_target_entity_type: targetEntityType,
+        p_target_entity_id: targetEntityId,
         p_metadata: metadata,
     });
 
     if (error) {
+        logInteractionApiWarning("submitShare RPC failed", {
+            targetEntityType,
+            targetEntityId,
+            code: error.code,
+            message: error.message,
+        });
         return { interaction: null, error };
     }
 
@@ -334,14 +424,33 @@ export async function submitShare(targetType, targetId, metadata = {}) {
 }
 
 export async function submitCommentForReview(targetType, targetId, body, parentCommentId = null) {
+    const { targetEntityType, targetEntityId, error: targetError } = normalizeInteractionTarget(
+        targetType,
+        targetId,
+    );
+    if (targetError) {
+        logInteractionApiWarning("submitCommentForReview skipped due to invalid target", {
+            targetType,
+            targetId,
+            message: targetError.message,
+        });
+        return { comment: null, error: targetError };
+    }
+
     const { data, error } = await supabase.rpc("submit_comment_for_review", {
-        p_target_entity_type: targetType,
-        p_target_entity_id: String(targetId || "").trim(),
+        p_target_entity_type: targetEntityType,
+        p_target_entity_id: targetEntityId,
         p_body: typeof body === "string" ? body.trim() : "",
         p_parent_comment_id: parentCommentId,
     });
 
     if (error) {
+        logInteractionApiWarning("submitCommentForReview RPC failed", {
+            targetEntityType,
+            targetEntityId,
+            code: error.code,
+            message: error.message,
+        });
         return { comment: null, error };
     }
 
@@ -360,12 +469,37 @@ function normalizeInteractionSummaryResponse(data) {
 }
 
 export async function getInteractionCountsForTarget(targetType, targetId) {
+    const { targetEntityType, targetEntityId, error: targetError } = normalizeInteractionTarget(
+        targetType,
+        targetId,
+    );
+    if (targetError) {
+        logInteractionApiWarning("getInteractionCountsForTarget skipped due to invalid target", {
+            targetType,
+            targetId,
+            message: targetError.message,
+        });
+        return {
+            likeCount: 0,
+            shareCount: 0,
+            viewerHasLiked: false,
+            viewerHasShared: false,
+            error: targetError,
+        };
+    }
+
     const { data, error } = await supabase.rpc("get_target_interaction_summary", {
-        p_target_entity_type: targetType,
-        p_target_entity_id: String(targetId || "").trim(),
+        p_target_entity_type: targetEntityType,
+        p_target_entity_id: targetEntityId,
     });
 
     if (error) {
+        logInteractionApiWarning("getInteractionCountsForTarget RPC failed", {
+            targetEntityType,
+            targetEntityId,
+            code: error.code,
+            message: error.message,
+        });
         return {
             likeCount: 0,
             shareCount: 0,
@@ -384,13 +518,41 @@ export async function getInteractionCountsForTarget(targetType, targetId) {
 }
 
 export async function toggleLikeForTarget(targetType, targetId, metadata = {}) {
+    const { targetEntityType, targetEntityId, error: targetError } = normalizeInteractionTarget(
+        targetType,
+        targetId,
+    );
+    if (targetError) {
+        logInteractionApiWarning("toggleLikeForTarget skipped due to invalid target", {
+            targetType,
+            targetId,
+            message: targetError.message,
+        });
+        return {
+            interaction: null,
+            summary: {
+                likeCount: 0,
+                shareCount: 0,
+                viewerHasLiked: false,
+                viewerHasShared: false,
+            },
+            error: targetError,
+        };
+    }
+
     const { data, error } = await supabase.rpc("toggle_like_interaction", {
-        p_target_entity_type: targetType,
-        p_target_entity_id: String(targetId || "").trim(),
+        p_target_entity_type: targetEntityType,
+        p_target_entity_id: targetEntityId,
         p_metadata: metadata,
     });
 
     if (error) {
+        logInteractionApiWarning("toggleLikeForTarget RPC failed", {
+            targetEntityType,
+            targetEntityId,
+            code: error.code,
+            message: error.message,
+        });
         return {
             interaction: null,
             summary: {
@@ -436,14 +598,33 @@ export async function listPointsRules() {
 }
 
 export async function listCommentsForTarget(targetType, targetId) {
+    const { targetEntityType, targetEntityId, error: targetError } = normalizeInteractionTarget(
+        targetType,
+        targetId,
+    );
+    if (targetError) {
+        logInteractionApiWarning("listCommentsForTarget skipped due to invalid target", {
+            targetType,
+            targetId,
+            message: targetError.message,
+        });
+        return { comments: [], error: targetError };
+    }
+
     const { data, error } = await supabase
         .from("comments")
         .select(COMMENT_SELECT_FIELDS)
-        .eq("target_entity_type", targetType)
-        .eq("target_entity_id", String(targetId || "").trim())
+        .eq("target_entity_type", targetEntityType)
+        .eq("target_entity_id", targetEntityId)
         .order("created_at", { ascending: false });
 
     if (error) {
+        logInteractionApiWarning("listCommentsForTarget query failed", {
+            targetEntityType,
+            targetEntityId,
+            code: error.code,
+            message: error.message,
+        });
         return { comments: [], error };
     }
 

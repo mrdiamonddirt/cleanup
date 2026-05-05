@@ -13171,6 +13171,10 @@ function App() {
             if (!isMounted) return;
 
             if (error) {
+                console.error("Supabase auth getUser failed", {
+                    code: error.code,
+                    message: error.message,
+                });
                 setAuthError(getSupabaseAuthErrorMessage(error));
             }
 
@@ -13220,6 +13224,11 @@ function App() {
             if (!isMounted) return;
 
             if (error) {
+                console.error("Profile load/create failed", {
+                    userId: currentUser?.id,
+                    code: error.code,
+                    message: error.message,
+                });
                 setCurrentProfile(null);
                 setProfileError("Unable to load your profile right now.");
                 setIsProfileLoading(false);
@@ -13910,6 +13919,10 @@ function App() {
         const { data, error } = await supabase.from("items").select("*");
 
         if (error) {
+            console.error("Could not load items from Supabase", {
+                code: error.code,
+                message: error.message,
+            });
             setIsLoadingItems(false);
             return false;
         }
@@ -13947,6 +13960,10 @@ function App() {
             .select("id, name, logo_url, website_url, description, lat, lng, google_maps_link, contribution_note");
 
         if (error) {
+            console.error("Could not load contributors from Supabase", {
+                code: error.code,
+                message: error.message,
+            });
             setContributors([]);
             return false;
         }
@@ -14000,6 +14017,10 @@ function App() {
         }
 
         if (totalsResult?.error) {
+            console.error("Leaderboard totals RPC failed", {
+                code: totalsResult.error.code,
+                message: totalsResult.error.message,
+            });
             setLeaderboardTotals([]);
             setLeaderboardError("Could not load leaderboard totals right now.");
             setIsLeaderboardLoading(false);
@@ -14011,7 +14032,18 @@ function App() {
         setLeaderboardPointsRules(Array.isArray(pointsRulesResult?.rules) ? pointsRulesResult.rules : []);
 
         if (profilesResult?.error) {
+            console.error("Leaderboard profiles query failed", {
+                code: profilesResult.error.code,
+                message: profilesResult.error.message,
+            });
             setLeaderboardError("Leaderboard loaded, but user names could not be fetched.");
+        }
+
+        if (pointsRulesResult?.error) {
+            console.error("Points rules query failed", {
+                code: pointsRulesResult.error.code,
+                message: pointsRulesResult.error.message,
+            });
         }
 
         setIsLeaderboardLoading(false);
@@ -16692,6 +16724,11 @@ function App() {
                     : [],
             );
             applyPoiInteractionSummary(countsResult);
+            if (countsResult.error) {
+                setPoiInteractionError("Interaction stats are temporarily unavailable.");
+            } else {
+                setPoiInteractionError("");
+            }
             setIsSelectedPoiCommentsLoading(false);
         })();
 
@@ -16740,6 +16777,11 @@ function App() {
                     : [],
             );
             applyContributorInteractionSummary(countsResult);
+            if (countsResult.error) {
+                setContributorInteractionError("Interaction stats are temporarily unavailable.");
+            } else {
+                setContributorInteractionError("");
+            }
             setIsSelectedContributorCommentsLoading(false);
         })();
 
@@ -16788,6 +16830,11 @@ function App() {
                     : [],
             );
             applyItemInteractionSummary(countsResult);
+            if (countsResult.error) {
+                setItemInteractionError("Interaction stats are temporarily unavailable.");
+            } else {
+                setItemInteractionError("");
+            }
             setIsSelectedItemCommentsLoading(false);
         })();
 

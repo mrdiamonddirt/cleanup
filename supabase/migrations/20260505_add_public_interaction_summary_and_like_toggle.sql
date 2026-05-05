@@ -47,7 +47,8 @@ begin
             from scoped_interactions
             where interaction_type = 'share'
               and profile_id = v_user_id
-        ) as viewer_has_shared;
+            ) as viewer_has_shared
+            from scoped_interactions;
 end;
 $$;
 
