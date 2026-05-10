@@ -76,6 +76,7 @@ export default function SelectedItemDrawer({
     normalizeOptionalDateInput,
 }) {
     if (!selectedItem || !selectedCounts) return null;
+    const suppressDrawerBackdropCloseUntilRef = React.useRef(0);
     const viewportHeight = typeof window !== "undefined" ? window.innerHeight : 900;
     const useShortDesktop = !isMobile && viewportHeight <= 820;
     const useCompactLayout =
@@ -123,13 +124,27 @@ export default function SelectedItemDrawer({
     const selectedItemPreviewSizes = useCompactLayout
         ? "calc(100vw - 56px)"
         : useShortDesktop ? "220px" : "260px";
+    const closeDrawer = () => {
+        setSelectedItemId(null);
+        setEditingItemId(null);
+    };
+    const openImageViewerFromDrawer = (event) => {
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        suppressDrawerBackdropCloseUntilRef.current = Date.now() + 350;
+        setIsImageViewerOpen(true);
+    };
 
     const drawerNode = (
         <>
             <div
                 onClick={() => {
-                    setSelectedItemId(null);
-                    setEditingItemId(null);
+                    if (Date.now() < suppressDrawerBackdropCloseUntilRef.current) {
+                        return;
+                    }
+                    closeDrawer();
                 }}
                 style={{
                     position: "fixed",
@@ -326,8 +341,7 @@ export default function SelectedItemDrawer({
                         ) : null}
                         <button
                             onClick={() => {
-                                setSelectedItemId(null);
-                                setEditingItemId(null);
+                                closeDrawer();
                             }}
                             style={{
                                 border: "1px solid #dbe3ee",
@@ -366,7 +380,14 @@ export default function SelectedItemDrawer({
                     }}>
                         {selectedItem.image_url ? (
                             <button
-                                onClick={() => setIsImageViewerOpen(true)}
+                                type="button"
+                                onPointerDown={(event) => {
+                                    event.stopPropagation();
+                                }}
+                                onTouchStart={(event) => {
+                                    event.stopPropagation();
+                                }}
+                                onClick={openImageViewerFromDrawer}
                                 style={{
                                     border: "1px solid #dbe3ee",
                                     background: "linear-gradient(180deg, #f8fbff 0%, #f1f5f9 100%)",

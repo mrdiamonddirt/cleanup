@@ -12431,6 +12431,73 @@ function App() {
         setSelectedItemHasLiked(Boolean(summary?.viewerHasLiked));
         setSelectedItemHasShared(Boolean(summary?.viewerHasShared));
     };
+    const reconcileItemInteractionInCollections = (itemId, summary) => {
+        const normalizedItemId = String(itemId || "").trim();
+        if (!normalizedItemId) return;
+
+        const likeCount = Number.isFinite(Number(summary?.likeCount)) ? Number(summary.likeCount) : 0;
+        const shareCount = Number.isFinite(Number(summary?.shareCount)) ? Number(summary.shareCount) : 0;
+        const viewerHasLiked = Boolean(summary?.viewerHasLiked);
+        const viewerHasShared = Boolean(summary?.viewerHasShared);
+
+        setItems((prev) => {
+            if (!Array.isArray(prev) || prev.length === 0) return prev;
+
+            let didUpdate = false;
+            const nextItems = prev.map((item) => {
+                if (String(item?.id || "").trim() !== normalizedItemId) {
+                    return item;
+                }
+
+                didUpdate = true;
+                return {
+                    ...item,
+                    like_count: likeCount,
+                    share_count: shareCount,
+                    viewer_has_liked: viewerHasLiked,
+                    viewer_has_shared: viewerHasShared,
+                };
+            });
+
+            return didUpdate ? nextItems : prev;
+        });
+
+        setLeaderboardTotals((prev) => {
+            const rows = Array.isArray(prev) ? prev : [];
+            let didUpdate = false;
+
+            const nextRows = rows.map((row) => {
+                const rowEntityType = String(row?.entity_type || "").trim().toLowerCase();
+                const rowEntityId = String(row?.entity_id || "").trim();
+
+                if (rowEntityType !== "item" || rowEntityId !== normalizedItemId) {
+                    return row;
+                }
+
+                didUpdate = true;
+                return {
+                    ...row,
+                    like_count: likeCount,
+                    share_count: shareCount,
+                };
+            });
+
+            if (didUpdate) return nextRows;
+
+            return [
+                ...nextRows,
+                {
+                    entity_type: "item",
+                    entity_id: normalizedItemId,
+                    like_count: likeCount,
+                    share_count: shareCount,
+                    comment_count: 0,
+                    community_points: 0,
+                    bmc_points: 0,
+                },
+            ];
+        });
+    };
     const closeAuthProviderModal = () => setIsAuthProviderModalOpen(false);
     const openLeaderboardModal = (scopeOverride = null) => {
         setLeaderboardError("");
@@ -17387,6 +17454,7 @@ function App() {
 
     async function handleItemLike(itemId) {
         const targetItemId = String(itemId || "").trim();
+        const selectedItemIdAtRequestStart = selectedItemIdRef.current;
         if (itemLikeInFlightRef.current) {
             return;
         }
@@ -17409,26 +17477,35 @@ function App() {
             const { interaction, summary, error } = await toggleLikeForTarget("item", targetItemId, {});
 
             if (error) {
-                setItemInteractionError("Could not save your like.");
+                if (selectedItemIdRef.current === targetItemId) {
+                    setItemInteractionError("Could not save your like.");
+                }
                 return;
             }
 
+            const countsResult = await getInteractionCountsForTarget("item", targetItemId);
+            const resolvedSummary = countsResult.error ? summary : countsResult;
+
+            reconcileItemInteractionInCollections(targetItemId, resolvedSummary);
+
             if (selectedItemIdRef.current === targetItemId) {
-                applyItemInteractionSummary(summary);
+                applyItemInteractionSummary(resolvedSummary);
             }
 
             const hasLiked = typeof interaction?.liked === "boolean"
                 ? interaction.liked
-                : Boolean(summary?.viewerHasLiked);
+                : Boolean(resolvedSummary?.viewerHasLiked);
             const pointsDelta = Number.isFinite(Number(interaction?.points_delta))
                 ? Number(interaction.points_delta)
                 : 0;
 
-            if (hasLiked) {
-                setItemInteractionStatus(`Liked. +${Math.max(pointsDelta, 0)} points.`);
-            } else {
-                const pointsRemoved = Math.abs(pointsDelta);
-                setItemInteractionStatus(pointsRemoved ? `Like removed. -${pointsRemoved} points.` : "Like removed.");
+            if (selectedItemIdRef.current === targetItemId && selectedItemIdAtRequestStart === targetItemId) {
+                if (hasLiked) {
+                    setItemInteractionStatus(`Liked. +${Math.max(pointsDelta, 0)} points.`);
+                } else {
+                    const pointsRemoved = Math.abs(pointsDelta);
+                    setItemInteractionStatus(pointsRemoved ? `Like removed. -${pointsRemoved} points.` : "Like removed.");
+                }
             }
 
             void fetchLeaderboardData();

@@ -169,7 +169,7 @@ export default function FullscreenImageViewer({
                 position: "fixed",
                 inset: 0,
                 background: "rgba(0, 0, 0, 0.92)",
-                zIndex: 2100,
+                zIndex: 2600,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
