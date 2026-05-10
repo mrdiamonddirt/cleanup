@@ -176,6 +176,22 @@ function logInteractionApiWarning(message, context = {}) {
     console.warn(`[profileApi] ${message}`, context);
 }
 
+function hasOwnValue(row, key) {
+    return Boolean(row) && Object.prototype.hasOwnProperty.call(row, key) && row[key] !== undefined;
+}
+
+function pickFirstDefined(row, keys) {
+    if (!row) return undefined;
+
+    for (const key of keys) {
+        if (hasOwnValue(row, key)) {
+            return row[key];
+        }
+    }
+
+    return undefined;
+}
+
 function normalizeRpcBoolean(value) {
     if (typeof value === "boolean") return value;
 
@@ -197,6 +213,49 @@ function normalizeRpcBoolean(value) {
 function normalizeRpcNumber(value, fallback = 0) {
     const next = Number(value);
     return Number.isFinite(next) ? next : fallback;
+}
+
+function normalizeOptionalRpcBoolean(row, keys, fallback = null) {
+    const value = pickFirstDefined(row, keys);
+
+    if (value === undefined || value === null) {
+        return fallback;
+    }
+
+    return normalizeRpcBoolean(value);
+}
+
+function normalizeToggleLikeResponse(data) {
+    const row = Array.isArray(data) ? data[0] || null : data || null;
+
+    if (!row) {
+        return {
+            interaction: null,
+            summary: {
+                likeCount: 0,
+                shareCount: 0,
+                viewerHasLiked: false,
+                viewerHasShared: false,
+            },
+            resolvedLiked: null,
+        };
+    }
+
+    const resolvedLiked = normalizeOptionalRpcBoolean(row, ["liked", "viewer_has_liked", "viewerHasLiked"]);
+    const summary = normalizeInteractionSummaryResponse(row, {
+        viewerHasLiked: resolvedLiked ?? false,
+    });
+
+    return {
+        interaction: {
+            ...row,
+            liked: resolvedLiked,
+            points_delta: normalizeRpcNumber(row?.points_delta, 0),
+            points_balance_after: normalizeRpcNumber(row?.points_balance_after, 0),
+        },
+        summary,
+        resolvedLiked: resolvedLiked ?? summary.viewerHasLiked,
+    };
 }
 
 export async function ensureProfileForUser(user) {
@@ -480,14 +539,14 @@ export async function submitCommentForReview(targetType, targetId, body, parentC
     return { comment: data || null, error: null };
 }
 
-function normalizeInteractionSummaryResponse(data) {
+function normalizeInteractionSummaryResponse(data, fallback = {}) {
     const row = Array.isArray(data) ? data[0] || null : data || null;
 
     return {
-        likeCount: normalizeRpcNumber(row?.like_count ?? row?.likeCount, 0),
-        shareCount: normalizeRpcNumber(row?.share_count ?? row?.shareCount, 0),
-        viewerHasLiked: normalizeRpcBoolean(row?.viewer_has_liked ?? row?.viewerHasLiked),
-        viewerHasShared: normalizeRpcBoolean(row?.viewer_has_shared ?? row?.viewerHasShared),
+        likeCount: normalizeRpcNumber(pickFirstDefined(row, ["like_count", "likeCount"]), fallback.likeCount ?? 0),
+        shareCount: normalizeRpcNumber(pickFirstDefined(row, ["share_count", "shareCount"]), fallback.shareCount ?? 0),
+        viewerHasLiked: normalizeOptionalRpcBoolean(row, ["viewer_has_liked", "viewerHasLiked"], fallback.viewerHasLiked ?? false),
+        viewerHasShared: normalizeOptionalRpcBoolean(row, ["viewer_has_shared", "viewerHasShared"], fallback.viewerHasShared ?? false),
     };
 }
 
@@ -588,19 +647,12 @@ export async function toggleLikeForTarget(targetType, targetId, metadata = {}) {
         };
     }
 
-    const row = Array.isArray(data) ? data[0] || null : data || null;
-    const normalizedInteraction = row
-        ? {
-            ...row,
-            liked: normalizeRpcBoolean(row?.liked),
-            points_delta: normalizeRpcNumber(row?.points_delta, 0),
-            points_balance_after: normalizeRpcNumber(row?.points_balance_after, 0),
-        }
-        : null;
+    const normalizedResult = normalizeToggleLikeResponse(data);
 
     return {
-        interaction: normalizedInteraction,
-        summary: normalizeInteractionSummaryResponse(normalizedInteraction),
+        interaction: normalizedResult.interaction,
+        summary: normalizedResult.summary,
+        resolvedLiked: normalizedResult.resolvedLiked,
         error: null,
     };
 }

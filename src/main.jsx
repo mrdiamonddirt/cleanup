@@ -2445,7 +2445,15 @@ const normalizeType = (value) => {
     return "misc";
 };
 
-const getIcon = (type, isRecovered) => {
+const getRecoveredMarkerBadgeHtml = (positionStyle) => `
+    <span style="position: absolute; ${positionStyle}; width: 16px; height: 16px; border-radius: 50%; background: #2ecc71; color: white; font-size: 11px; line-height: 16px; text-align: center; border: 1px solid #fff;">✓</span>
+`;
+
+const getLikedMarkerBadgeHtml = (positionStyle) => `
+    <span style="position: absolute; ${positionStyle}; width: 16px; height: 16px; border-radius: 50%; background: #2563eb; color: white; font-size: 9px; line-height: 16px; text-align: center; border: 1px solid #fff;">👍</span>
+`;
+
+const getIcon = (type, isRecovered, viewerHasLiked = false) => {
     const normalizedType = normalizeType(type);
 
     const iconMap = {
@@ -2478,7 +2486,12 @@ const getIcon = (type, isRecovered) => {
                     <span style="position: absolute; top: -5px; left: -5px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 999px; background: ${isRecovered ? "#2ecc71" : "#92400e"}; color: #ffffff; font-size: 9px; font-weight: 800; line-height: 18px; text-align: center; border: 1px solid #ffffff; letter-spacing: 0.04em;">HF</span>
                     ${
                         isRecovered
-                            ? '<span style="position: absolute; bottom: -3px; right: -3px; width: 16px; height: 16px; border-radius: 50%; background: #2ecc71; color: white; font-size: 11px; line-height: 16px; text-align: center; border: 1px solid #fff;">✓</span>'
+                            ? getRecoveredMarkerBadgeHtml("bottom: -3px; right: -3px;")
+                            : ""
+                    }
+                    ${
+                        viewerHasLiked
+                            ? getLikedMarkerBadgeHtml("top: -3px; right: -3px;")
                             : ""
                     }
                 </div>
@@ -2495,7 +2508,12 @@ const getIcon = (type, isRecovered) => {
                 <span>${emoji}</span>
                 ${
                     isRecovered
-                        ? '<span style="position: absolute; bottom: -2px; right: -2px; width: 16px; height: 16px; border-radius: 50%; background: #2ecc71; color: white; font-size: 11px; line-height: 16px; text-align: center; border: 1px solid #fff;">✓</span>'
+                        ? getRecoveredMarkerBadgeHtml("bottom: -2px; right: -2px;")
+                        : ""
+                }
+                ${
+                    viewerHasLiked
+                        ? getLikedMarkerBadgeHtml("top: -2px; right: -2px;")
                         : ""
                 }
             </div>
@@ -8511,6 +8529,8 @@ function FilterControls({
     controlFontSize,
     typeFilter,
     statusFilter,
+    likeFilter,
+    isSignedIn,
     isLuneStationsVisible,
     isRegionalFlowStationsVisible,
     isContributorsVisible,
@@ -8519,6 +8539,7 @@ function FilterControls({
     setIsContributorsVisible,
     setTypeFilter,
     setStatusFilter,
+    setLikeFilter,
     isOverlay = false,
 }) {
     const typeOptions = [
@@ -8536,9 +8557,17 @@ function FilterControls({
         { value: "recovered", label: "Recovered" },
     ];
 
+    const likeOptions = [
+        { value: "all", label: "All" },
+        { value: "liked", label: "Liked" },
+        { value: "not-liked", label: "Not liked" },
+    ];
+
     const useSegmentedMobile = isMobile && !isOverlay;
     const useDesktopCompactLayout = !isMobile && !isOverlay;
     const useDesktopOverlayLayout = isOverlay && !isMobile;
+    const showLikeFilter = Boolean(isSignedIn);
+    const useStackedOverlaySelects = useDesktopOverlayLayout;
     const [isOverlayCollapsed, setIsOverlayCollapsed] = useState(false);
     const showOverlayCollapseToggle = useDesktopOverlayLayout;
     const isOverlayContentHidden = showOverlayCollapseToggle && isOverlayCollapsed;
@@ -8567,18 +8596,48 @@ function FilterControls({
         width: "auto",
         whiteSpace: "nowrap",
     };
-    const overlayFieldGroupStyle = {};
+    const overlayFieldGroupStyle = useDesktopOverlayLayout
+        ? {
+            border: "1px solid #dbe3ef",
+            borderRadius: "10px",
+            padding: "2px 5px",
+            background: "linear-gradient(180deg, #f8fbff, #ffffff)",
+            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.7)",
+            minWidth: 0,
+        }
+        : {};
     const overlayLabelStyle = useDesktopOverlayLayout
         ? {
-              fontSize: "0.68rem",
+              fontSize: "0.66rem",
               fontWeight: 700,
-              color: "#334155",
-              letterSpacing: "0.05em",
-              textTransform: "uppercase",
+              color: "#475569",
+              letterSpacing: "0.01em",
+              textTransform: "none",
           }
         : {};
-    const overlaySelectStyle = {};
-    const overlayToggleButtonStyle = {};
+    const overlaySelectStyle = useDesktopOverlayLayout
+        ? {
+            appearance: "none",
+            border: "1px solid #cbd5e1",
+            backgroundImage: "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
+            backgroundRepeat: "no-repeat",
+            backgroundPosition: "right 8px center",
+            backgroundSize: "8px 8px",
+            boxShadow: "0 1px 2px rgba(15,23,42,0.05)",
+            fontWeight: 600,
+            color: "#0f172a",
+        }
+        : {};
+    const overlayToggleButtonStyle = useDesktopOverlayLayout
+        ? {
+            borderRadius: "10px",
+            padding: "4px 8px",
+            minHeight: "26px",
+            fontSize: "0.74rem",
+            lineHeight: 1.1,
+            boxShadow: "0 1px 2px rgba(15,23,42,0.05)",
+        }
+        : {};
 
     return (
         <div
@@ -8589,7 +8648,7 @@ function FilterControls({
                           top: isMobile ? "8px" : "10px",
                           right: isMobile ? "8px" : "10px",
                           zIndex: 700,
-                                                    maxWidth: isMobile ? "min(84vw, 240px)" : "240px",
+                                                    maxWidth: isMobile ? "min(80vw, 216px)" : "216px",
                       }
                     : {}),
             }}
@@ -8600,16 +8659,17 @@ function FilterControls({
                     gridTemplateColumns: useDesktopCompactLayout ? "repeat(2, minmax(190px, 1fr))" : "none",
                     flexWrap: isOverlay ? "nowrap" : isMobile ? "nowrap" : "wrap",
                     flexDirection: isOverlay ? "column" : isMobile ? "column" : "row",
-                    gap: isOverlay ? "4px" : useDesktopCompactLayout ? "6px" : "8px",
+                    gap: isOverlay ? "3px" : useDesktopCompactLayout ? "6px" : "8px",
                     marginBottom: isOverlay ? "0" : useDesktopCompactLayout ? "6px" : "8px",
                     marginTop: isOverlay ? "0" : useDesktopCompactLayout ? "6px" : "8px",
                     alignItems: isOverlay ? "stretch" : isMobile ? "stretch" : "center",
                     justifyItems: useDesktopCompactLayout ? "start" : "normal",
-                    padding: isOverlay ? (isMobile ? "6px" : "6px") : "0",
-                    borderRadius: isOverlay ? "8px" : "0",
+                    padding: isOverlay ? "4px" : "0",
+                    borderRadius: isOverlay ? "9px" : "0",
                     border: isOverlay ? "1px solid #cbd5e1" : "none",
-                    background: isOverlay ? "rgba(255,255,255,0.98)" : "transparent",
-                    boxShadow: isOverlay ? "0 4px 12px rgba(15,23,42,0.1)" : "none",
+                    background: isOverlay ? "rgba(255,255,255,0.97)" : "transparent",
+                    boxShadow: isOverlay ? "0 5px 14px rgba(15,23,42,0.12)" : "none",
+                    backdropFilter: isOverlay ? "blur(8px)" : "none",
                 }}
             >
                 {isOverlay ? (
@@ -8619,19 +8679,19 @@ function FilterControls({
                             alignItems: "center",
                             justifyContent: "space-between",
                             gap: "6px",
-                            marginBottom: useDesktopOverlayLayout ? "2px" : "1px",
+                            marginBottom: useDesktopOverlayLayout ? "1px" : "1px",
                         }}
                     >
                         <span
                             style={{
-                                fontSize: "0.68rem",
+                                fontSize: "0.62rem",
                                 fontWeight: 700,
                                 color: "#475569",
-                                letterSpacing: "0.06em",
+                                letterSpacing: "0.05em",
                                 textTransform: "uppercase",
                             }}
                         >
-                            Filters
+                            Map Filters
                         </span>
                         {showOverlayCollapseToggle ? (
                             <button
@@ -8641,13 +8701,13 @@ function FilterControls({
                                 aria-label={isOverlayCollapsed ? "Expand filters" : "Collapse filters"}
                                 title={isOverlayCollapsed ? "Expand filters" : "Collapse filters"}
                                 style={{
-                                    width: "18px",
-                                    height: "18px",
+                                    width: "16px",
+                                    height: "16px",
                                     borderRadius: "6px",
                                     border: "1px solid #cbd5e1",
                                     background: "#f8fafc",
                                     color: "#334155",
-                                    fontSize: "0.8rem",
+                                    fontSize: "0.7rem",
                                     lineHeight: 1,
                                     fontWeight: 700,
                                     padding: 0,
@@ -8715,6 +8775,33 @@ function FilterControls({
                             </div>
                         </div>
 
+                        {showLikeFilter ? (
+                            <div style={{ display: "grid", gap: "6px" }}>
+                                <span style={{ fontSize: "0.72rem", fontWeight: 700, color: "#334155", textTransform: "uppercase", letterSpacing: "0.04em" }}>Like state</span>
+                                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                                    {likeOptions.map((option) => (
+                                        <button
+                                            key={`like-${option.value}`}
+                                            type="button"
+                                            onClick={() => setLikeFilter(option.value)}
+                                            style={{
+                                                border: likeFilter === option.value ? "1px solid #2563eb" : "1px solid #cbd5e1",
+                                                background: likeFilter === option.value ? "#dbeafe" : "#fff",
+                                                color: "#0f172a",
+                                                borderRadius: UI_TOKENS.radius.pill,
+                                                padding: "7px 10px",
+                                                fontSize: "0.8rem",
+                                                fontWeight: 700,
+                                                minHeight: "34px",
+                                            }}
+                                        >
+                                            {option.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : null}
+
                         <div style={{ display: "grid", gap: "6px" }}>
                             <span style={{ fontSize: "0.72rem", fontWeight: 700, color: "#0f766e", textTransform: "uppercase", letterSpacing: "0.04em" }}>Sensors</span>
                             <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
@@ -8781,6 +8868,18 @@ function FilterControls({
                 ) : (
                     <>
                         <div
+                            style={useStackedOverlaySelects
+                                ? {
+                                    display: "grid",
+                                    gridTemplateColumns: "minmax(0, 1fr)",
+                                    gap: "4px",
+                                    marginBottom: "1px",
+                                }
+                                : {
+                                    display: "contents",
+                                }}
+                        >
+                        <div
                             style={{
                                 display: "flex",
                                 alignItems: "center",
@@ -8792,13 +8891,13 @@ function FilterControls({
                         >
                             <span
                                 style={{
-                                    fontSize: isOverlay ? "0.72rem" : controlFontSize,
+                                    fontSize: isOverlay ? "0.66rem" : controlFontSize,
                                     fontWeight: 600,
                                     alignSelf: isOverlay ? "flex-start" : "auto",
                                     ...overlayLabelStyle,
                                 }}
                             >
-                                Type
+                                Item type
                             </span>
                             <select
                                 value={typeFilter}
@@ -8806,10 +8905,10 @@ function FilterControls({
                                 style={{
                                     border: isOverlay ? "1px solid #9ca3af" : "1px solid #cbd5e1",
                                     borderRadius: isOverlay ? "4px" : "8px",
-                                    padding: isOverlay ? "5px 6px" : isMobile ? "9px 10px" : "5px 8px",
-                                    fontSize: isOverlay ? "0.78rem" : controlFontSize,
+                                    padding: isOverlay ? "3px 24px 3px 8px" : isMobile ? "9px 10px" : "5px 8px",
+                                    fontSize: isOverlay ? "0.74rem" : controlFontSize,
                                     background: "#fff",
-                                    minHeight: isOverlay ? "28px" : isMobile ? "40px" : "32px",
+                                    minHeight: isOverlay ? "25px" : isMobile ? "40px" : "32px",
                                     width: isOverlay ? "100%" : isMobile ? "100%" : "auto",
                                     ...overlaySelectStyle,
                                 }}
@@ -8835,13 +8934,13 @@ function FilterControls({
                         >
                             <span
                                 style={{
-                                    fontSize: isOverlay ? "0.72rem" : controlFontSize,
+                                    fontSize: isOverlay ? "0.66rem" : controlFontSize,
                                     fontWeight: 600,
                                     alignSelf: isOverlay ? "flex-start" : "auto",
                                     ...overlayLabelStyle,
                                 }}
                             >
-                                Status
+                                Recovery status
                             </span>
                             <select
                                 value={statusFilter}
@@ -8849,10 +8948,10 @@ function FilterControls({
                                 style={{
                                     border: isOverlay ? "1px solid #9ca3af" : "1px solid #cbd5e1",
                                     borderRadius: isOverlay ? "4px" : "8px",
-                                    padding: isOverlay ? "5px 6px" : isMobile ? "9px 10px" : "5px 8px",
-                                    fontSize: isOverlay ? "0.78rem" : controlFontSize,
+                                    padding: isOverlay ? "3px 24px 3px 8px" : isMobile ? "9px 10px" : "5px 8px",
+                                    fontSize: isOverlay ? "0.74rem" : controlFontSize,
                                     background: "#fff",
-                                    minHeight: isOverlay ? "28px" : isMobile ? "40px" : "32px",
+                                    minHeight: isOverlay ? "25px" : isMobile ? "40px" : "32px",
                                     width: isOverlay ? "100%" : isMobile ? "100%" : "auto",
                                     ...overlaySelectStyle,
                                 }}
@@ -8861,6 +8960,49 @@ function FilterControls({
                                 <option value="in-water">In Water</option>
                                 <option value="recovered">Recovered</option>
                             </select>
+                        </div>
+
+                        {showLikeFilter ? (
+                            <div
+                                style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: isOverlay ? "2px" : "6px",
+                                    flexDirection: isOverlay ? "column" : "row",
+                                    ...desktopCompactGroupStyle,
+                                    ...overlayFieldGroupStyle,
+                                }}
+                            >
+                                <span
+                                    style={{
+                                        fontSize: isOverlay ? "0.66rem" : controlFontSize,
+                                        fontWeight: 600,
+                                        alignSelf: isOverlay ? "flex-start" : "auto",
+                                        ...overlayLabelStyle,
+                                    }}
+                                >
+                                    Like status
+                                </span>
+                                <select
+                                    value={likeFilter}
+                                    onChange={(e) => setLikeFilter(e.target.value)}
+                                    style={{
+                                        border: isOverlay ? "1px solid #9ca3af" : "1px solid #cbd5e1",
+                                        borderRadius: isOverlay ? "4px" : "8px",
+                                        padding: isOverlay ? "3px 24px 3px 8px" : isMobile ? "9px 10px" : "5px 8px",
+                                        fontSize: isOverlay ? "0.74rem" : controlFontSize,
+                                        background: "#fff",
+                                        minHeight: isOverlay ? "25px" : isMobile ? "40px" : "32px",
+                                        width: isOverlay ? "100%" : isMobile ? "100%" : "auto",
+                                        ...overlaySelectStyle,
+                                    }}
+                                >
+                                    <option value="all">All</option>
+                                    <option value="liked">Liked</option>
+                                    <option value="not-liked">Not liked</option>
+                                </select>
+                            </div>
+                        ) : null}
                         </div>
 
                         {useDesktopCompactLayout ? (
@@ -12124,6 +12266,7 @@ function App() {
     const [items, setItems] = useState(() => startupStoredState.items);
     const [typeFilter, setTypeFilter] = useState("all");
     const [statusFilter, setStatusFilter] = useState("all");
+    const [likeFilter, setLikeFilter] = useState("all");
     const [pendingLocation, setPendingLocation] = useState(null);
     const [pendingItemType, setPendingItemType] = useState(null);
     const [isSavingItem, setIsSavingItem] = useState(false);
@@ -13289,6 +13432,17 @@ function App() {
     }, []);
 
     useEffect(() => {
+        if (currentUser?.id) return;
+        if (likeFilter === "all") return;
+        setLikeFilter("all");
+    }, [currentUser?.id, likeFilter]);
+
+    useEffect(() => {
+        if (!authReady) return;
+        void fetchItems();
+    }, [authReady, currentUser?.id]);
+
+    useEffect(() => {
         if (!isContributorPanelOpen) return;
         void fetchLeaderboardData();
     }, [isContributorPanelOpen]);
@@ -14137,10 +14291,59 @@ function App() {
             return false;
         }
 
+        const hydrateViewerLikedItems = async (itemsToHydrate) => {
+            const safeItems = Array.isArray(itemsToHydrate) ? itemsToHydrate : [];
+
+            if (safeItems.length === 0) {
+                return [];
+            }
+
+            if (!currentUser?.id) {
+                return safeItems.map((item) => ({
+                    ...item,
+                    viewer_has_liked: false,
+                }));
+            }
+
+            const { data: interactionRows, error: interactionError } = await supabase
+                .from("social_interactions")
+                .select("*")
+                .eq("profile_id", currentUser.id)
+                .eq("target_entity_type", "item");
+
+            if (interactionError) {
+                console.warn("Could not load item likes for current user", {
+                    code: interactionError.code,
+                    message: interactionError.message,
+                });
+                return safeItems.map((item) => ({
+                    ...item,
+                    viewer_has_liked: false,
+                }));
+            }
+
+            const likedItemIds = new Set(
+                (Array.isArray(interactionRows) ? interactionRows : [])
+                    .filter((row) => {
+                        const interactionType = String(row?.interaction_type || row?.action_type || "").trim().toLowerCase();
+                        return interactionType === "like" || interactionType === "interaction_like";
+                    })
+                    .map((row) => String(row?.target_entity_id || "").trim())
+                    .filter(Boolean),
+            );
+
+            return safeItems.map((item) => ({
+                ...item,
+                viewer_has_liked: likedItemIds.has(String(item?.id || "").trim()),
+            }));
+        };
+
         if (!bypassTtl) {
             const lastFetchTs = Number(localStorage.getItem(ITEMS_FETCH_TS_KEY) || 0);
             const cachedItems = readStoredJson(ITEMS_STORAGE_KEY, [], Array.isArray);
             if (Date.now() - lastFetchTs < CACHE_TTL_MS && cachedItems.length > 0) {
+                const hydratedCachedItems = await hydrateViewerLikedItems(cachedItems);
+                setItems(hydratedCachedItems);
                 setIsLoadingItems(false);
                 return true;
             }
@@ -14157,7 +14360,7 @@ function App() {
             return false;
         }
 
-        const nextItems = data || [];
+        const nextItems = await hydrateViewerLikedItems(data || []);
         setDbCountFieldSupport(inferDbCountFieldSupport(nextItems));
         setDbGpsFieldSupport(inferDbGpsFieldSupport(nextItems));
         setDbWeightFieldSupport(inferDbWeightFieldSupport(nextItems));
@@ -16479,6 +16682,7 @@ function App() {
     const filteredItems = useMemo(() => items.filter((item) => {
         const itemType = normalizeType(item.type);
         const counts = getItemCounts(item);
+        const viewerHasLiked = Boolean(item?.viewer_has_liked ?? item?.viewerHasLiked);
 
         const matchesType =
             typeFilter === "all" ? true : itemType === typeFilter;
@@ -16488,9 +16692,15 @@ function App() {
                 : statusFilter === "recovered"
                   ? counts.isRecovered
                   : counts.inWater > 0;
+        const matchesLike =
+            !currentUser?.id || likeFilter === "all"
+                ? true
+                : likeFilter === "liked"
+                    ? viewerHasLiked
+                    : !viewerHasLiked;
 
-        return matchesType && matchesStatus;
-    }), [items, typeFilter, statusFilter, localCounts, dbCountFieldSupport]);
+        return matchesType && matchesStatus && matchesLike;
+    }), [items, typeFilter, statusFilter, likeFilter, currentUser?.id, localCounts, dbCountFieldSupport]);
 
     const totals = useMemo(() => filteredItems.reduce(
         (acc, item) => {
@@ -16689,6 +16899,7 @@ function App() {
     const activeFilterCount =
         Number(typeFilter !== "all")
         + Number(statusFilter !== "all")
+        + Number(Boolean(currentUser?.id) && likeFilter !== "all")
         + Number(!isLuneStationsVisible)
         + Number(!isRegionalFlowStationsVisible)
         + Number(!isContributorsVisible)
@@ -17257,7 +17468,7 @@ function App() {
         setPoiInteractionStatus("");
 
         try {
-            const { interaction, summary, error } = await toggleLikeForTarget("poi", targetPoiId, {
+            const { interaction, summary, resolvedLiked, error } = await toggleLikeForTarget("poi", targetPoiId, {
                 slug: poi.slug || "",
             });
 
@@ -17270,8 +17481,8 @@ function App() {
                 applyPoiInteractionSummary(summary);
             }
 
-            const hasLiked = typeof interaction?.liked === "boolean"
-                ? interaction.liked
+            const hasLiked = typeof resolvedLiked === "boolean"
+                ? resolvedLiked
                 : Boolean(summary?.viewerHasLiked);
             const pointsDelta = Number.isFinite(Number(interaction?.points_delta))
                 ? Number(interaction.points_delta)
@@ -17365,7 +17576,7 @@ function App() {
         setContributorInteractionStatus("");
 
         try {
-            const { interaction, summary, error } = await toggleLikeForTarget("contributor", targetContributorId, {
+            const { interaction, summary, resolvedLiked, error } = await toggleLikeForTarget("contributor", targetContributorId, {
                 name: contributor.name || "",
             });
 
@@ -17378,8 +17589,8 @@ function App() {
                 applyContributorInteractionSummary(summary);
             }
 
-            const hasLiked = typeof interaction?.liked === "boolean"
-                ? interaction.liked
+            const hasLiked = typeof resolvedLiked === "boolean"
+                ? resolvedLiked
                 : Boolean(summary?.viewerHasLiked);
             const pointsDelta = Number.isFinite(Number(interaction?.points_delta))
                 ? Number(interaction.points_delta)
@@ -17474,7 +17685,7 @@ function App() {
         setItemInteractionStatus("");
 
         try {
-            const { interaction, summary, error } = await toggleLikeForTarget("item", targetItemId, {});
+            const { interaction, summary, resolvedLiked, error } = await toggleLikeForTarget("item", targetItemId, {});
 
             if (error) {
                 if (selectedItemIdRef.current === targetItemId) {
@@ -17483,8 +17694,12 @@ function App() {
                 return;
             }
 
-            const countsResult = await getInteractionCountsForTarget("item", targetItemId);
-            const resolvedSummary = countsResult.error ? summary : countsResult;
+            const resolvedSummary = typeof resolvedLiked === "boolean"
+                ? {
+                    ...summary,
+                    viewerHasLiked: resolvedLiked,
+                }
+                : summary;
 
             reconcileItemInteractionInCollections(targetItemId, resolvedSummary);
 
@@ -17492,8 +17707,8 @@ function App() {
                 applyItemInteractionSummary(resolvedSummary);
             }
 
-            const hasLiked = typeof interaction?.liked === "boolean"
-                ? interaction.liked
+            const hasLiked = typeof resolvedLiked === "boolean"
+                ? resolvedLiked
                 : Boolean(resolvedSummary?.viewerHasLiked);
             const pointsDelta = Number.isFinite(Number(interaction?.points_delta))
                 ? Number(interaction.points_delta)
@@ -18779,6 +18994,7 @@ function App() {
                                 icon={getIcon(
                                     item.type,
                                     getItemCounts(item).isRecovered,
+                                    Boolean(item?.viewer_has_liked ?? item?.viewerHasLiked),
                                 )}
                                 eventHandlers={{
                                     click: () => {
@@ -19085,6 +19301,8 @@ function App() {
                         controlFontSize={controlFontSize}
                         typeFilter={typeFilter}
                         statusFilter={statusFilter}
+                        likeFilter={likeFilter}
+                        isSignedIn={Boolean(currentUser?.id)}
                         isLuneStationsVisible={isLuneStationsVisible}
                         isRegionalFlowStationsVisible={
                             isRegionalFlowStationsVisible
@@ -19097,6 +19315,7 @@ function App() {
                         setIsContributorsVisible={setIsContributorsVisible}
                         setTypeFilter={setTypeFilter}
                         setStatusFilter={setStatusFilter}
+                        setLikeFilter={setLikeFilter}
                         isOverlay
                     />
                 )}
@@ -19550,6 +19769,8 @@ function App() {
                             controlFontSize={controlFontSize}
                             typeFilter={typeFilter}
                             statusFilter={statusFilter}
+                            likeFilter={likeFilter}
+                            isSignedIn={Boolean(currentUser?.id)}
                             isLuneStationsVisible={isLuneStationsVisible}
                             isRegionalFlowStationsVisible={
                                 isRegionalFlowStationsVisible
@@ -19562,6 +19783,7 @@ function App() {
                             setIsContributorsVisible={setIsContributorsVisible}
                             setTypeFilter={setTypeFilter}
                             setStatusFilter={setStatusFilter}
+                            setLikeFilter={setLikeFilter}
                         />
                     </SurfaceCard>
                 </>
