@@ -25,6 +25,16 @@ function normalizeEmail(value: unknown): string {
     return normalizeText(value).toLowerCase();
 }
 
+async function fingerprintEmail(value: string): Promise<string> {
+    const normalized = normalizeEmail(value);
+    if (!normalized) {
+        return "";
+    }
+
+    const hash = await sha256Hex(normalized);
+    return hash.slice(0, 12);
+}
+
 function getNestedValue(record: JsonRecord, path: string): unknown {
     const segments = path.split(".");
     let current: unknown = record;
@@ -244,6 +254,9 @@ function getVerificationCandidates(payload: JsonRecord, request: Request): strin
 
 serve(async (request) => {
     if (request.method !== "POST") {
+        console.warn("BMAC webhook rejected due to invalid method", {
+            method: request.method,
+        });
         return Response.json({ error: "Method not allowed" }, { status: 405 });
     }
 
@@ -252,6 +265,11 @@ serve(async (request) => {
     const serviceRoleKey = normalizeText(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"));
 
     if (!webhookSecret || !supabaseUrl || !serviceRoleKey) {
+        console.error("BMAC webhook environment is not configured", {
+            hasWebhookSecret: Boolean(webhookSecret),
+            hasSupabaseUrl: Boolean(supabaseUrl),
+            hasServiceRoleKey: Boolean(serviceRoleKey),
+        });
         return Response.json({ error: "Webhook environment is not configured" }, { status: 500 });
     }
 
@@ -260,6 +278,7 @@ serve(async (request) => {
         const parsed = await request.json();
         payload = asObject(parsed) || {};
     } catch {
+        console.warn("BMAC webhook rejected due to invalid JSON payload");
         return Response.json({ error: "Invalid JSON payload" }, { status: 400 });
     }
 
@@ -267,6 +286,9 @@ serve(async (request) => {
     const isVerified = verificationCandidates.some((candidate) => timingSafeEqual(candidate, webhookSecret));
 
     if (!isVerified) {
+        console.warn("BMAC webhook rejected due to invalid secret", {
+            candidateCount: verificationCandidates.length,
+        });
         return Response.json({ error: "Invalid webhook secret" }, { status: 401 });
     }
 
@@ -277,6 +299,16 @@ serve(async (request) => {
         const supporterEmail = extractSupporterEmail(payload);
         const supporterName = extractSupporterName(payload);
         const note = extractNote(payload);
+        const supporterEmailFingerprint = await fingerprintEmail(supporterEmail);
+
+        console.info("BMAC webhook accepted", {
+            eventType,
+            sourceKey,
+            amountPence,
+            hasSupporterName: Boolean(supporterName),
+            supporterEmailFingerprint,
+            hasNote: Boolean(note),
+        });
 
         const supabase = createClient(supabaseUrl, serviceRoleKey, {
             auth: {
@@ -296,15 +328,37 @@ serve(async (request) => {
         });
 
         if (error) {
-            console.error("Failed to ingest BMAC webhook", error);
+            console.error("Failed to ingest BMAC webhook", {
+                eventType,
+                sourceKey,
+                amountPence,
+                supporterEmailFingerprint,
+                error,
+            });
             return Response.json({ error: "Failed to ingest webhook event" }, { status: 500 });
         }
 
         const result = Array.isArray(data) ? (data[0] ?? null) : data;
+        const resultRecord = asObject(result);
+        const ingestStatus = normalizeText(resultRecord?.status);
+
+        console.info("BMAC webhook ingestion completed", {
+            eventType,
+            sourceKey,
+            amountPence,
+            supporterEmailFingerprint,
+            ingestStatus,
+            unmatchedEventId: normalizeText(resultRecord?.unmatched_event_id),
+            contributionId: normalizeText(resultRecord?.contribution_id),
+            profileId: normalizeText(resultRecord?.profile_id),
+        });
         return Response.json({ ok: true, result }, { status: 200 });
     } catch (error) {
         const message = error instanceof Error ? error.message : "Unexpected error";
-        console.error("Invalid BMAC webhook payload", error);
+        console.error("Invalid BMAC webhook payload", {
+            message,
+            error,
+        });
         return Response.json({ error: message }, { status: 400 });
     }
 });

@@ -6308,6 +6308,8 @@ function ProfilePanel({
 }) {
     if (!currentUser) return null;
 
+    const [showAllUnmatchedBmacEvents, setShowAllUnmatchedBmacEvents] = useState(false);
+
     const provider = String(currentUser?.app_metadata?.provider || "").trim();
     const providerLabel = provider
         ? `${provider.charAt(0).toUpperCase()}${provider.slice(1)}`
@@ -6331,9 +6333,30 @@ function ProfilePanel({
     const activeAdminProfileCount = Array.isArray(adminProfiles)
         ? adminProfiles.filter((profile) => !profile?.delete_requested_at).length
         : 0;
+    const unmatchedBmacEventsByStatus = Array.isArray(adminUnmatchedBmacEvents)
+        ? adminUnmatchedBmacEvents.reduce((acc, event) => {
+            const rawStatus = String(event?.status || "pending").trim().toLowerCase();
+            const status = rawStatus || "pending";
+            acc[status] = (acc[status] || 0) + 1;
+            return acc;
+        }, {})
+        : {};
     const pendingUnmatchedBmacCount = Array.isArray(adminUnmatchedBmacEvents)
         ? adminUnmatchedBmacEvents.filter((event) => event?.status === "pending").length
         : 0;
+    const resolvedUnmatchedBmacCount = Number(unmatchedBmacEventsByStatus?.resolved || 0);
+    const ignoredUnmatchedBmacCount = Number(unmatchedBmacEventsByStatus?.ignored || 0);
+    const totalUnmatchedBmacCount = Array.isArray(adminUnmatchedBmacEvents)
+        ? adminUnmatchedBmacEvents.length
+        : 0;
+    const visibleUnmatchedBmacEvents = Array.isArray(adminUnmatchedBmacEvents)
+        ? (showAllUnmatchedBmacEvents
+            ? adminUnmatchedBmacEvents
+            : adminUnmatchedBmacEvents.filter((event) => event?.status === "pending"))
+        : [];
+    const hiddenByStatusFilterCount = showAllUnmatchedBmacEvents
+        ? 0
+        : Math.max(totalUnmatchedBmacCount - pendingUnmatchedBmacCount, 0);
     const adminUserCountLabel = isAdminProfilesLoading
         ? "Users..."
         : adminProfilesError
@@ -6923,7 +6946,7 @@ function ProfilePanel({
 
                     <details style={{ marginTop: "10px" }}>
                         <summary style={{ cursor: "pointer", fontSize: "0.76rem", fontWeight: 800, color: "#7c2d12", letterSpacing: "0.03em", textTransform: "uppercase" }}>
-                            Reveal unmatched BMAC events {pendingUnmatchedBmacCount ? `(${pendingUnmatchedBmacCount})` : ""}
+                            Reveal unmatched BMAC events {pendingUnmatchedBmacCount ? `(${pendingUnmatchedBmacCount} pending)` : ""}
                         </summary>
                         {adminUnmatchedBmacEventsError ? (
                             <div style={{ marginTop: "8px", fontSize: "0.75rem", color: "#b91c1c" }}>{adminUnmatchedBmacEventsError}</div>
@@ -6932,14 +6955,37 @@ function ProfilePanel({
                             <div style={{ marginTop: "8px", fontSize: "0.75rem", color: "#57534e" }}>Loading unmatched BMAC events...</div>
                         ) : (
                             <div style={{ marginTop: "8px", display: "grid", gap: "8px", maxHeight: "240px", overflowY: "auto", paddingRight: "2px" }}>
-                                {pendingUnmatchedBmacCount ? adminUnmatchedBmacEvents
-                                    .filter((event) => event?.status === "pending")
-                                    .map((event) => {
+                                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px", padding: "2px 0 4px" }}>
+                                    <div style={{ fontSize: "0.72rem", color: "#78716c" }}>
+                                        Pending {pendingUnmatchedBmacCount} • Resolved {resolvedUnmatchedBmacCount} • Ignored {ignoredUnmatchedBmacCount}
+                                    </div>
+                                    <label style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "0.72rem", color: "#57534e", fontWeight: 600 }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={showAllUnmatchedBmacEvents}
+                                            onChange={(evt) => setShowAllUnmatchedBmacEvents(Boolean(evt.target.checked))}
+                                        />
+                                        Show resolved and ignored
+                                    </label>
+                                </div>
+                                {visibleUnmatchedBmacEvents.length ? visibleUnmatchedBmacEvents.map((event) => {
                                         const selectedProfileId = String(adminUnmatchedBmacSelectedProfileIdByEventId?.[event.id] || "");
                                         const isResolving = resolvingUnmatchedBmacEventId === event.id;
+                                        const normalizedStatus = String(event?.status || "pending").trim().toLowerCase() || "pending";
+                                        const isPending = normalizedStatus === "pending";
+                                        const statusStyles = normalizedStatus === "resolved"
+                                            ? { border: "1px solid #16a34a", background: "#dcfce7", color: "#166534" }
+                                            : normalizedStatus === "ignored"
+                                                ? { border: "1px solid #a8a29e", background: "#f5f5f4", color: "#57534e" }
+                                                : { border: "1px solid #d97706", background: "#fef3c7", color: "#92400e" };
                                         return (
                                             <div key={event.id} style={{ border: "1px solid #fde68a", borderRadius: "10px", padding: "8px", background: "#fffbeb", display: "grid", gap: "8px" }}>
                                                 <div style={{ display: "grid", gap: "3px" }}>
+                                                    <div>
+                                                        <span style={{ ...statusStyles, display: "inline-block", borderRadius: "999px", padding: "2px 8px", fontSize: "0.64rem", letterSpacing: "0.04em", textTransform: "uppercase", fontWeight: 800 }}>
+                                                            {normalizedStatus}
+                                                        </span>
+                                                    </div>
                                                     <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#92400e" }}>
                                                         {event.supporter_name || "Unknown supporter"} • {event.amount_pence}p
                                                     </div>
@@ -6952,9 +6998,15 @@ function ProfilePanel({
                                                     {event.note ? (
                                                         <div style={{ fontSize: "0.72rem", color: "#57534e" }}>{event.note}</div>
                                                     ) : null}
+                                                    {!isPending && event?.resolved_at ? (
+                                                        <div style={{ fontSize: "0.69rem", color: "#78716c" }}>
+                                                            Resolved at {new Date(event.resolved_at).toLocaleString("en-GB")}
+                                                        </div>
+                                                    ) : null}
                                                 </div>
 
-                                                <div style={{ display: "grid", gap: "8px", gridTemplateColumns: isMobile ? "1fr" : "minmax(0,1fr) minmax(0,1fr) auto" }}>
+                                                {isPending ? (
+                                                    <div style={{ display: "grid", gap: "8px", gridTemplateColumns: isMobile ? "1fr" : "minmax(0,1fr) minmax(0,1fr) auto" }}>
                                                     <label style={{ display: "grid", gap: "4px" }}>
                                                         <span style={{ fontSize: "0.72rem", color: "#57534e", fontWeight: 700 }}>Match to profile</span>
                                                         <select
@@ -6998,7 +7050,7 @@ function ProfilePanel({
                                                     </label>
                                                     <button
                                                         type="button"
-                                                        onClick={() => resolveAdminUnmatchedBmacEvent(event.id)}
+                                                        onClick={() => onResolveAdminUnmatchedBmacEvent(event.id)}
                                                         disabled={isResolving}
                                                         style={{
                                                             minHeight: "34px",
@@ -7016,12 +7068,22 @@ function ProfilePanel({
                                                     >
                                                         {isResolving ? "Resolving..." : "Resolve"}
                                                     </button>
-                                                </div>
+                                                    </div>
+                                                ) : null}
                                             </div>
                                         );
                                     }) : (
-                                        <div style={{ fontSize: "0.75rem", color: "#57534e" }}>No unmatched BMAC events.</div>
+                                        <div style={{ fontSize: "0.75rem", color: "#57534e" }}>
+                                            {totalUnmatchedBmacCount
+                                                ? "No events match the current filter."
+                                                : "No unmatched BMAC events."}
+                                        </div>
                                     )}
+                                {!showAllUnmatchedBmacEvents && hiddenByStatusFilterCount ? (
+                                    <div style={{ fontSize: "0.7rem", color: "#78716c" }}>
+                                        {hiddenByStatusFilterCount} events are hidden by status filter. Enable "Show resolved and ignored" to inspect them.
+                                    </div>
+                                ) : null}
                             </div>
                         )}
                     </details>
@@ -13711,7 +13773,12 @@ function App() {
 
             if (unmatchedBmacEventsResult.error) {
                 setAdminUnmatchedBmacEvents([]);
-                setAdminUnmatchedBmacEventsError("Unable to load unmatched BMAC events.");
+                const details = String(unmatchedBmacEventsResult.error?.message || "").trim();
+                setAdminUnmatchedBmacEventsError(
+                    details
+                        ? `Unable to load unmatched BMAC events (${details}).`
+                        : "Unable to load unmatched BMAC events.",
+                );
             } else {
                 setAdminUnmatchedBmacEvents(unmatchedBmacEventsResult.events || []);
             }
@@ -15591,7 +15658,12 @@ function App() {
         const { contribution, error } = await resolveUnmatchedBmacEventForAdmin(eventId, profileId, resolutionNote);
 
         if (error) {
-            setAdminActionError("Could not resolve unmatched BMAC event.");
+            const details = String(error?.message || "").trim();
+            setAdminActionError(
+                details
+                    ? `Could not resolve unmatched BMAC event (${details}).`
+                    : "Could not resolve unmatched BMAC event.",
+            );
             setResolvingUnmatchedBmacEventId("");
             return;
         }
