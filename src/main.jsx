@@ -5266,14 +5266,168 @@ function ProfileAvatar({ imageUrl, label, size = 28 }) {
 
 function AvatarPresetPicker({ value, onSelect, disabled = false, compact = false }) {
     const normalizedValue = typeof value === "string" ? value.trim() : "";
+    const categories = useMemo(() => {
+        const unique = new Set(AVATAR_PRESETS.map((preset) => String(preset?.category || "other")));
+        return Array.from(unique);
+    }, []);
+    const [activeCategory, setActiveCategory] = useState(categories[0] || "other");
+    const pageSize = compact ? 5 : 7;
+
+    useEffect(() => {
+        if (categories.includes(activeCategory)) return;
+        setActiveCategory(categories[0] || "other");
+    }, [categories, activeCategory]);
+
+    const filteredPresets = useMemo(
+        () => AVATAR_PRESETS.filter((preset) => String(preset?.category || "other") === activeCategory),
+        [activeCategory],
+    );
+    const [activePage, setActivePage] = useState(0);
+    const totalPages = Math.max(1, Math.ceil(filteredPresets.length / pageSize));
+    const pageStart = activePage * pageSize;
+    const visiblePresets = filteredPresets.slice(pageStart, pageStart + pageSize);
+
+    useEffect(() => {
+        setActivePage(0);
+    }, [activeCategory]);
+
+    useEffect(() => {
+        if (activePage < totalPages) return;
+        setActivePage(Math.max(totalPages - 1, 0));
+    }, [activePage, totalPages]);
 
     return (
         <div style={{ display: "grid", gap: compact ? "6px" : "8px" }}>
+            {categories.length > 1 ? (
+                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                    {categories.map((category) => {
+                        const isActive = category === activeCategory;
+                        return (
+                            <button
+                                key={category}
+                                type="button"
+                                onClick={() => setActiveCategory(category)}
+                                disabled={disabled}
+                                style={{
+                                    minHeight: compact ? "24px" : "28px",
+                                    borderRadius: "999px",
+                                    border: isActive ? "1px solid #2563eb" : "1px solid #cbd5e1",
+                                    background: isActive ? "#dbeafe" : "#fff",
+                                    color: isActive ? "#1e3a8a" : "#475569",
+                                    fontSize: compact ? "0.64rem" : "0.68rem",
+                                    fontWeight: 700,
+                                    textTransform: "capitalize",
+                                    padding: "0 10px",
+                                    cursor: disabled ? "not-allowed" : "pointer",
+                                    opacity: disabled ? 0.65 : 1,
+                                }}
+                            >
+                                {category}
+                            </button>
+                        );
+                    })}
+                </div>
+            ) : null}
+
+            <div style={{ display: "flex", alignItems: "center", gap: compact ? "6px" : "8px" }}>
+                <button
+                    type="button"
+                    onClick={() => setActivePage((prev) => Math.max(prev - 1, 0))}
+                    disabled={disabled || activePage <= 0}
+                    aria-label="Previous avatar set"
+                    style={{
+                        minWidth: compact ? "26px" : "30px",
+                        minHeight: compact ? "26px" : "30px",
+                        borderRadius: "999px",
+                        border: "1px solid #cbd5e1",
+                        background: "#fff",
+                        color: "#334155",
+                        fontSize: compact ? "0.78rem" : "0.84rem",
+                        fontWeight: 800,
+                        cursor: disabled || activePage <= 0 ? "not-allowed" : "pointer",
+                        opacity: disabled || activePage <= 0 ? 0.6 : 1,
+                    }}
+                >
+                    ‹
+                </button>
+
+                <div
+                    style={{
+                        display: "grid",
+                        gridTemplateColumns: compact ? "repeat(5, minmax(0, 1fr))" : "repeat(7, minmax(0, 1fr))",
+                        gap: compact ? "6px" : "8px",
+                        flex: "1 1 auto",
+                        minWidth: 0,
+                    }}
+                >
+                    {visiblePresets.map((preset) => {
+                        const isSelected = normalizedValue === preset.url;
+                        return (
+                            <button
+                                key={preset.id}
+                                type="button"
+                                onClick={() => onSelect(preset.url)}
+                                disabled={disabled}
+                                title={preset.label}
+                                aria-label={`Use ${preset.label} avatar`}
+                                style={{
+                                    border: isSelected ? "2px solid #2563eb" : "1px solid #cbd5e1",
+                                    background: isSelected ? "#dbeafe" : "#f8fafc",
+                                    borderRadius: "10px",
+                                    padding: compact ? "2px" : "3px",
+                                    cursor: disabled ? "not-allowed" : "pointer",
+                                    opacity: disabled ? 0.65 : 1,
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    minHeight: compact ? "40px" : "48px",
+                                }}
+                            >
+                                <img
+                                    src={preset.url}
+                                    alt={preset.label}
+                                    style={{
+                                        width: compact ? "34px" : "40px",
+                                        height: compact ? "34px" : "40px",
+                                        borderRadius: "999px",
+                                        objectFit: "cover",
+                                        display: "block",
+                                    }}
+                                />
+                            </button>
+                        );
+                    })}
+                </div>
+
+                <button
+                    type="button"
+                    onClick={() => setActivePage((prev) => Math.min(prev + 1, totalPages - 1))}
+                    disabled={disabled || activePage >= totalPages - 1}
+                    aria-label="Next avatar set"
+                    style={{
+                        minWidth: compact ? "26px" : "30px",
+                        minHeight: compact ? "26px" : "30px",
+                        borderRadius: "999px",
+                        border: "1px solid #cbd5e1",
+                        background: "#fff",
+                        color: "#334155",
+                        fontSize: compact ? "0.78rem" : "0.84rem",
+                        fontWeight: 800,
+                        cursor: disabled || activePage >= totalPages - 1 ? "not-allowed" : "pointer",
+                        opacity: disabled || activePage >= totalPages - 1 ? 0.6 : 1,
+                    }}
+                >
+                    ›
+                </button>
+            </div>
+
+            <div style={{ fontSize: compact ? "0.64rem" : "0.68rem", color: "#64748b" }}>
+                {activeCategory} {activePage + 1}/{totalPages}
+            </div>
+
             <div
                 style={{
-                    display: "grid",
-                    gridTemplateColumns: compact ? "repeat(auto-fill, minmax(40px, 1fr))" : "repeat(auto-fill, minmax(52px, 1fr))",
-                    gap: compact ? "6px" : "8px",
+                    display: "none",
                 }}
             >
                 {AVATAR_PRESETS.map((preset) => {
@@ -6778,6 +6932,30 @@ function ProfilePanel({
                                                 onSelect={(avatarUrl) => onAdminProfileFieldChange(profile.id, "avatar_url", avatarUrl)}
                                                 disabled={isSavingThisProfile}
                                             />
+                                            <button
+                                                type="button"
+                                                onClick={() => onAdminProfileFieldChange(
+                                                    profile.id,
+                                                    "avatar_url",
+                                                    String(profile?.original_avatar_url || ""),
+                                                )}
+                                                disabled={isSavingThisProfile}
+                                                style={{
+                                                    width: "fit-content",
+                                                    minHeight: "28px",
+                                                    borderRadius: "999px",
+                                                    border: "1px solid #334155",
+                                                    background: "#fff",
+                                                    color: "#334155",
+                                                    padding: "0 10px",
+                                                    fontSize: "0.7rem",
+                                                    fontWeight: 700,
+                                                    cursor: isSavingThisProfile ? "not-allowed" : "pointer",
+                                                    opacity: isSavingThisProfile ? 0.65 : 1,
+                                                }}
+                                            >
+                                                Revert original avatar
+                                            </button>
                                         </div>
 
                                         <div style={{ display: "grid", gap: "8px", gridTemplateColumns: isMobile ? "1fr" : "minmax(0,1fr) minmax(0,1fr) auto" }}>
@@ -7397,6 +7575,26 @@ function ProfilePanel({
                     onSelect={(avatarUrl) => onProfileFieldChange("avatar_url", avatarUrl)}
                     disabled={isProfileLoading || isSavingProfile}
                 />
+                <button
+                    type="button"
+                    onClick={() => onProfileFieldChange("avatar_url", String(currentProfile?.original_avatar_url || ""))}
+                    disabled={isProfileLoading || isSavingProfile}
+                    style={{
+                        width: "fit-content",
+                        minHeight: "28px",
+                        borderRadius: "999px",
+                        border: "1px solid #334155",
+                        background: "#fff",
+                        color: "#334155",
+                        padding: "0 10px",
+                        fontSize: "0.72rem",
+                        fontWeight: 700,
+                        cursor: isProfileLoading || isSavingProfile ? "not-allowed" : "pointer",
+                        opacity: isProfileLoading || isSavingProfile ? 0.65 : 1,
+                    }}
+                >
+                    Revert original avatar
+                </button>
             </div>
 
             {profileError ? (

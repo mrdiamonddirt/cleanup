@@ -3,6 +3,7 @@ import { supabase } from "./supabaseClient";
 const EMPTY_PROFILE = {
     display_name: "",
     avatar_url: "",
+    original_avatar_url: "",
     is_facebook_group_member: false,
     is_bmc_supporter: false,
     supporter_points: 0,
@@ -15,6 +16,7 @@ const PROFILE_SELECT_FIELDS = [
     "id",
     "display_name",
     "avatar_url",
+    "original_avatar_url",
     "is_facebook_group_member",
     "is_bmc_supporter",
     "supporter_points",
@@ -130,6 +132,7 @@ function getProfileSeedFromUser(user) {
         id: user?.id,
         display_name,
         avatar_url,
+        original_avatar_url: avatar_url,
     };
 }
 
@@ -364,6 +367,7 @@ export async function updateProfileForAdmin(profileId, updates) {
             ? Number(updates.supporter_points)
             : 0,
         supporter_note: normalizeText(updates?.supporter_note),
+        avatar_url: normalizeText(updates?.avatar_url),
         supporter_verified_at: updates?.supporter_verified_at || new Date().toISOString(),
     };
 

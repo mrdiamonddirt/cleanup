@@ -1,22 +1,33 @@
 # Avatar Preset Sources
 
-These preset avatar files are bundled in public/avatar-presets as lightweight SVG wrappers around Unicode water-animal emoji characters.
+The photo avatar palette is now bundled from free-use Wikimedia Commons images.
 
-## Source and license notes
+## Included pack
 
-- Emoji code points come from the Unicode Standard (UTS #51 emoji set).
-- The SVG wrappers in this repository were created for this project.
-- Rendering uses local system emoji fonts available in the user browser.
+- Ducks: 6 images
+- Swans: 8 images
+- Fish: 7 images
+- Dogs/Puppies: 8 images
+- Total: 29 images
 
-## Included presets
+All local files are in public/avatar-presets/photos.
 
-- duck.svg
-- swan.svg
-- dolphin.svg
-- whale.svg
-- seal.svg
-- turtle.svg
-- fish.svg
-- tropical-fish.svg
-- octopus.svg
-- crab.svg
+## Attribution and licensing
+
+Detailed per-image attribution and license metadata is stored in:
+
+- public/avatar-presets/photos/manifest.json
+
+Each manifest entry includes:
+
+- local URL used by the app
+- source page URL on Wikimedia Commons
+- original file URL
+- title
+- author/credit
+- license label
+
+## Notes
+
+- Wikimedia Commons only hosts freely licensed or public domain media.
+- Licenses vary per image (for example CC BY, CC BY-SA, Public Domain), so keep the manifest with the image set.
