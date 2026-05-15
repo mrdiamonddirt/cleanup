@@ -48,6 +48,7 @@ import { normalizeW3WWords, resolveW3WFromCoords } from "./w3w";
 import ContributorBusinessPanel from "./components/panels/ContributorBusinessPanel";
 import PoiPanel from "./components/panels/PoiPanel";
 import PoiCard from "./components/PoiCard";
+import { AVATAR_PRESETS } from "./avatarPresets";
 
 // --- LEAFLET ICON FIX ---
 import markerIcon from "leaflet/dist/images/marker-icon.png";
@@ -5211,13 +5212,19 @@ function getProfileInitials(label) {
 }
 
 function ProfileAvatar({ imageUrl, label, size = 28 }) {
+    const [hasImageError, setHasImageError] = useState(false);
     const initials = getProfileInitials(label);
 
-    if (imageUrl) {
+    useEffect(() => {
+        setHasImageError(false);
+    }, [imageUrl]);
+
+    if (imageUrl && !hasImageError) {
         return (
             <img
                 src={imageUrl}
                 alt={label}
+                onError={() => setHasImageError(true)}
                 style={{
                     width: `${size}px`,
                     height: `${size}px`,
@@ -5254,6 +5261,84 @@ function ProfileAvatar({ imageUrl, label, size = 28 }) {
         >
             {initials}
         </span>
+    );
+}
+
+function AvatarPresetPicker({ value, onSelect, disabled = false, compact = false }) {
+    const normalizedValue = typeof value === "string" ? value.trim() : "";
+
+    return (
+        <div style={{ display: "grid", gap: compact ? "6px" : "8px" }}>
+            <div
+                style={{
+                    display: "grid",
+                    gridTemplateColumns: compact ? "repeat(auto-fill, minmax(40px, 1fr))" : "repeat(auto-fill, minmax(52px, 1fr))",
+                    gap: compact ? "6px" : "8px",
+                }}
+            >
+                {AVATAR_PRESETS.map((preset) => {
+                    const isSelected = normalizedValue === preset.url;
+                    return (
+                        <button
+                            key={preset.id}
+                            type="button"
+                            onClick={() => onSelect(preset.url)}
+                            disabled={disabled}
+                            title={preset.label}
+                            aria-label={`Use ${preset.label} avatar`}
+                            style={{
+                                border: isSelected ? "2px solid #2563eb" : "1px solid #cbd5e1",
+                                background: isSelected ? "#dbeafe" : "#f8fafc",
+                                borderRadius: "10px",
+                                padding: compact ? "2px" : "3px",
+                                cursor: disabled ? "not-allowed" : "pointer",
+                                opacity: disabled ? 0.65 : 1,
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                minHeight: compact ? "40px" : "48px",
+                            }}
+                        >
+                            <img
+                                src={preset.url}
+                                alt={preset.label}
+                                style={{
+                                    width: compact ? "34px" : "40px",
+                                    height: compact ? "34px" : "40px",
+                                    borderRadius: "999px",
+                                    objectFit: "cover",
+                                    display: "block",
+                                }}
+                            />
+                        </button>
+                    );
+                })}
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                <span style={{ fontSize: compact ? "0.68rem" : "0.72rem", color: "#64748b" }}>
+                    Pick a preset or paste your own URL.
+                </span>
+                <button
+                    type="button"
+                    onClick={() => onSelect("")}
+                    disabled={disabled || !normalizedValue}
+                    style={{
+                        minHeight: compact ? "28px" : "30px",
+                        borderRadius: "999px",
+                        border: "1px solid #cbd5e1",
+                        background: "#fff",
+                        color: "#334155",
+                        padding: "0 10px",
+                        fontSize: compact ? "0.68rem" : "0.72rem",
+                        fontWeight: 700,
+                        cursor: disabled || !normalizedValue ? "not-allowed" : "pointer",
+                        opacity: disabled || !normalizedValue ? 0.7 : 1,
+                    }}
+                >
+                    Clear
+                </button>
+            </div>
+        </div>
     );
 }
 
@@ -6330,6 +6415,19 @@ function ProfilePanel({
         : Number.isFinite(Number(currentProfile?.supporter_points))
             ? Number(currentProfile.supporter_points)
         : 0;
+    const activeBannedProfileIds = useMemo(() => {
+        const next = new Set();
+        if (!Array.isArray(adminBans)) return next;
+
+        adminBans.forEach((ban) => {
+            const banProfileId = String(ban?.profile_id || "").trim();
+            if (banProfileId && ban?.is_active) {
+                next.add(banProfileId);
+            }
+        });
+
+        return next;
+    }, [adminBans]);
     const activeAdminProfileCount = Array.isArray(adminProfiles)
         ? adminProfiles.filter((profile) => !profile?.delete_requested_at).length
         : 0;
@@ -6501,6 +6599,7 @@ function ProfilePanel({
                                 const adminAvatarUrl = getProfileAvatarUrl(profile, null);
                                 const isSavingThisProfile = savingAdminProfileId === profile.id;
                                 const profileId = String(profile?.id || "").trim();
+                                const isProfileBanned = profileId ? activeBannedProfileIds.has(profileId) : false;
                                 const ownerTotals = profileId
                                     ? leaderboardTotalsByEntityKey?.[`user:${profileId}`]
                                     : null;
@@ -6534,6 +6633,25 @@ function ProfilePanel({
                                                     <div style={{ fontSize: "0.82rem", fontWeight: 800, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
                                                         {adminDisplayName}
                                                     </div>
+                                                    {isProfileBanned ? (
+                                                        <span
+                                                            style={{
+                                                                display: "inline-flex",
+                                                                alignItems: "center",
+                                                                justifyContent: "center",
+                                                                borderRadius: "999px",
+                                                                padding: "2px 8px",
+                                                                fontSize: "0.68rem",
+                                                                fontWeight: 800,
+                                                                border: "1px solid #dc2626",
+                                                                background: "#fee2e2",
+                                                                color: "#991b1b",
+                                                                flexShrink: 0,
+                                                            }}
+                                                        >
+                                                            Banned
+                                                        </span>
+                                                    ) : null}
                                                     <span
                                                         style={{
                                                             display: "inline-flex",
@@ -6633,6 +6751,33 @@ function ProfilePanel({
                                             >
                                                 {isSavingThisProfile ? "Saving..." : "Save"}
                                             </button>
+                                        </div>
+
+                                        <div style={{ display: "grid", gap: "6px" }}>
+                                            <label style={{ display: "grid", gap: "4px" }}>
+                                                <span style={{ fontSize: "0.72rem", color: "#57534e", fontWeight: 700 }}>Avatar URL</span>
+                                                <input
+                                                    type="url"
+                                                    value={String(profile.avatar_url || "")}
+                                                    onChange={(event) => onAdminProfileFieldChange(profile.id, "avatar_url", event.target.value)}
+                                                    placeholder="https://..."
+                                                    style={{
+                                                        width: "100%",
+                                                        minHeight: "34px",
+                                                        borderRadius: "10px",
+                                                        border: "1px solid #d6d3d1",
+                                                        padding: "0 10px",
+                                                        fontSize: "0.82rem",
+                                                        boxSizing: "border-box",
+                                                    }}
+                                                />
+                                            </label>
+                                            <AvatarPresetPicker
+                                                compact
+                                                value={String(profile.avatar_url || "")}
+                                                onSelect={(avatarUrl) => onAdminProfileFieldChange(profile.id, "avatar_url", avatarUrl)}
+                                                disabled={isSavingThisProfile}
+                                            />
                                         </div>
 
                                         <div style={{ display: "grid", gap: "8px", gridTemplateColumns: isMobile ? "1fr" : "minmax(0,1fr) minmax(0,1fr) auto" }}>
@@ -7243,6 +7388,15 @@ function ProfilePanel({
                 >
                     {isSavingProfile ? "Saving..." : "Save profile"}
                 </button>
+            </div>
+
+            <div style={{ marginTop: "8px", display: "grid", gap: "6px" }}>
+                <div style={{ fontSize: "0.72rem", color: "#334155", fontWeight: 700 }}>Preset avatars</div>
+                <AvatarPresetPicker
+                    value={profileForm.avatar_url}
+                    onSelect={(avatarUrl) => onProfileFieldChange("avatar_url", avatarUrl)}
+                    disabled={isProfileLoading || isSavingProfile}
+                />
             </div>
 
             {profileError ? (
@@ -15446,6 +15600,7 @@ function App() {
             is_bmc_supporter: targetProfile.is_bmc_supporter,
             supporter_points: targetProfile.supporter_points,
             supporter_note: targetProfile.supporter_note,
+            avatar_url: targetProfile.avatar_url,
         });
 
         if (error) {
