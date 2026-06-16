@@ -1605,6 +1605,18 @@ const buildShareItemUrl = (itemId) => {
     return `${window.location.origin}${prefix}/share/${encodeURIComponent(normalizedId)}/`;
 };
 
+const buildShareContributorUrl = (contributorId) => {
+    if (typeof window === "undefined") return "";
+
+    const normalizedId = String(contributorId || "").trim();
+    if (!normalizedId) return "";
+
+    const basePath = String(import.meta.env.BASE_URL || "/");
+    const normalizedBasePath = basePath.endsWith("/") ? basePath : `${basePath}/`;
+
+    return `${window.location.origin}${normalizedBasePath}?contributor=${encodeURIComponent(normalizedId)}`;
+};
+
 const buildMessengerThreadUrl = (recipientId) => {
     const normalizedId = String(recipientId || "").trim();
     if (!normalizedId) return "";
@@ -1726,6 +1738,21 @@ const readSelectedPoiSlugFromQuery = () => {
         const normalized = normalizePoiSlug(poiSlugFromPath);
         return normalized || null;
     }
+};
+
+const readSelectedContributorIdFromQuery = () => {
+    if (typeof window === "undefined") return null;
+
+    const searchParams = new URLSearchParams(window.location.search);
+    if (searchParams.get("item") || searchParams.get("poi")) {
+        return null;
+    }
+
+    const selectedContributor = searchParams.get("contributor");
+    if (!selectedContributor) return null;
+
+    const normalized = selectedContributor.trim();
+    return normalized || null;
 };
 
 const LEADERBOARD_SCOPE_OPTIONS = ["users", "items", "pois", "contributors"];
@@ -12155,6 +12182,7 @@ function FloodStatusPanel({ floodAlerts, isLoadingFloodAlerts, floodAlertsError,
 
 function ContributorMobileSheet({
     contributor,
+    shareUrl,
     mapsUrl,
     onClose,
     onLike,
@@ -12226,15 +12254,15 @@ function ContributorMobileSheet({
     };
 
     const handleShare = async () => {
-        const shareUrl = mapsUrl || contributor.website_url || (typeof window !== "undefined" ? window.location.href : "");
-        if (!shareUrl) return;
+        const resolvedShareUrl = shareUrl || (typeof window !== "undefined" ? window.location.href : "");
+        if (!resolvedShareUrl) return;
 
         if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
             try {
                 await navigator.share({
                     title: contributor.name || "River Bank Cleanup Tracker",
                     text: "Check this cleanup contributor.",
-                    url: shareUrl,
+                    url: resolvedShareUrl,
                 });
                 setShareStatusWithTimeout("Share sheet opened.");
                 if (typeof onShareRecorded === "function") {
@@ -12250,10 +12278,10 @@ function ContributorMobileSheet({
 
         try {
             if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-                await navigator.clipboard.writeText(shareUrl);
+                await navigator.clipboard.writeText(resolvedShareUrl);
             } else {
                 const textArea = document.createElement("textarea");
-                textArea.value = shareUrl;
+                textArea.value = resolvedShareUrl;
                 textArea.setAttribute("readonly", "");
                 textArea.style.position = "absolute";
                 textArea.style.left = "-9999px";
@@ -12714,6 +12742,7 @@ function App() {
     const [selectedItemId, setSelectedItemId] = useState(null);
     const [querySelectedItemId, setQuerySelectedItemId] = useState(() => readSelectedItemIdFromQuery());
     const [querySelectedPoiSlug, setQuerySelectedPoiSlug] = useState(() => readSelectedPoiSlugFromQuery());
+    const [querySelectedContributorId, setQuerySelectedContributorId] = useState(() => readSelectedContributorIdFromQuery());
     const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
     const [isTidePlannerCollapsed, setIsTidePlannerCollapsed] = useState(true);
     const [lancasterTideRows, setLancasterTideRows] = useState([]);
@@ -14314,6 +14343,24 @@ function App() {
         setEditingHistoricalPoiId(null);
         setQuerySelectedPoiSlug(null);
     }, [historicalPois, querySelectedItemId, querySelectedPoiSlug]);
+
+    useEffect(() => {
+        if (!querySelectedContributorId) return;
+        if (querySelectedItemId || querySelectedPoiSlug) return;
+        if (!contributors.length) return;
+
+        const matchedContributor = contributors.find(
+            (contributor) => String(contributor?.id) === querySelectedContributorId,
+        );
+
+        if (!matchedContributor?.id) {
+            setQuerySelectedContributorId(null);
+            return;
+        }
+
+        setSelectedContributorId(matchedContributor.id);
+        setQuerySelectedContributorId(null);
+    }, [contributors, querySelectedContributorId, querySelectedItemId, querySelectedPoiSlug]);
 
     useEffect(() => {
         if (typeof window === "undefined") return;
@@ -17377,6 +17424,10 @@ function App() {
         () => (selectedContributor ? resolveContributorMapsUrl(selectedContributor) : ""),
         [selectedContributor],
     );
+    const selectedContributorShareUrl = useMemo(
+        () => (selectedContributor ? buildShareContributorUrl(selectedContributor.id) : ""),
+        [selectedContributor],
+    );
     const leaderboardTotalsByEntityKey = useMemo(() => {
         const map = {};
 
@@ -20217,6 +20268,7 @@ function App() {
             {selectedContributor ? (
                 <ContributorMobileSheet
                     contributor={selectedContributor}
+                    shareUrl={selectedContributorShareUrl}
                     mapsUrl={selectedContributorMapsUrl}
                     onLike={handleContributorLike}
                     onShareRecorded={handleContributorShare}
