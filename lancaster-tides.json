@@ -1,118 +1,133 @@
 {
   "location": "Lancaster, UK",
   "sourceUrl": "https://www.tide-forecast.com/locations/Lancaster/tides/latest",
-  "updatedAt": "2026-06-16T02:07:18.909Z",
+  "updatedAt": "2026-06-16T04:38:38.920Z",
   "metadata": {
-    "mergedFromExistingRows": 0,
+    "mergedFromExistingRows": 20,
     "mergedFromFetchedRows": 20,
-    "retainedRows": 20,
+    "retainedRows": 23,
     "retentionHours": {
       "past": 30,
       "future": 132
     },
-    "coverageStart": "2026-06-16T00:22:00.000Z",
-    "coverageEnd": "2026-06-20T22:49:00.000Z"
+    "coverageStart": "2026-06-15T05:20:00.000Z",
+    "coverageEnd": "2026-06-20T21:49:00.000Z"
   },
   "rows": [
     {
+      "type": "Low Tide",
+      "time": "6:20 AM (Mon 15 June)",
+      "height": "0.56 m (1.85 ft)"
+    },
+    {
+      "type": "High Tide",
+      "time": "11:58 AM (Mon 15 June)",
+      "height": "9.25 m (30.35 ft)"
+    },
+    {
+      "type": "Low Tide",
+      "time": "6:44 PM (Mon 15 June)",
+      "height": "0.58 m (1.9 ft)"
+    },
+    {
       "type": "High Tide",
       "time": "00:22 AM (Tue 16 June)",
-      "height": "31.04 ft (9.46 m)"
+      "height": "9.46 m (31.04 ft)"
     },
     {
       "type": "Low Tide",
       "time": "7:12 AM (Tue 16 June)",
-      "height": "0.85 ft (0.26 m)"
+      "height": "0.26 m (0.85 ft)"
     },
     {
       "type": "High Tide",
       "time": "12:48 PM (Tue 16 June)",
-      "height": "30.61 ft (9.33 m)"
+      "height": "9.33 m (30.61 ft)"
     },
     {
       "type": "Low Tide",
       "time": "7:34 PM (Tue 16 June)",
-      "height": "1.74 ft (0.53 m)"
+      "height": "0.53 m (1.74 ft)"
     },
     {
       "type": "High Tide",
       "time": "1:10 AM (Wed 17 June)",
-      "height": "31.42 ft (9.58 m)"
+      "height": "9.58 m (31.42 ft)"
     },
     {
       "type": "Low Tide",
       "time": "8:03 AM (Wed 17 June)",
-      "height": "0.43 ft (0.13 m)"
+      "height": "0.13 m (0.43 ft)"
     },
     {
       "type": "High Tide",
       "time": "1:38 PM (Wed 17 June)",
-      "height": "30.19 ft (9.2 m)"
+      "height": "9.2 m (30.19 ft)"
     },
     {
       "type": "Low Tide",
       "time": "8:23 PM (Wed 17 June)",
-      "height": "2.07 ft (0.63 m)"
+      "height": "0.63 m (2.07 ft)"
     },
     {
       "type": "High Tide",
       "time": "1:59 AM (Thu 18 June)",
-      "height": "31.2 ft (9.51 m)"
+      "height": "9.51 m (31.2 ft)"
     },
     {
       "type": "Low Tide",
       "time": "8:53 AM (Thu 18 June)",
-      "height": "0.66 ft (0.2 m)"
+      "height": "0.2 m (0.66 ft)"
     },
     {
       "type": "High Tide",
       "time": "2:28 PM (Thu 18 June)",
-      "height": "29.1 ft (8.87 m)"
+      "height": "8.87 m (29.1 ft)"
     },
     {
       "type": "Low Tide",
       "time": "9:11 PM (Thu 18 June)",
-      "height": "2.85 ft (0.87 m)"
+      "height": "0.87 m (2.85 ft)"
     },
     {
       "type": "High Tide",
       "time": "2:48 AM (Fri 19 June)",
-      "height": "30.35 ft (9.25 m)"
+      "height": "9.25 m (30.35 ft)"
     },
     {
       "type": "Low Tide",
       "time": "9:44 AM (Fri 19 June)",
-      "height": "1.44 ft (0.44 m)"
+      "height": "0.44 m (1.44 ft)"
     },
     {
       "type": "High Tide",
       "time": "3:19 PM (Fri 19 June)",
-      "height": "27.63 ft (8.42 m)"
+      "height": "8.42 m (27.63 ft)"
     },
     {
       "type": "Low Tide",
       "time": "9:59 PM (Fri 19 June)",
-      "height": "4.0 ft (1.22 m)"
+      "height": "1.22 m (4.0 ft)"
     },
     {
       "type": "High Tide",
       "time": "3:39 AM (Sat 20 June)",
-      "height": "28.97 ft (8.83 m)"
+      "height": "8.83 m (28.97 ft)"
     },
     {
       "type": "Low Tide",
       "time": "10:34 AM (Sat 20 June)",
-      "height": "2.69 ft (0.82 m)"
+      "height": "0.82 m (2.69 ft)"
     },
     {
       "type": "High Tide",
       "time": "4:12 PM (Sat 20 June)",
-      "height": "25.95 ft (7.91 m)"
+      "height": "7.91 m (25.95 ft)"
     },
     {
       "type": "Low Tide",
       "time": "10:49 PM (Sat 20 June)",
-      "height": "5.35 ft (1.63 m)"
+      "height": "1.63 m (5.35 ft)"
     }
   ]
 }
