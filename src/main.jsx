@@ -5629,11 +5629,54 @@ function LegalNoticeFooter({ message }) {
     );
 }
 
-function ModalShell({ isMobile, title, onClose, children, width = "min(440px, calc(100vw - 32px))" }) {
-    return (
+function ModalShell({
+    isMobile,
+    title,
+    onClose,
+    onInteraction,
+    children,
+    width = "min(440px, calc(100vw - 32px))",
+    showCloseButton = true,
+    anchorToGoFundMeButton = false,
+    goFundMeButtonRect = null,
+}) {
+    const handleBackdropClick = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (typeof onInteraction === "function") {
+            onInteraction();
+        }
+        onClose();
+    };
+
+    const handleSurfacePointerDown = (event) => {
+        event.stopPropagation();
+    };
+
+    const handleSurfaceClick = (event) => {
+        event.stopPropagation();
+    };
+
+    const anchorRightInset = isMobile
+        ? "calc(env(safe-area-inset-right, 0px) + 10px)"
+        : "calc(env(safe-area-inset-right, 0px) + 84px)";
+    const anchorBottomInset = "calc(max(18px, env(safe-area-inset-bottom, 0px) + 18px) + 56px)";
+    const measuredAnchorRightInset = goFundMeButtonRect
+        ? `${Math.max(10, Math.round(goFundMeButtonRect.right))}px`
+        : anchorRightInset;
+    const measuredAnchorBottomInset = goFundMeButtonRect
+        ? `${Math.max(24, Math.round(goFundMeButtonRect.bottom + goFundMeButtonRect.height + 12))}px`
+        : anchorBottomInset;
+    const anchoredWidth = isMobile
+        ? "calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 20px)"
+        : `min(${width}, calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 28px))`;
+    const anchoredMaxHeight = `max(180px, calc(100svh - env(safe-area-inset-top, 0px) - ${anchorBottomInset} - 12px))`;
+
+    const modalContent = (
         <>
             <div
-                onClick={onClose}
+                onPointerDown={handleBackdropClick}
+                onClick={handleBackdropClick}
                 style={{
                     position: "fixed",
                     inset: 0,
@@ -5645,18 +5688,27 @@ function ModalShell({ isMobile, title, onClose, children, width = "min(440px, ca
                 role="dialog"
                 aria-modal="true"
                 aria-label={title}
+                onPointerDown={handleSurfacePointerDown}
+                onClick={handleSurfaceClick}
                 style={{
                     position: "fixed",
                     zIndex: 1301,
-                    left: "50%",
-                    right: "auto",
-                    top: "50%",
-                    bottom: "auto",
-                    transform: "translate(-50%, -50%)",
-                    width: isMobile ? "min(560px, calc(100vw - 20px))" : width,
-                    maxHeight: isMobile
+                    left: anchorToGoFundMeButton ? "auto" : "50%",
+                    right: anchorToGoFundMeButton ? measuredAnchorRightInset : "auto",
+                    top: anchorToGoFundMeButton ? "auto" : "50%",
+                    bottom: anchorToGoFundMeButton ? measuredAnchorBottomInset : "auto",
+                    transform: anchorToGoFundMeButton ? "none" : "translate(-50%, -50%)",
+                    width: anchorToGoFundMeButton
+                        ? anchoredWidth
+                        : (isMobile ? "min(560px, calc(100vw - 20px))" : width),
+                    maxWidth: anchorToGoFundMeButton
+                        ? "calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 20px)"
+                        : "none",
+                    maxHeight: anchorToGoFundMeButton
+                        ? `max(180px, calc(100svh - env(safe-area-inset-top, 0px) - ${measuredAnchorBottomInset} - 12px))`
+                        : (isMobile
                         ? "calc(100svh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 20px)"
-                        : "min(86vh, calc(100svh - 40px))",
+                        : "min(86vh, calc(100svh - 40px))"),
                     padding: isMobile ? "12px" : "14px",
                     borderColor: "#93c5fd",
                     background: "linear-gradient(180deg, #ffffff 0%, #eff6ff 100%)",
@@ -5667,22 +5719,24 @@ function ModalShell({ isMobile, title, onClose, children, width = "min(440px, ca
             >
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "10px", marginBottom: "10px" }}>
                     <div style={{ fontSize: "1rem", fontWeight: 800, color: "#0f172a" }}>{title}</div>
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        style={{
-                            border: "1px solid #cbd5e1",
-                            background: "#fff",
-                            color: "#475569",
-                            borderRadius: "8px",
-                            padding: "6px 10px",
-                            fontSize: "0.78rem",
-                            fontWeight: 700,
-                            cursor: "pointer",
-                        }}
-                    >
-                        Close
-                    </button>
+                    {showCloseButton ? (
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            style={{
+                                border: "1px solid #cbd5e1",
+                                background: "#fff",
+                                color: "#475569",
+                                borderRadius: "8px",
+                                padding: "6px 10px",
+                                fontSize: "0.78rem",
+                                fontWeight: 700,
+                                cursor: "pointer",
+                            }}
+                        >
+                            Close
+                        </button>
+                    ) : null}
                 </div>
                 <div className="modal-shell-scroll" style={{ overflowY: "auto", minHeight: 0, paddingRight: isMobile ? "0" : "2px" }}>
                     {children}
@@ -5690,57 +5744,61 @@ function ModalShell({ isMobile, title, onClose, children, width = "min(440px, ca
             </SurfaceCard>
         </>
     );
+
+    if (typeof document === "undefined") {
+        return null;
+    }
+
+    return createPortal(modalContent, document.body);
 }
 
-function GoFundMeSupportModal({ isOpen, isMobile, onClose }) {
-    const widgetMountRef = useRef(null);
+function GoFundMeSupportModal({ isOpen, isMobile, onClose, onInteraction, goFundMeButtonRect }) {
+    const isInsecureLocalhost = useMemo(() => {
+        if (typeof window === "undefined") return false;
+
+        const host = String(window.location?.hostname || "").toLowerCase();
+        const protocol = String(window.location?.protocol || "").toLowerCase();
+        const isLocalHost = host === "localhost" || host === "127.0.0.1" || host === "[::1]";
+
+        return isLocalHost && protocol !== "https:";
+    }, []);
 
     useEffect(() => {
-        if (!isOpen) return undefined;
-        if (typeof document === "undefined") return undefined;
-
-        const mountNode = widgetMountRef.current;
-        if (!mountNode) return undefined;
-
-        mountNode.innerHTML = "";
-
-        const embedNode = document.createElement("div");
-        embedNode.className = "gfm-embed";
-        embedNode.setAttribute("data-url", GOFUNDME_WIDGET_URL);
-        mountNode.appendChild(embedNode);
-
-        const scriptNode = document.createElement("script");
-        scriptNode.defer = true;
-        scriptNode.src = "https://www.gofundme.com/static/js/embed.js";
-        scriptNode.setAttribute("data-gofundme-embed", "true");
-        mountNode.appendChild(scriptNode);
-
-        return () => {
-            mountNode.innerHTML = "";
-        };
-    }, [isOpen]);
+        if (!isOpen) return;
+        if (typeof onInteraction === "function") {
+            onInteraction();
+        }
+    }, [isOpen, onInteraction]);
 
     if (!isOpen) return null;
+
+    const widgetPanelHeight = isMobile
+        ? "min(430px, max(230px, 46svh))"
+        : "min(560px, max(290px, 56svh))";
 
     return (
         <ModalShell
             isMobile={isMobile}
             title="Support The Cleanup With GoFundMe"
             onClose={onClose}
+            onInteraction={onInteraction}
             width="min(760px, calc(100vw - 32px))"
+            showCloseButton={false}
+            anchorToGoFundMeButton
+            goFundMeButtonRect={goFundMeButtonRect}
         >
             <div
                 style={{
                     display: "grid",
-                    gap: "12px",
+                    gap: isMobile ? "12px" : "14px",
                 }}
             >
                 <p
                     style={{
                         margin: 0,
-                        fontSize: "0.84rem",
-                        color: "#334155",
-                        lineHeight: 1.45,
+                        fontSize: "0.86rem",
+                        color: "#1f2937",
+                        lineHeight: 1.5,
                     }}
                 >
                     Community fund for land and machinery to expand cleanup operations.
@@ -5749,20 +5807,47 @@ function GoFundMeSupportModal({ isOpen, isMobile, onClose }) {
                 <div
                     style={{
                         border: "1px solid rgba(16,185,129,0.32)",
-                        borderRadius: "12px",
+                        borderRadius: "14px",
                         overflow: "hidden",
                         background: "#ffffff",
-                        minHeight: isMobile ? "320px" : "360px",
-                        boxShadow: "0 10px 22px rgba(15,23,42,0.09), inset 0 1px 0 rgba(255,255,255,0.85)",
+                        height: widgetPanelHeight,
+                        boxShadow: "0 12px 26px rgba(15,23,42,0.12), inset 0 1px 0 rgba(255,255,255,0.85)",
                     }}
                 >
-                    <div
-                        ref={widgetMountRef}
-                        style={{
-                            minHeight: isMobile ? "320px" : "360px",
-                            padding: isMobile ? "8px" : "10px",
-                        }}
-                    />
+                    {isInsecureLocalhost ? (
+                        <div
+                            style={{
+                                height: widgetPanelHeight,
+                                display: "grid",
+                                alignContent: "center",
+                                justifyItems: "start",
+                                gap: "10px",
+                                padding: isMobile ? "18px" : "22px",
+                                background: "linear-gradient(180deg, #f0fdf4 0%, #ecfeff 100%)",
+                            }}
+                        >
+                            <strong style={{ color: "#065f46", fontSize: "0.96rem" }}>
+                                GoFundMe blocks this widget on local HTTP.
+                            </strong>
+                            <p style={{ margin: 0, color: "#0f172a", fontSize: "0.82rem", lineHeight: 1.5 }}>
+                                Use the button below for local testing, or run the app over HTTPS / a public preview URL to test the embedded widget.
+                            </p>
+                        </div>
+                    ) : (
+                        <iframe
+                            title="GoFundMe community fund"
+                            src={GOFUNDME_WIDGET_URL}
+                            loading="lazy"
+                            referrerPolicy="strict-origin-when-cross-origin"
+                            style={{
+                                width: "100%",
+                                height: widgetPanelHeight,
+                                padding: 0,
+                                border: 0,
+                                display: "block",
+                            }}
+                        />
+                    )}
                 </div>
 
                 <div
@@ -5776,7 +5861,7 @@ function GoFundMeSupportModal({ isOpen, isMobile, onClose }) {
                     <a
                         href={GOFUNDME_URL}
                         target="_blank"
-                        rel="noreferrer"
+                        rel="noopener noreferrer"
                         style={{
                             display: "inline-flex",
                             alignItems: "center",
@@ -5784,15 +5869,15 @@ function GoFundMeSupportModal({ isOpen, isMobile, onClose }) {
                             textDecoration: "none",
                             borderRadius: "999px",
                             border: "1px solid #10b981",
-                            background: "linear-gradient(135deg, #34d399, #10b981)",
+                            background: "linear-gradient(135deg, #22c55e, #16a34a)",
                             color: "#ffffff",
                             fontSize: "0.84rem",
                             fontWeight: 800,
-                            padding: "8px 14px",
-                            boxShadow: "0 10px 20px rgba(16,185,129,0.24)",
+                            padding: "9px 15px",
+                            boxShadow: "0 10px 20px rgba(22,163,74,0.24)",
                         }}
                     >
-                        Open GoFundMe In New Tab ↗
+                        Support on GoFundMe ↗
                     </a>
                     <span
                         style={{
@@ -5808,8 +5893,52 @@ function GoFundMeSupportModal({ isOpen, isMobile, onClose }) {
     );
 }
 
-function FloatingGoFundMeButton({ isMobile, onOpen }) {
+function FloatingGoFundMeButton({ isMobile, isOpen, onToggle, onInteraction, onMeasure }) {
     if (typeof document === "undefined") return null;
+
+    const buttonRef = useRef(null);
+
+    useLayoutEffect(() => {
+        if (typeof onMeasure !== "function") return undefined;
+
+        const updateRect = () => {
+            const node = buttonRef.current;
+            if (!node) return;
+
+            const rect = node.getBoundingClientRect();
+            onMeasure({
+                top: rect.top,
+                right: Math.max(0, window.innerWidth - rect.right),
+                bottom: Math.max(0, window.innerHeight - rect.bottom),
+                left: rect.left,
+                width: rect.width,
+                height: rect.height,
+            });
+        };
+
+        updateRect();
+        window.addEventListener("resize", updateRect);
+        window.addEventListener("scroll", updateRect, true);
+
+        return () => {
+            window.removeEventListener("resize", updateRect);
+            window.removeEventListener("scroll", updateRect, true);
+        };
+    }, [isMobile, isOpen, onMeasure]);
+
+    const handlePointerDown = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+    };
+
+    const handleClick = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (typeof onInteraction === "function") {
+            onInteraction();
+        }
+        onToggle();
+    };
 
     return createPortal(
         <div
@@ -5819,29 +5948,33 @@ function FloatingGoFundMeButton({ isMobile, onOpen }) {
                     ? "calc(env(safe-area-inset-right, 0px) + 82px)"
                     : "calc(env(safe-area-inset-right, 0px) + 88px)",
                 bottom: "max(18px, env(safe-area-inset-bottom, 0px) + 18px)",
-                zIndex: 2000,
+                zIndex: 1302,
                 pointerEvents: "none",
             }}
         >
             <button
+                ref={buttonRef}
                 type="button"
-                onClick={onOpen}
-                aria-label="Open GoFundMe support box"
-                title="Open GoFundMe"
+                onPointerDown={handlePointerDown}
+                onClick={handleClick}
+                aria-label={isOpen ? "Close GoFundMe support box" : "Open GoFundMe support box"}
+                title={isOpen ? "Close GoFundMe" : "Open GoFundMe"}
                 style={{
                     pointerEvents: "auto",
                     border: "1px solid rgba(16,185,129,0.78)",
-                    background: "linear-gradient(160deg, #f0fdf4, #bbf7d0)",
+                    background: isOpen
+                        ? "linear-gradient(160deg, #dcfce7, #86efac)"
+                        : "linear-gradient(160deg, #ecfdf3, #bbf7d0)",
                     color: "#064e3b",
                     borderRadius: "999px",
                     minHeight: isMobile ? "40px" : "42px",
-                    minWidth: isMobile ? "40px" : "108px",
+                    minWidth: isMobile ? (isOpen ? "92px" : "40px") : "108px",
                     padding: isMobile ? "0" : "0 12px",
                     display: "inline-flex",
                     alignItems: "center",
                     justifyContent: "center",
                     gap: isMobile ? "0" : "7px",
-                    boxShadow: "0 14px 30px rgba(16,185,129,0.3)",
+                    boxShadow: "0 10px 24px rgba(16,185,129,0.28)",
                     cursor: "pointer",
                     fontSize: "0.76rem",
                     fontWeight: 800,
@@ -5849,7 +5982,7 @@ function FloatingGoFundMeButton({ isMobile, onOpen }) {
                 }}
             >
                 <span aria-hidden="true" style={{ fontSize: "1.05rem", lineHeight: 1 }}>💚</span>
-                {!isMobile ? <span>GoFundMe</span> : null}
+                {!isMobile || isOpen ? <span>{isOpen ? "Close" : "GoFundMe"}</span> : null}
             </button>
         </div>,
         document.body,
@@ -13139,6 +13272,7 @@ function App() {
     const [isMapToolsOpen, setIsMapToolsOpen] = useState(false);
     const [isMobileStatsExpanded, setIsMobileStatsExpanded] = useState(false);
     const [isGoFundMeModalOpen, setIsGoFundMeModalOpen] = useState(false);
+    const [goFundMeButtonRect, setGoFundMeButtonRect] = useState(null);
     const [mapInstance, setMapInstance] = useState(null);
     const [isLiveLocationPaneReady, setIsLiveLocationPaneReady] = useState(false);
     const [copiedShareItemId, setCopiedShareItemId] = useState(null);
@@ -13342,8 +13476,14 @@ function App() {
         setAdminProfilesStatus("");
         setIsProfileModalOpen(false);
     };
-    const openGoFundMeModal = () => setIsGoFundMeModalOpen(true);
-    const closeGoFundMeModal = () => setIsGoFundMeModalOpen(false);
+    const openGoFundMeModal = () => {
+        markOverlayInteraction();
+        setIsGoFundMeModalOpen(true);
+    };
+    const closeGoFundMeModal = () => {
+        markOverlayInteraction();
+        setIsGoFundMeModalOpen(false);
+    };
     const floatingMapButtonStyle = {
         position: "absolute",
         zIndex: 900,
@@ -13367,6 +13507,7 @@ function App() {
 
         const handleKeyDown = (event) => {
             if (event.key === "Escape") {
+                markOverlayInteraction();
                 setIsGoFundMeModalOpen(false);
             }
         };
@@ -20404,13 +20545,18 @@ function App() {
 
             <FloatingGoFundMeButton
                 isMobile={isMobile}
-                onOpen={openGoFundMeModal}
+                isOpen={isGoFundMeModalOpen}
+                onToggle={isGoFundMeModalOpen ? closeGoFundMeModal : openGoFundMeModal}
+                onInteraction={markOverlayInteraction}
+                onMeasure={setGoFundMeButtonRect}
             />
 
             <GoFundMeSupportModal
                 isOpen={isGoFundMeModalOpen}
                 isMobile={isMobile}
                 onClose={closeGoFundMeModal}
+                onInteraction={markOverlayInteraction}
+                goFundMeButtonRect={goFundMeButtonRect}
             />
 
             {isMobile && isFilterSheetOpen ? (
