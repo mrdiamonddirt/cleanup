@@ -78,6 +78,8 @@ const HISTORIC_OVERLAY_ATTRIBUTION =
 // River Lune, Lancaster — adjust if needed
 const RIVER_LUNE_CENTER = [54.052776, -2.801216];
 const RIVER_LUNE_ZOOM = 15;
+const GOFUNDME_URL = "https://www.gofundme.com/manage/purchase-land-and-machinary-for-community-use";
+const GOFUNDME_WIDGET_URL = "https://www.gofundme.com/f/purchase-land-and-machinary-for-community-use/widget/large?attribution_id=sl%3A1bed70ce-01b5-41c3-9d5f-20f38948432d";
 
 const compareHistoricOverlayLayers = (leftLayer, rightLayer) => {
     if (leftLayer.startYear !== rightLayer.startYear) {
@@ -4708,6 +4710,26 @@ function AppTopBar({
                                 </a>
 
                                 <a
+                                    href={GOFUNDME_URL}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="app-topbar-menu-item"
+                                    onClick={closeMobileMenu}
+                                    style={{
+                                        ...mobileMenuItemBaseStyle,
+                                        borderColor: "rgba(16,185,129,0.38)",
+                                        background: "linear-gradient(180deg, rgba(236,253,245,0.98), rgba(240,253,250,0.96))",
+                                    }}
+                                >
+                                    <span aria-hidden="true" style={{ color: "#059669", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "1rem" }}>💚</span>
+                                    <span style={{ display: "grid", gap: "2px", minWidth: 0 }}>
+                                        <span style={{ fontSize: "0.84rem", fontWeight: 800, color: "#0f172a" }}>GoFundMe</span>
+                                        <span style={{ fontSize: "0.74rem", color: "#475569" }}>Land and machinery fund for community cleanup use.</span>
+                                    </span>
+                                    <span aria-hidden="true" style={{ color: "#94a3b8", fontSize: "0.9rem" }}>↗</span>
+                                </a>
+
+                                <a
                                     href="https://www.facebook.com/profile.php?id=61577489848878"
                                     target="_blank"
                                     rel="noreferrer"
@@ -4934,6 +4956,26 @@ function AppTopBar({
                             aria-label="Support cleanup costs on Ko-fi"
                         >
                             ❤ Support
+                        </a>
+
+                        <a
+                            href={GOFUNDME_URL}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="app-topbar-desktop-action"
+                            style={{
+                                ...desktopActionButtonStyle,
+                                border: "1px solid #10b981",
+                                background: "linear-gradient(135deg, #d1fae5, #a7f3d0)",
+                                color: "#065f46",
+                                padding: "0 11px",
+                                fontSize: "0.74rem",
+                                fontWeight: 800,
+                                textDecoration: "none",
+                            }}
+                            aria-label="Support cleanup community fund on GoFundMe"
+                        >
+                            💚 GoFundMe
                         </a>
 
                         <a
@@ -5647,6 +5689,170 @@ function ModalShell({ isMobile, title, onClose, children, width = "min(440px, ca
                 </div>
             </SurfaceCard>
         </>
+    );
+}
+
+function GoFundMeSupportModal({ isOpen, isMobile, onClose }) {
+    const widgetMountRef = useRef(null);
+
+    useEffect(() => {
+        if (!isOpen) return undefined;
+        if (typeof document === "undefined") return undefined;
+
+        const mountNode = widgetMountRef.current;
+        if (!mountNode) return undefined;
+
+        mountNode.innerHTML = "";
+
+        const embedNode = document.createElement("div");
+        embedNode.className = "gfm-embed";
+        embedNode.setAttribute("data-url", GOFUNDME_WIDGET_URL);
+        mountNode.appendChild(embedNode);
+
+        const scriptNode = document.createElement("script");
+        scriptNode.defer = true;
+        scriptNode.src = "https://www.gofundme.com/static/js/embed.js";
+        scriptNode.setAttribute("data-gofundme-embed", "true");
+        mountNode.appendChild(scriptNode);
+
+        return () => {
+            mountNode.innerHTML = "";
+        };
+    }, [isOpen]);
+
+    if (!isOpen) return null;
+
+    return (
+        <ModalShell
+            isMobile={isMobile}
+            title="Support The Cleanup With GoFundMe"
+            onClose={onClose}
+            width="min(760px, calc(100vw - 32px))"
+        >
+            <div
+                style={{
+                    display: "grid",
+                    gap: "12px",
+                }}
+            >
+                <p
+                    style={{
+                        margin: 0,
+                        fontSize: "0.84rem",
+                        color: "#334155",
+                        lineHeight: 1.45,
+                    }}
+                >
+                    Community fund for land and machinery to expand cleanup operations.
+                </p>
+
+                <div
+                    style={{
+                        border: "1px solid rgba(16,185,129,0.32)",
+                        borderRadius: "12px",
+                        overflow: "hidden",
+                        background: "#ffffff",
+                        minHeight: isMobile ? "320px" : "360px",
+                        boxShadow: "0 10px 22px rgba(15,23,42,0.09), inset 0 1px 0 rgba(255,255,255,0.85)",
+                    }}
+                >
+                    <div
+                        ref={widgetMountRef}
+                        style={{
+                            minHeight: isMobile ? "320px" : "360px",
+                            padding: isMobile ? "8px" : "10px",
+                        }}
+                    />
+                </div>
+
+                <div
+                    style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        alignItems: "center",
+                        gap: "8px",
+                    }}
+                >
+                    <a
+                        href={GOFUNDME_URL}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            textDecoration: "none",
+                            borderRadius: "999px",
+                            border: "1px solid #10b981",
+                            background: "linear-gradient(135deg, #34d399, #10b981)",
+                            color: "#ffffff",
+                            fontSize: "0.84rem",
+                            fontWeight: 800,
+                            padding: "8px 14px",
+                            boxShadow: "0 10px 20px rgba(16,185,129,0.24)",
+                        }}
+                    >
+                        Open GoFundMe In New Tab ↗
+                    </a>
+                    <span
+                        style={{
+                            fontSize: "0.75rem",
+                            color: "#64748b",
+                        }}
+                    >
+                        If the embedded view is blocked, use the button above.
+                    </span>
+                </div>
+            </div>
+        </ModalShell>
+    );
+}
+
+function FloatingGoFundMeButton({ isMobile, onOpen }) {
+    if (typeof document === "undefined") return null;
+
+    return createPortal(
+        <div
+            style={{
+                position: "fixed",
+                right: isMobile
+                    ? "calc(env(safe-area-inset-right, 0px) + 82px)"
+                    : "calc(env(safe-area-inset-right, 0px) + 88px)",
+                bottom: "max(18px, env(safe-area-inset-bottom, 0px) + 18px)",
+                zIndex: 2000,
+                pointerEvents: "none",
+            }}
+        >
+            <button
+                type="button"
+                onClick={onOpen}
+                aria-label="Open GoFundMe support box"
+                title="Open GoFundMe"
+                style={{
+                    pointerEvents: "auto",
+                    border: "1px solid rgba(16,185,129,0.78)",
+                    background: "linear-gradient(160deg, #f0fdf4, #bbf7d0)",
+                    color: "#064e3b",
+                    borderRadius: "999px",
+                    minHeight: isMobile ? "40px" : "42px",
+                    minWidth: isMobile ? "40px" : "108px",
+                    padding: isMobile ? "0" : "0 12px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: isMobile ? "0" : "7px",
+                    boxShadow: "0 14px 30px rgba(16,185,129,0.3)",
+                    cursor: "pointer",
+                    fontSize: "0.76rem",
+                    fontWeight: 800,
+                    letterSpacing: "0.01em",
+                }}
+            >
+                <span aria-hidden="true" style={{ fontSize: "1.05rem", lineHeight: 1 }}>💚</span>
+                {!isMobile ? <span>GoFundMe</span> : null}
+            </button>
+        </div>,
+        document.body,
     );
 }
 
@@ -12932,6 +13138,7 @@ function App() {
     const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
     const [isMapToolsOpen, setIsMapToolsOpen] = useState(false);
     const [isMobileStatsExpanded, setIsMobileStatsExpanded] = useState(false);
+    const [isGoFundMeModalOpen, setIsGoFundMeModalOpen] = useState(false);
     const [mapInstance, setMapInstance] = useState(null);
     const [isLiveLocationPaneReady, setIsLiveLocationPaneReady] = useState(false);
     const [copiedShareItemId, setCopiedShareItemId] = useState(null);
@@ -13135,6 +13342,8 @@ function App() {
         setAdminProfilesStatus("");
         setIsProfileModalOpen(false);
     };
+    const openGoFundMeModal = () => setIsGoFundMeModalOpen(true);
+    const closeGoFundMeModal = () => setIsGoFundMeModalOpen(false);
     const floatingMapButtonStyle = {
         position: "absolute",
         zIndex: 900,
@@ -13152,6 +13361,21 @@ function App() {
         backdropFilter: "blur(8px)",
         cursor: "pointer",
     };
+
+    useEffect(() => {
+        if (!isGoFundMeModalOpen) return undefined;
+
+        const handleKeyDown = (event) => {
+            if (event.key === "Escape") {
+                setIsGoFundMeModalOpen(false);
+            }
+        };
+
+        window.addEventListener("keydown", handleKeyDown);
+        return () => {
+            window.removeEventListener("keydown", handleKeyDown);
+        };
+    }, [isGoFundMeModalOpen]);
 
     const copyShareLinkForItem = async (itemId) => {
         const shareUrl = buildShareItemUrl(itemId);
@@ -19924,6 +20148,7 @@ function App() {
                         ) : null}
                     </SurfaceCard>
                 </div>
+
             </div>
 
             {isReportConsentOpen ? (
@@ -20175,6 +20400,17 @@ function App() {
                 isLoading={isLeaderboardLoading}
                 error={leaderboardError}
                 pointsRules={leaderboardPointsRules}
+            />
+
+            <FloatingGoFundMeButton
+                isMobile={isMobile}
+                onOpen={openGoFundMeModal}
+            />
+
+            <GoFundMeSupportModal
+                isOpen={isGoFundMeModalOpen}
+                isMobile={isMobile}
+                onClose={closeGoFundMeModal}
             />
 
             {isMobile && isFilterSheetOpen ? (
