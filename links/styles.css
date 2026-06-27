@@ -34,11 +34,11 @@ body {
 }
 
 main {
-  width: min(760px, 100%);
+  width: min(840px, 100%);
   background: linear-gradient(155deg, rgba(6, 26, 48, 0.84), rgba(0, 33, 61, 0.74));
   border: 1px solid var(--panel-border);
   border-radius: 26px;
-  padding: clamp(18px, 2.2vw, 30px);
+  padding: clamp(18px, 2.4vw, 32px);
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   box-shadow:
@@ -82,6 +82,7 @@ ul {
   padding: 0;
   list-style: none;
   display: grid;
+  grid-template-columns: 1fr;
   gap: 14px;
 }
 
@@ -106,6 +107,7 @@ button.link-card {
   appearance: none;
   touch-action: manipulation;
   transform: translateZ(0);
+  min-height: 72px;
 }
 
 button.link-card {
@@ -146,10 +148,10 @@ button.link-card:focus-visible::before {
 }
 
 .link-left {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 11px;
-  min-width: 0;
+  min-width: 100%;
 }
 
 .text-stack {
@@ -177,6 +179,7 @@ button.link-card:focus-visible::before {
   font-weight: 900;
   line-height: 1.2;
   text-shadow: none;
+  text-wrap: balance;
 }
 
 .description {
@@ -184,6 +187,7 @@ button.link-card:focus-visible::before {
   font-weight: 700;
   line-height: 1.25;
   opacity: 0.95;
+  text-wrap: pretty;
 }
 
 .brand-home {
@@ -259,6 +263,40 @@ button.link-card:focus-visible::before {
 }
 
 .brand-instagram .description {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.brand-tiktok {
+  background: linear-gradient(145deg, #111827 0%, #0f172a 58%, #020617 100%) !important;
+  background-size: 180% 180%;
+  animation: brandDrift 8s ease-in-out infinite;
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.34);
+  border-color: rgba(255, 255, 255, 0.55);
+  color: #ffffff;
+  position: relative;
+}
+
+.brand-tiktok::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 82% 18%, rgba(45, 212, 191, 0.24), transparent 44%);
+  pointer-events: none;
+}
+
+.brand-tiktok .icon-chip {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(241, 245, 249, 0.99));
+  color: #111827;
+  border-color: rgba(15, 23, 42, 0.34);
+}
+
+.brand-tiktok .title {
+  color: #ffffff;
+  font-weight: 900;
+  text-shadow: 0 1px 2px rgba(2, 6, 23, 0.58);
+}
+
+.brand-tiktok .description {
   color: rgba(255, 255, 255, 0.95);
 }
 
@@ -400,10 +438,40 @@ ul li:nth-child(5) { animation-delay: 300ms; }
 ul li:nth-child(6) { animation-delay: 360ms; }
 ul li:nth-child(7) { animation-delay: 420ms; }
 ul li:nth-child(8) { animation-delay: 480ms; }
+ul li:nth-child(9) { animation-delay: 540ms; }
+
+@media (min-width: 1024px) {
+  main {
+    width: min(980px, 100%);
+    padding: clamp(22px, 2vw, 34px);
+  }
+
+  ul {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+
+  ul li:nth-child(1),
+  ul li:last-child {
+    grid-column: 1 / -1;
+  }
+
+  a.link-card,
+  button.link-card {
+    min-height: 78px;
+  }
+}
+
+@media (min-width: 1400px) {
+  main {
+    width: min(1080px, 100%);
+  }
+}
 
 @media (hover: none), (pointer: coarse) {
   .brand-facebook,
   .brand-instagram,
+  .brand-tiktok,
   .brand-youtube {
     animation: none;
     background-size: 100% 100%;
@@ -457,6 +525,40 @@ ul li:nth-child(8) { animation-delay: 480ms; }
   }
 }
 
+@media (max-height: 560px) and (min-width: 700px) {
+  body {
+    place-items: start center;
+  }
+
+  main {
+    width: min(980px, 100%);
+    border-radius: 20px;
+    margin-block: 14px;
+  }
+
+  ul {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  ul li:nth-child(1),
+  ul li:last-child {
+    grid-column: 1 / -1;
+  }
+
+  a.link-card,
+  button.link-card {
+    min-height: 64px;
+    padding: 12px 14px;
+  }
+
+  .icon-chip {
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation: none !important;
@@ -482,11 +584,48 @@ ul li:nth-child(8) { animation-delay: 480ms; }
     padding: 14px 14px;
   }
 
+  .icon-chip {
+    width: 32px;
+    height: 32px;
+  }
+
   .title {
     font-size: 0.96rem;
   }
 
   .description {
     font-size: 0.8rem;
+  }
+}
+
+@media (max-width: 380px) {
+  main {
+    padding: 14px;
+  }
+
+  ul {
+    gap: 10px;
+  }
+
+  a.link-card,
+  button.link-card {
+    min-height: 64px;
+    padding: 12px;
+    gap: 10px;
+    border-radius: 14px;
+  }
+
+  .icon-chip {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+  }
+
+  .title {
+    font-size: 0.9rem;
+  }
+
+  .description {
+    font-size: 0.76rem;
   }
 }
