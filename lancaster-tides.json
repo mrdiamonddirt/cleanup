@@ -1,123 +1,118 @@
 {
   "location": "Lancaster, UK",
   "sourceUrl": "https://www.tide-forecast.com/locations/Lancaster/tides/latest",
-  "updatedAt": "2026-06-27T21:32:20.829Z",
+  "updatedAt": "2026-06-28T01:56:35.373Z",
   "metadata": {
-    "mergedFromExistingRows": 20,
+    "mergedFromExistingRows": 0,
     "mergedFromFetchedRows": 20,
-    "retainedRows": 21,
+    "retainedRows": 20,
     "retentionHours": {
       "past": 30,
       "future": 132
     },
-    "coverageStart": "2026-06-26T20:58:00.000Z",
-    "coverageEnd": "2026-07-02T00:17:00.000Z"
+    "coverageStart": "2026-06-28T05:29:00.000Z",
+    "coverageEnd": "2026-07-03T01:54:00.000Z"
   },
   "rows": [
     {
-      "type": "High Tide",
-      "time": "9:58 PM (Fri 26 June)",
-      "height": "7.29 m (23.92 ft)"
-    },
-    {
-      "type": "Low Tide",
-      "time": "4:43 AM (Sat 27 June)",
-      "height": "2.26 m (7.42 ft)"
-    },
-    {
-      "type": "High Tide",
-      "time": "10:21 AM (Sat 27 June)",
-      "height": "7.32 m (24.02 ft)"
-    },
-    {
-      "type": "Low Tide",
-      "time": "5:03 PM (Sat 27 June)",
-      "height": "2.16 m (7.09 ft)"
-    },
-    {
-      "type": "High Tide",
-      "time": "10:43 PM (Sat 27 June)",
-      "height": "7.58 m (24.87 ft)"
-    },
-    {
       "type": "Low Tide",
       "time": "5:29 AM (Sun 28 June)",
-      "height": "1.98 m (6.5 ft)"
+      "height": "6.5 ft (1.98 m)"
     },
     {
       "type": "High Tide",
       "time": "11:05 AM (Sun 28 June)",
-      "height": "7.56 m (24.8 ft)"
+      "height": "24.8 ft (7.56 m)"
     },
     {
       "type": "Low Tide",
       "time": "5:46 PM (Sun 28 June)",
-      "height": "1.94 m (6.37 ft)"
+      "height": "6.37 ft (1.94 m)"
     },
     {
       "type": "High Tide",
       "time": "11:24 PM (Sun 28 June)",
-      "height": "7.86 m (25.79 ft)"
+      "height": "25.79 ft (7.86 m)"
     },
     {
       "type": "Low Tide",
       "time": "6:11 AM (Mon 29 June)",
-      "height": "1.69 m (5.54 ft)"
+      "height": "5.54 ft (1.69 m)"
     },
     {
       "type": "High Tide",
       "time": "11:46 AM (Mon 29 June)",
-      "height": "7.78 m (25.53 ft)"
+      "height": "25.53 ft (7.78 m)"
     },
     {
       "type": "Low Tide",
       "time": "6:26 PM (Mon 29 June)",
-      "height": "1.73 m (5.68 ft)"
+      "height": "5.68 ft (1.73 m)"
     },
     {
       "type": "High Tide",
       "time": "00:03 AM (Tue 30 June)",
-      "height": "8.13 m (26.67 ft)"
+      "height": "26.67 ft (8.13 m)"
     },
     {
       "type": "Low Tide",
       "time": "6:50 AM (Tue 30 June)",
-      "height": "1.45 m (4.77 ft)"
+      "height": "4.77 ft (1.45 m)"
     },
     {
       "type": "High Tide",
       "time": "12:24 PM (Tue 30 June)",
-      "height": "7.94 m (26.05 ft)"
+      "height": "26.05 ft (7.94 m)"
     },
     {
       "type": "Low Tide",
       "time": "7:03 PM (Tue 30 June)",
-      "height": "1.55 m (5.09 ft)"
+      "height": "5.09 ft (1.55 m)"
     },
     {
       "type": "High Tide",
       "time": "00:41 AM (Wed 01 July)",
-      "height": "8.34 m (27.36 ft)"
+      "height": "27.36 ft (8.34 m)"
     },
     {
       "type": "Low Tide",
       "time": "7:28 AM (Wed 01 July)",
-      "height": "1.28 m (4.2 ft)"
+      "height": "4.2 ft (1.28 m)"
     },
     {
       "type": "High Tide",
       "time": "1:01 PM (Wed 01 July)",
-      "height": "8.03 m (26.35 ft)"
+      "height": "26.35 ft (8.03 m)"
     },
     {
       "type": "Low Tide",
       "time": "7:40 PM (Wed 01 July)",
-      "height": "1.44 m (4.71 ft)"
+      "height": "4.71 ft (1.44 m)"
     },
     {
       "type": "High Tide",
       "time": "1:17 AM (Thu 02 July)",
-      "height": "8.48 m (27.82 ft)"
+      "height": "27.82 ft (8.48 m)"
+    },
+    {
+      "type": "Low Tide",
+      "time": "8:06 AM (Thu 02 July)",
+      "height": "3.9 ft (1.19 m)"
+    },
+    {
+      "type": "High Tide",
+      "time": "1:37 PM (Thu 02 July)",
+      "height": "26.38 ft (8.04 m)"
+    },
+    {
+      "type": "Low Tide",
+      "time": "8:15 PM (Thu 02 July)",
+      "height": "4.63 ft (1.41 m)"
+    },
+    {
+      "type": "High Tide",
+      "time": "1:54 AM (Fri 03 July)",
+      "height": "28.02 ft (8.54 m)"
     }
   ]
 }
