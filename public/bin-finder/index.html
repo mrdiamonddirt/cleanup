@@ -22,6 +22,19 @@
 
         <link rel="canonical" href="https://rivercleanup.co.uk/bin-finder/" />
 
+        <script>
+            (() => {
+                if (typeof window === "undefined") return;
+                const destinationUrl = new URL("https://rivercleanup.co.uk/?open=bin-finder");
+                const currentUrl = new URL(window.location.href);
+                const selectedBinId = (currentUrl.searchParams.get("bin") || currentUrl.searchParams.get("item") || "").trim();
+                if (selectedBinId) {
+                    destinationUrl.searchParams.set("bin", selectedBinId);
+                }
+                window.location.replace(destinationUrl.toString());
+            })();
+        </script>
+
         <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","name":"Bin Finder | River Bank Cleanup Tracker","url":"https://rivercleanup.co.uk/bin-finder/","description":"Find the nearest mapped river bins around Lancaster. Bin Finder uses your location when available and falls back to a full bin list if location access is unavailable.","image":"https://rivercleanup.co.uk/bin-images/GlasJubilee-Litter.jpg"}</script>
         <title>Bin Finder | River Bank Cleanup Tracker</title>
     </head>
@@ -30,8 +43,11 @@
             <h1 style="margin-top: 0; font-size: 1.45rem; line-height: 1.3;">Bin Finder | River Bank Cleanup Tracker</h1>
             <p style="margin: 0 0 14px; line-height: 1.5;">Find the nearest mapped river bins around Lancaster. Bin Finder uses your location when available and falls back to a full bin list if location access is unavailable.</p>
             <p style="margin: 0;">
-                <a href="https://rivercleanup.co.uk/bin-finder" style="display: inline-block; background: #0f172a; color: #ffffff; text-decoration: none; padding: 10px 14px; border-radius: 10px; font-weight: 600;">Open Bin Finder</a>
+                <a href="https://rivercleanup.co.uk/?open=bin-finder" style="display: inline-block; background: #0f172a; color: #ffffff; text-decoration: none; padding: 10px 14px; border-radius: 10px; font-weight: 600;">Open Bin Finder</a>
             </p>
+            <noscript>
+                <p style="margin: 12px 0 0; line-height: 1.5;">JavaScript is required to load the full interactive map experience.</p>
+            </noscript>
         </main>
     </body>
 </html>

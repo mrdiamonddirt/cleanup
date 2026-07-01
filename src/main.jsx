@@ -1928,20 +1928,27 @@ const readBinFinderIntentFromLocation = () => {
         };
     }
 
+    const searchParams = new URLSearchParams(window.location.search);
+    const queryOpenValue = String(
+        searchParams.get("open")
+        || searchParams.get("view")
+        || "",
+    ).trim().toLowerCase();
+    const hasBinFinderQueryIntent = queryOpenValue === BIN_FINDER_SEGMENT;
+
     const pathSegments = window.location.pathname
         .split("/")
         .map((segment) => segment.trim())
         .filter(Boolean);
     const hasBinFinderPath = pathSegments.some((segment) => segment.toLowerCase() === BIN_FINDER_SEGMENT);
 
-    if (!hasBinFinderPath) {
+    if (!hasBinFinderPath && !hasBinFinderQueryIntent) {
         return {
             isOpen: false,
             selectedBinId: null,
         };
     }
 
-    const searchParams = new URLSearchParams(window.location.search);
     const selectedFromQuery = searchParams.get("bin") || searchParams.get("item") || "";
     const selectedBinId = selectedFromQuery.trim();
 

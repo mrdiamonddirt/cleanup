@@ -236,7 +236,7 @@ const buildIndexHtml = ({ siteUrl, itemCount }) => `<!doctype html>
 const buildBinFinderHtml = ({ siteUrl }) => {
         const canonicalUrl = `${siteUrl}/bin-finder/`;
         const ogImageUrl = ensureAbsoluteUrl(siteUrl, binFinderSeoImage);
-        const appUrl = `${siteUrl}/bin-finder`;
+    const appUrl = `${siteUrl}/?open=bin-finder`;
         const title = "Bin Finder | River Bank Cleanup Tracker";
         const description = "Find the nearest mapped river bins around Lancaster. Bin Finder uses your location when available and falls back to a full bin list if location access is unavailable.";
 
@@ -273,6 +273,19 @@ const buildBinFinderHtml = ({ siteUrl }) => {
 
         <link rel="canonical" href="${escapeHtml(canonicalUrl)}" />
 
+        <script>
+            (() => {
+                if (typeof window === "undefined") return;
+                const destinationUrl = new URL("${escapeHtml(appUrl)}");
+                const currentUrl = new URL(window.location.href);
+                const selectedBinId = (currentUrl.searchParams.get("bin") || currentUrl.searchParams.get("item") || "").trim();
+                if (selectedBinId) {
+                    destinationUrl.searchParams.set("bin", selectedBinId);
+                }
+                window.location.replace(destinationUrl.toString());
+            })();
+        </script>
+
         <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
         <title>${escapeHtml(title)}</title>
     </head>
@@ -283,6 +296,9 @@ const buildBinFinderHtml = ({ siteUrl }) => {
             <p style="margin: 0;">
                 <a href="${escapeHtml(appUrl)}" style="display: inline-block; background: #0f172a; color: #ffffff; text-decoration: none; padding: 10px 14px; border-radius: 10px; font-weight: 600;">Open Bin Finder</a>
             </p>
+            <noscript>
+                <p style="margin: 12px 0 0; line-height: 1.5;">JavaScript is required to load the full interactive map experience.</p>
+            </noscript>
         </main>
     </body>
 </html>
