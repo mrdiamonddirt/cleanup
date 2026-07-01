@@ -4586,6 +4586,7 @@ function AppTopBar({
     isLoadingItems,
     onOpenContributorPanel,
     onOpenLeaderboard,
+    onOpenBinFinder,
     onOpenPoiPanel,
     isStatsExpanded,
     onToggleStats,
@@ -4666,6 +4667,10 @@ function AppTopBar({
     const handleLeaderboardMenuAction = () => {
         closeMobileMenu();
         onOpenLeaderboard();
+    };
+    const handleBinFinderMenuAction = () => {
+        closeMobileMenu();
+        onOpenBinFinder();
     };
     const handlePoiMenuAction = () => {
         closeMobileMenu();
@@ -5144,6 +5149,25 @@ function AppTopBar({
                                 <button
                                     type="button"
                                     className="app-topbar-menu-item"
+                                    onClick={handleBinFinderMenuAction}
+                                    style={{
+                                        ...mobileMenuItemBaseStyle,
+                                        borderColor: "rgba(5,150,105,0.35)",
+                                        background: "linear-gradient(180deg, rgba(236,253,245,0.98), rgba(240,253,250,0.96))",
+                                        cursor: "pointer",
+                                    }}
+                                >
+                                    <span aria-hidden="true" style={{ fontSize: "1rem", textAlign: "center", color: "#047857" }}>🗑️</span>
+                                    <span style={{ display: "grid", gap: "2px", minWidth: 0 }}>
+                                        <span style={{ fontSize: "0.84rem", fontWeight: 800, color: "#0f172a" }}>Bins</span>
+                                        <span style={{ fontSize: "0.74rem", color: "#475569" }}>Open the local bin finder map.</span>
+                                    </span>
+                                    <span aria-hidden="true" style={{ color: "#94a3b8", fontSize: "0.9rem" }}>›</span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    className="app-topbar-menu-item"
                                     onClick={handleContributorMenuAction}
                                     style={{
                                         ...mobileMenuItemBaseStyle,
@@ -5388,6 +5412,25 @@ function AppTopBar({
                                 <path d="M23.498 6.186a2.997 2.997 0 0 0-2.11-2.122C19.54 3.545 12 3.545 12 3.545s-7.54 0-9.389.519a2.997 2.997 0 0 0-2.11 2.122A31.05 31.05 0 0 0 0 12a31.05 31.05 0 0 0 .502 5.814 2.997 2.997 0 0 0 2.11 2.122c1.848.519 9.388.519 9.388.519s7.54 0 9.389-.519a2.997 2.997 0 0 0 2.11-2.122A31.05 31.05 0 0 0 24 12a31.05 31.05 0 0 0-.502-5.814ZM9.75 15.568V8.432L15.955 12 9.75 15.568Z"/>
                             </svg>
                         </a>
+
+                        <button
+                            type="button"
+                            onClick={onOpenBinFinder}
+                            className="app-topbar-desktop-action"
+                            style={{
+                                ...desktopActionButtonStyle,
+                                border: "1px solid #10b981",
+                                background: "linear-gradient(180deg, rgba(236,253,245,0.98), rgba(240,253,250,0.96))",
+                                color: "#047857",
+                                padding: "0 11px",
+                                fontSize: "0.76rem",
+                                fontWeight: 700,
+                                cursor: "pointer",
+                            }}
+                            aria-label="Open bin finder"
+                        >
+                            🗑️ Bins
+                        </button>
 
                         <button
                             type="button"
@@ -19241,6 +19284,14 @@ function App() {
         setIsPoiPanelOpen(true);
     };
 
+    const openBinFinder = () => {
+        closeNonRelevantOverlayUi();
+        setIsPoiPanelOpen(false);
+        setEditingHistoricalPoiId(null);
+        setSelectedHistoricalPoiId(null);
+        setIsBinFinderOpen(true);
+    };
+
     const openPoiEditPanel = (poiId) => {
         if (!poiId) return;
         closeNonRelevantOverlayUi();
@@ -19995,6 +20046,7 @@ function App() {
                     isLoadingItems={isLoadingItems}
                     onOpenContributorPanel={() => setIsContributorPanelOpen(true)}
                     onOpenLeaderboard={openLeaderboardModal}
+                    onOpenBinFinder={openBinFinder}
                     onOpenPoiPanel={openPoiCreatePanel}
                     isStatsExpanded={isMobileStatsExpanded}
                     onToggleStats={isMobile ? () => setIsMobileStatsExpanded((prev) => !prev) : undefined}
