@@ -192,6 +192,10 @@ const BIN_FINDER_PAGE_TITLE = "Bin Finder | River Bank Cleanup Tracker";
 const BIN_FINDER_PAGE_DESCRIPTION = "Find the nearest mapped river bins around Lancaster. Bin Finder uses your location when available and falls back to a full bin list if location access is unavailable.";
 const BIN_FINDER_OG_IMAGE_PATH = "/bin-images/GlasJubilee-Litter.jpg";
 const BIN_FINDER_OG_IMAGE_ALT = "Glasdon Jubilee litter bin by the riverside";
+const LEADERBOARD_PAGE_TITLE = "Leaderboards | River Bank Cleanup Tracker";
+const LEADERBOARD_PAGE_DESCRIPTION = "See community rankings for River Lune cleanup impact across contributors, recoveries, and map activity.";
+const LEADERBOARD_OG_IMAGE_PATH = "/river-photo.jpg";
+const LEADERBOARD_OG_IMAGE_ALT = "River Lune cleanup tracker map";
 
 const AUTH_PROVIDER_PILL_STYLES = {
     github: { label: "GitHub", border: "1px solid #94a3b8", background: "#f8fafc", color: "#334155" },
@@ -15586,6 +15590,7 @@ function App() {
     useEffect(() => {
         if (typeof document === "undefined") return;
 
+        const isLeaderboardSeoActive = isLeaderboardModalOpen || isLeaderboardReturnPending;
         const activeSeo = isBinFinderOpen
             ? {
                 title: BIN_FINDER_PAGE_TITLE,
@@ -15593,19 +15598,30 @@ function App() {
                 canonicalUrl: buildAbsoluteUrlForManagedPath(`/${BIN_FINDER_SEGMENT}/`),
                 imageUrl: ensureAbsoluteAssetUrl(BIN_FINDER_OG_IMAGE_PATH),
                 imageAlt: BIN_FINDER_OG_IMAGE_ALT,
+                ogDescription: BIN_FINDER_PAGE_DESCRIPTION,
             }
-            : {
-                title: DEFAULT_PAGE_TITLE,
-                description: DEFAULT_PAGE_DESCRIPTION,
-                canonicalUrl: buildAbsoluteUrlForManagedPath("/"),
-                imageUrl: ensureAbsoluteAssetUrl(DEFAULT_OG_IMAGE_PATH),
-                imageAlt: DEFAULT_OG_IMAGE_ALT,
-            };
+            : isLeaderboardSeoActive
+                ? {
+                    title: LEADERBOARD_PAGE_TITLE,
+                    description: LEADERBOARD_PAGE_DESCRIPTION,
+                    canonicalUrl: buildAbsoluteUrlForManagedPath("/leaderboard/"),
+                    imageUrl: ensureAbsoluteAssetUrl(LEADERBOARD_OG_IMAGE_PATH),
+                    imageAlt: LEADERBOARD_OG_IMAGE_ALT,
+                    ogDescription: LEADERBOARD_PAGE_DESCRIPTION,
+                }
+                : {
+                    title: DEFAULT_PAGE_TITLE,
+                    description: DEFAULT_PAGE_DESCRIPTION,
+                    canonicalUrl: buildAbsoluteUrlForManagedPath("/"),
+                    imageUrl: ensureAbsoluteAssetUrl(DEFAULT_OG_IMAGE_PATH),
+                    imageAlt: DEFAULT_OG_IMAGE_ALT,
+                    ogDescription: DEFAULT_OG_DESCRIPTION,
+                };
 
         document.title = activeSeo.title;
         upsertMetaTag({ name: "description", content: activeSeo.description });
         upsertMetaTag({ property: "og:title", content: activeSeo.title });
-        upsertMetaTag({ property: "og:description", content: isBinFinderOpen ? activeSeo.description : DEFAULT_OG_DESCRIPTION });
+        upsertMetaTag({ property: "og:description", content: activeSeo.ogDescription });
         upsertMetaTag({ property: "og:url", content: activeSeo.canonicalUrl });
         upsertMetaTag({ property: "og:image", content: activeSeo.imageUrl });
         upsertMetaTag({ property: "og:image:alt", content: activeSeo.imageAlt });
@@ -15614,7 +15630,7 @@ function App() {
         upsertMetaTag({ name: "twitter:image", content: activeSeo.imageUrl });
         upsertMetaTag({ name: "twitter:image:alt", content: activeSeo.imageAlt });
         upsertCanonicalLink(activeSeo.canonicalUrl);
-    }, [isBinFinderOpen]);
+    }, [isBinFinderOpen, isLeaderboardModalOpen, isLeaderboardReturnPending]);
 
     useEffect(() => {
         if (typeof window === "undefined") return undefined;
