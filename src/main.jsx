@@ -49,6 +49,7 @@ import {
     updateProfileForUser,
 } from "./profileApi";
 import { normalizeW3WWords, resolveW3WFromCoords } from "./w3w";
+import BinFinderOverlay from "./components/panels/BinFinderOverlay";
 import ContributorBusinessPanel from "./components/panels/ContributorBusinessPanel";
 import PoiPanel from "./components/panels/PoiPanel";
 import PoiCard from "./components/PoiCard";
@@ -179,6 +180,9 @@ const SUPABASE_UPLOAD_TIMEOUT_MS = 45000;
 const SUPABASE_MUTATION_TIMEOUT_MS = 25000;
 const DEFAULT_RETRY_ATTEMPTS = 3;
 const DEFAULT_RETRY_BASE_DELAY_MS = 900;
+const BIN_FINDER_SEGMENT = "bin-finder";
+const ROUTE_MANAGED_SEGMENTS = ["share", "poi", "leaderboard", BIN_FINDER_SEGMENT];
+const EARTH_RADIUS_METERS = 6371000;
 
 const AUTH_PROVIDER_PILL_STYLES = {
     github: { label: "GitHub", border: "1px solid #94a3b8", background: "#f8fafc", color: "#334155" },
@@ -1682,16 +1686,20 @@ const buildPublicReportMessage = ({ latitude, longitude, note, reporterLabel, so
 const readSelectedItemIdFromQuery = () => {
     if (typeof window === "undefined") return null;
 
+    const pathSegments = window.location.pathname
+        .split("/")
+        .map((segment) => segment.trim())
+        .filter(Boolean);
+    const hasBinFinderPath = pathSegments.some((segment) => segment.toLowerCase() === BIN_FINDER_SEGMENT);
+    if (hasBinFinderPath) {
+        return null;
+    }
+
     const selected = new URLSearchParams(window.location.search).get("item");
     if (selected) {
         const normalized = selected.trim();
         if (normalized) return normalized;
     }
-
-    const pathSegments = window.location.pathname
-        .split("/")
-        .map((segment) => segment.trim())
-        .filter(Boolean);
 
     let shareItemId = "";
     for (let i = 0; i < pathSegments.length - 1; i += 1) {
@@ -1804,6 +1812,76 @@ const readLeaderboardIntentFromLocation = () => {
     return {
         isOpen: leaderboardFromQuery || hasLeaderboardPath,
         scope: normalizeLeaderboardScope(leaderboardScopeFromPath || scopeFromQuery),
+    };
+};
+
+const stripManagedRoutePathFromLocationPathname = (pathname) => {
+    const pathSegments = String(pathname || "")
+        .split("/")
+        .map((segment) => segment.trim())
+        .filter(Boolean);
+
+    const routeStartIndex = pathSegments.findIndex((segment) =>
+        ROUTE_MANAGED_SEGMENTS.includes(segment.toLowerCase()),
+    );
+
+    const baseSegments = routeStartIndex >= 0 ? pathSegments.slice(0, routeStartIndex) : pathSegments;
+    const normalizedPath = `/${baseSegments.join("/")}`;
+    return normalizedPath === "/" ? "/" : normalizedPath.replace(/\/+$/, "");
+};
+
+const calculateDistanceMeters = (fromLatitude, fromLongitude, toLatitude, toLongitude) => {
+    if (
+        !Number.isFinite(fromLatitude)
+        || !Number.isFinite(fromLongitude)
+        || !Number.isFinite(toLatitude)
+        || !Number.isFinite(toLongitude)
+    ) {
+        return Number.NaN;
+    }
+
+    const toRadians = (degrees) => (degrees * Math.PI) / 180;
+    const latitudeDelta = toRadians(toLatitude - fromLatitude);
+    const longitudeDelta = toRadians(toLongitude - fromLongitude);
+    const fromLatitudeRad = toRadians(fromLatitude);
+    const toLatitudeRad = toRadians(toLatitude);
+
+    const haversineA =
+        Math.sin(latitudeDelta / 2) ** 2
+        + Math.cos(fromLatitudeRad) * Math.cos(toLatitudeRad) * Math.sin(longitudeDelta / 2) ** 2;
+    const haversineC = 2 * Math.atan2(Math.sqrt(haversineA), Math.sqrt(1 - haversineA));
+
+    return EARTH_RADIUS_METERS * haversineC;
+};
+
+const readBinFinderIntentFromLocation = () => {
+    if (typeof window === "undefined") {
+        return {
+            isOpen: false,
+            selectedBinId: null,
+        };
+    }
+
+    const pathSegments = window.location.pathname
+        .split("/")
+        .map((segment) => segment.trim())
+        .filter(Boolean);
+    const hasBinFinderPath = pathSegments.some((segment) => segment.toLowerCase() === BIN_FINDER_SEGMENT);
+
+    if (!hasBinFinderPath) {
+        return {
+            isOpen: false,
+            selectedBinId: null,
+        };
+    }
+
+    const searchParams = new URLSearchParams(window.location.search);
+    const selectedFromQuery = searchParams.get("bin") || searchParams.get("item") || "";
+    const selectedBinId = selectedFromQuery.trim();
+
+    return {
+        isOpen: true,
+        selectedBinId: selectedBinId || null,
     };
 };
 
@@ -13473,6 +13551,9 @@ function App() {
     const [lastSaveResult, setLastSaveResult] = useState(null); // { itemId, status: 'success'|'error' }
     const saveResultTimeoutRef = useRef(null);
     const [selectedItemId, setSelectedItemId] = useState(null);
+    const initialBinFinderIntent = readBinFinderIntentFromLocation();
+    const [isBinFinderOpen, setIsBinFinderOpen] = useState(Boolean(initialBinFinderIntent.isOpen));
+    const [querySelectedBinId, setQuerySelectedBinId] = useState(initialBinFinderIntent.selectedBinId);
     const [querySelectedItemId, setQuerySelectedItemId] = useState(() => readSelectedItemIdFromQuery());
     const [querySelectedPoiSlug, setQuerySelectedPoiSlug] = useState(() => readSelectedPoiSlugFromQuery());
     const [querySelectedContributorId, setQuerySelectedContributorId] = useState(() => readSelectedContributorIdFromQuery());
@@ -13912,6 +13993,31 @@ function App() {
         backdropFilter: "blur(8px)",
         cursor: "pointer",
     };
+    const selectBinFromFinder = (binEntry) => {
+        const itemId = binEntry?.id;
+        const latitude = Number(binEntry?.latitude);
+        const longitude = Number(binEntry?.longitude);
+        if (!itemId) return;
+
+        setSelectedItemId(itemId);
+        setEditingItemId(null);
+
+        if (mapInstance && Number.isFinite(latitude) && Number.isFinite(longitude)) {
+            const targetZoom = Math.max(Number(mapInstance.getZoom()) || RIVER_LUNE_ZOOM, 17);
+            mapInstance.flyTo([latitude, longitude], targetZoom, { duration: 0.65 });
+        }
+    };
+    const selectedBinFinderItemId = useMemo(() => {
+        if (!isBinFinderOpen) return querySelectedBinId;
+        if (!selectedItemId) return querySelectedBinId;
+
+        const selected = items.find((item) => String(item.id) === String(selectedItemId));
+        if (!selected || normalizeType(selected.type) !== "bin") {
+            return querySelectedBinId;
+        }
+
+        return String(selected.id);
+    }, [isBinFinderOpen, items, querySelectedBinId, selectedItemId]);
 
     useEffect(() => {
         if (!isGoFundMeModalOpen) return undefined;
@@ -15303,6 +15409,14 @@ function App() {
     }, [items, querySelectedItemId]);
 
     useEffect(() => {
+        if (!isBinFinderOpen) return;
+
+        if (!isLiveLocationEnabled) {
+            setIsLiveLocationEnabled(true);
+        }
+    }, [isBinFinderOpen, isLiveLocationEnabled]);
+
+    useEffect(() => {
         if (!querySelectedPoiSlug) return;
         if (querySelectedItemId) return;
         if (!historicalPois.length) return;
@@ -15354,15 +15468,38 @@ function App() {
             searchParams.delete("leaderboardScope");
         }
 
+        if (isBinFinderOpen) {
+            if (selectedBinFinderItemId) {
+                searchParams.set("bin", String(selectedBinFinderItemId));
+            } else {
+                searchParams.delete("bin");
+            }
+            searchParams.delete("item");
+        } else {
+            searchParams.delete("bin");
+        }
+
         const pathSegments = window.location.pathname
             .split("/")
             .map((segment) => segment.trim())
             .filter(Boolean);
         const leaderboardPathIndex = pathSegments.findIndex((segment) => segment.toLowerCase() === "leaderboard");
+        const binFinderPathIndex = pathSegments.findIndex((segment) => segment.toLowerCase() === BIN_FINDER_SEGMENT);
 
         let nextPathname = window.location.pathname;
         if (!shouldPersistLeaderboardRoute && leaderboardPathIndex >= 0) {
             const baseSegments = pathSegments.slice(0, leaderboardPathIndex);
+            nextPathname = `/${baseSegments.join("/")}`;
+            if (nextPathname === "") {
+                nextPathname = "/";
+            }
+        }
+
+        if (isBinFinderOpen) {
+            const basePath = stripManagedRoutePathFromLocationPathname(window.location.pathname);
+            nextPathname = `${basePath === "/" ? "" : basePath}/${BIN_FINDER_SEGMENT}`;
+        } else if (binFinderPathIndex >= 0) {
+            const baseSegments = pathSegments.slice(0, binFinderPathIndex);
             nextPathname = `/${baseSegments.join("/")}`;
             if (nextPathname === "") {
                 nextPathname = "/";
@@ -15376,15 +15513,27 @@ function App() {
         if (nextUrl !== currentUrl) {
             window.history.replaceState(window.history.state, "", nextUrl);
         }
-    }, [isLeaderboardModalOpen, isLeaderboardReturnPending, leaderboardScope]);
+    }, [
+        isBinFinderOpen,
+        isLeaderboardModalOpen,
+        isLeaderboardReturnPending,
+        leaderboardScope,
+        selectedBinFinderItemId,
+    ]);
 
     useEffect(() => {
         if (typeof window === "undefined") return undefined;
 
         const handlePopState = () => {
             const intent = readLeaderboardIntentFromLocation();
+            const binFinderIntent = readBinFinderIntentFromLocation();
             setLeaderboardScope(intent.scope);
             setIsLeaderboardModalOpen(Boolean(intent.isOpen));
+            setIsBinFinderOpen(Boolean(binFinderIntent.isOpen));
+            setQuerySelectedBinId(binFinderIntent.selectedBinId);
+            setQuerySelectedItemId(readSelectedItemIdFromQuery());
+            setQuerySelectedPoiSlug(readSelectedPoiSlugFromQuery());
+            setQuerySelectedContributorId(readSelectedContributorIdFromQuery());
             if (!intent.isOpen) {
                 setIsLeaderboardReturnPending(false);
             }
@@ -18172,6 +18321,75 @@ function App() {
         return matchesType && matchesStatus && matchesLike;
     }), [items, typeFilter, statusFilter, likeFilter, currentUser?.id, localCounts, dbCountFieldSupport]);
 
+    const binFinderItems = useMemo(() => {
+        const hasLiveLocation =
+            Number.isFinite(Number(liveLocation?.latitude))
+            && Number.isFinite(Number(liveLocation?.longitude));
+        const userLatitude = Number(liveLocation?.latitude);
+        const userLongitude = Number(liveLocation?.longitude);
+
+        const rows = items
+            .map((item, index) => {
+                if (normalizeType(item.type) !== "bin") return null;
+
+                const gps = getItemGps(item);
+                if (!gps) return null;
+
+                const areaLabel = String(getItemGeoLookup(item, gps)?.label || "").trim();
+                const locateNote = String(item?.bin_locate_note || "").trim();
+                const w3wAddress = String(item?.w3w_address || "").trim();
+                const latitude = Number(gps.latitude);
+                const longitude = Number(gps.longitude);
+                const distanceMeters = hasLiveLocation
+                    ? calculateDistanceMeters(userLatitude, userLongitude, latitude, longitude)
+                    : Number.NaN;
+
+                return {
+                    id: String(item.id),
+                    item,
+                    originalIndex: index,
+                    latitude,
+                    longitude,
+                    distanceMeters,
+                    label: locateNote || areaLabel || (w3wAddress ? `///${w3wAddress}` : `Bin ${index + 1}`),
+                    subtitle: areaLabel || `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`,
+                };
+            })
+            .filter(Boolean);
+
+        if (!hasLiveLocation) {
+            return rows;
+        }
+
+        return [...rows].sort((left, right) => {
+            const leftDistance = Number(left.distanceMeters);
+            const rightDistance = Number(right.distanceMeters);
+            const leftFinite = Number.isFinite(leftDistance);
+            const rightFinite = Number.isFinite(rightDistance);
+
+            if (leftFinite && rightFinite && leftDistance !== rightDistance) {
+                return leftDistance - rightDistance;
+            }
+            if (leftFinite && !rightFinite) return -1;
+            if (!leftFinite && rightFinite) return 1;
+            return left.originalIndex - right.originalIndex;
+        });
+    }, [items, localGps, dbGpsFieldSupport, localGeoLookup, dbGeoFieldSupport, liveLocation]);
+
+    useEffect(() => {
+        if (!querySelectedBinId) return;
+        if (!binFinderItems.length) return;
+
+        const matchedBin = binFinderItems.find((binItem) => String(binItem.id) === String(querySelectedBinId));
+        if (!matchedBin) {
+            setQuerySelectedBinId(null);
+            return;
+        }
+
+        selectBinFromFinder(matchedBin);
+        setQuerySelectedBinId(null);
+    }, [binFinderItems, querySelectedBinId, selectBinFromFinder]);
+
     const totals = useMemo(() => filteredItems.reduce(
         (acc, item) => {
             const counts = getItemCounts(item);
@@ -20246,6 +20464,20 @@ function App() {
                     paddingBottom: isMobile ? "env(safe-area-inset-bottom, 0px)" : "0px",
                 }}
             >
+                <BinFinderOverlay
+                    isOpen={isBinFinderOpen}
+                    isMobile={isMobile}
+                    bins={binFinderItems}
+                    hasLiveLocation={Boolean(liveLocation)}
+                    liveLocationError={liveLocationError}
+                    selectedBinId={selectedBinFinderItemId}
+                    onSelectBin={selectBinFromFinder}
+                    onClose={() => {
+                        setIsBinFinderOpen(false);
+                        setQuerySelectedBinId(null);
+                    }}
+                />
+
                 <MapContainer
                     center={RIVER_LUNE_CENTER}
                     zoom={RIVER_LUNE_ZOOM}
