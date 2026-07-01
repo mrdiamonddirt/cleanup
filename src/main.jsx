@@ -20,7 +20,9 @@ import {
     approveCommentForAdmin,
     banProfileForAdmin,
     cancelAccountDeletion,
+    createVerifiedBinForAdmin,
     ensureProfileForUser,
+    listBinLocationReportsForAdmin,
     listUnmatchedBmacEventsForAdmin,
     listSocialLeaderboardTotals,
     listPointsRules,
@@ -41,6 +43,8 @@ import {
     unbanProfileForAdmin,
     requestAccountDeletion,
     resolveUnmatchedBmacEventForAdmin,
+    setBinLocationReportStatusForAdmin,
+    submitBinLocationReport,
     updateProfileForAdmin,
     updateProfileForUser,
 } from "./profileApi";
@@ -843,6 +847,7 @@ const buildWaybackReleaseGroups = (releases) => {
 
 const TYPE_LABELS = {
     bike: "Bike",
+    bin: "Bin location",
     historic: "Historic find",
     motorbike: "Motorbike",
     trolley: "Trolley",
@@ -851,6 +856,7 @@ const TYPE_LABELS = {
 
 const TYPE_PLURAL_LABELS = {
     bike: "bikes",
+    bin: "bin locations",
     historic: "historic finds",
     motorbike: "motorbikes",
     trolley: "trolleys",
@@ -860,6 +866,7 @@ const TYPE_PLURAL_LABELS = {
 const ASSUMED_ITEM_WEIGHTS_KG = {
     trolley: 28,
     bike: 15,
+    bin: 30,
     historic: 1,
     motorbike: 180,
     misc: 30,
@@ -2435,6 +2442,23 @@ const normalizeType = (value) => {
     const normalized = (value || "").toString().trim().toLowerCase();
 
     if (
+        normalized === "bin" ||
+        normalized === "bins" ||
+        normalized === "bin location" ||
+        normalized === "bin locations" ||
+        normalized === "jubilee bin" ||
+        normalized === "glasdon jubilee" ||
+        normalized.includes("glasdon") ||
+        normalized.includes("jubilee") ||
+        normalized.includes("litter bin") ||
+        normalized.includes("trash bin") ||
+        normalized.includes("waste bin") ||
+        normalized.includes("bin")
+    ) {
+        return "bin";
+    }
+
+    if (
         normalized === "motorbike" ||
         normalized === "motor bike" ||
         normalized === "motorbikes" ||
@@ -2484,11 +2508,13 @@ const getLikedMarkerBadgeHtml = (positionStyle) => `
     <span style="position: absolute; ${positionStyle}; width: 16px; height: 16px; border-radius: 50%; background: #2563eb; color: white; font-size: 9px; line-height: 16px; text-align: center; border: 1px solid #fff;">👍</span>
 `;
 
-const getIcon = (type, isRecovered, viewerHasLiked = false) => {
+const getIcon = (type, isRecovered, viewerHasLiked = false, binSubtype = "") => {
     const normalizedType = normalizeType(type);
+    const normalizedBinSubtype = String(binSubtype || "").trim().toLowerCase();
 
     const iconMap = {
         bike: "🚲",
+        bin: "🗑️",
         historic: "🏺",
         motorbike: "🏍️",
         trolley: "🛒",
@@ -2497,6 +2523,7 @@ const getIcon = (type, isRecovered, viewerHasLiked = false) => {
 
     const colors = {
         bike: "#3498db",
+        bin: "#64748b",
         historic: "#a16207",
         motorbike: "#dc2626",
         trolley: "#e67e22",
@@ -2507,6 +2534,30 @@ const getIcon = (type, isRecovered, viewerHasLiked = false) => {
     const emoji = iconMap[normalizedType] || iconMap.misc;
     const ringColor = isRecovered ? "#2ecc71" : baseColor;
     const opacity = isRecovered ? 0.8 : 1;
+
+    if (normalizedType === "bin" && normalizedBinSubtype === "glasdon_jubilee") {
+        const jubileeRingColor = "#d4af37";
+        return L.divIcon({
+            className: "cleanup-marker cleanup-marker-bin-jubilee",
+            html: `
+                <div style="position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 3px solid ${jubileeRingColor}; background: #fffdf4; box-shadow: 0 0 0 2px rgba(212,175,55,0.35), 0 6px 16px rgba(15,23,42,0.28); opacity: ${opacity}; overflow: visible;">
+                    <span style="position: absolute; inset: 2px; border-radius: 50%; background-image: url('/bin-images/GlasJubilee-Litter.jpg'); background-size: cover; background-position: center;"></span>
+                    ${
+                        isRecovered
+                            ? getRecoveredMarkerBadgeHtml("top: -3px; right: -3px;")
+                            : ""
+                    }
+                    ${
+                        viewerHasLiked
+                            ? getLikedMarkerBadgeHtml("bottom: -3px; right: -3px;")
+                            : ""
+                    }
+                </div>
+            `,
+            iconSize: [40, 46],
+            iconAnchor: [20, 20],
+        });
+    }
 
     if (normalizedType === "historic") {
         return L.divIcon({
@@ -3233,6 +3284,12 @@ function PendingPlacementOverlay({
             hint: "Most common riverbank finds",
         },
         {
+            key: "bin",
+            icon: "🗑️",
+            label: "Bin",
+            hint: "Litter bin or bin location",
+        },
+        {
             key: "historic",
             icon: "🏺",
             label: "Historic",
@@ -3774,9 +3831,18 @@ function PendingPlacementOverlay({
 function PublicReportOverlay({
     reportLocation,
     reportNote,
+    reportGoogleMapsUrl,
+    reportStreetViewUrl,
+    reportLocateNote,
+    reportIsGlasdonJubilee,
     reportStatus,
     isMobile,
     onNoteChange,
+    onGoogleMapsUrlChange,
+    onStreetViewUrlChange,
+    onLocateNoteChange,
+    onGlasdonJubileeToggle,
+    onSubmitBinReport,
     onOpenMessenger,
     onOpenEmail,
     onCopyReportText,
@@ -4000,8 +4066,83 @@ function PublicReportOverlay({
                     marginBottom: isShortMobileViewport ? "8px" : "9px",
                 }}
             >
-                Your note and GPS are sent through Facebook Messenger, not saved in this app.
+                Bin reports are stored for admin verification and can also be forwarded via Messenger or email.
             </div>
+
+            <label style={{ display: "grid", gap: isShortMobileViewport ? "4px" : "5px", marginBottom: isShortMobileViewport ? "8px" : "9px" }}>
+                <span style={{ fontSize: isShortMobileViewport ? "0.74rem" : "0.76rem", color: "#334155", fontWeight: 700 }}>
+                    Google Maps URL (required)
+                </span>
+                <input
+                    type="url"
+                    value={reportGoogleMapsUrl}
+                    onChange={(event) => onGoogleMapsUrlChange(event.target.value)}
+                    placeholder="https://maps.google.com/..."
+                    style={{
+                        border: "1px solid #bfdbfe",
+                        borderRadius: "8px",
+                        minHeight: isShortMobileViewport ? "36px" : "40px",
+                        padding: isShortMobileViewport ? "7px" : "8px",
+                        fontSize: isShortMobileViewport ? "0.8rem" : "0.82rem",
+                        color: "#0f172a",
+                        boxSizing: "border-box",
+                        width: "100%",
+                    }}
+                />
+            </label>
+
+            <label style={{ display: "grid", gap: isShortMobileViewport ? "4px" : "5px", marginBottom: isShortMobileViewport ? "8px" : "9px" }}>
+                <span style={{ fontSize: isShortMobileViewport ? "0.74rem" : "0.76rem", color: "#334155", fontWeight: 700 }}>
+                    Street View URL (optional)
+                </span>
+                <input
+                    type="url"
+                    value={reportStreetViewUrl}
+                    onChange={(event) => onStreetViewUrlChange(event.target.value)}
+                    placeholder="https://maps.google.com/..."
+                    style={{
+                        border: "1px solid #bfdbfe",
+                        borderRadius: "8px",
+                        minHeight: isShortMobileViewport ? "36px" : "40px",
+                        padding: isShortMobileViewport ? "7px" : "8px",
+                        fontSize: isShortMobileViewport ? "0.8rem" : "0.82rem",
+                        color: "#0f172a",
+                        boxSizing: "border-box",
+                        width: "100%",
+                    }}
+                />
+            </label>
+
+            <label style={{ display: "grid", gap: isShortMobileViewport ? "4px" : "5px", marginBottom: isShortMobileViewport ? "8px" : "9px" }}>
+                <span style={{ fontSize: isShortMobileViewport ? "0.74rem" : "0.76rem", color: "#334155", fontWeight: 700 }}>
+                    Help locate this bin (optional)
+                </span>
+                <input
+                    type="text"
+                    value={reportLocateNote}
+                    onChange={(event) => onLocateNoteChange(event.target.value)}
+                    placeholder="Example: behind the second gate near the bridge"
+                    style={{
+                        border: "1px solid #bfdbfe",
+                        borderRadius: "8px",
+                        minHeight: isShortMobileViewport ? "36px" : "40px",
+                        padding: isShortMobileViewport ? "7px" : "8px",
+                        fontSize: isShortMobileViewport ? "0.8rem" : "0.82rem",
+                        color: "#0f172a",
+                        boxSizing: "border-box",
+                        width: "100%",
+                    }}
+                />
+            </label>
+
+            <label style={{ display: "inline-flex", alignItems: "center", gap: "8px", marginBottom: isShortMobileViewport ? "8px" : "9px", fontSize: isShortMobileViewport ? "0.74rem" : "0.76rem", color: "#334155", fontWeight: 700 }}>
+                <input
+                    type="checkbox"
+                    checked={Boolean(reportIsGlasdonJubilee)}
+                    onChange={(event) => onGlasdonJubileeToggle(event.target.checked)}
+                />
+                This is a Glasdon Jubilee bin
+            </label>
 
             <label style={{ display: "grid", gap: isShortMobileViewport ? "4px" : "5px", marginBottom: isShortMobileViewport ? "8px" : "9px" }}>
                 <span style={{ fontSize: isShortMobileViewport ? "0.74rem" : "0.76rem", color: "#334155", fontWeight: 700 }}>
@@ -4037,6 +4178,29 @@ function PublicReportOverlay({
                     alignItems: "stretch",
                 }}
             >
+                <button
+                    type="button"
+                    onClick={onSubmitBinReport}
+                    style={{
+                        gridColumn: "1 / -1",
+                        border: "1px solid #166534",
+                        background: "#dcfce7",
+                        color: "#166534",
+                        borderRadius: "10px",
+                        minHeight: isMobile ? mobileControlMinHeight : "38px",
+                        padding: isMobile ? mobileControlPadding : "8px 13px",
+                        fontSize: isMobile ? mobileControlFontSize : "0.83rem",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: isShortMobileViewport ? "6px" : "7px",
+                        width: "100%",
+                    }}
+                >
+                    Submit bin report
+                </button>
                 <button
                     type="button"
                     onClick={onOpenMessenger}
@@ -6902,6 +7066,16 @@ function ProfilePanel({
     adminPendingComments,
     isAdminPendingCommentsLoading,
     adminPendingCommentsError,
+    adminBinReports,
+    isAdminBinReportsLoading,
+    adminBinReportsError,
+    updatingAdminBinReportId,
+    adminManualBinDraft,
+    onAdminManualBinDraftChange,
+    onCreateManualVerifiedBin,
+    onRefreshAdminBinReports,
+    onSetAdminBinReportStatus,
+    onCreateVerifiedBinFromReport,
     onApprovePendingComment,
     onRejectPendingComment,
     adminAuditLogs,
@@ -7816,6 +7990,181 @@ function ProfilePanel({
                                         {hiddenByStatusFilterCount} events are hidden by status filter. Enable "Show resolved and ignored" to inspect them.
                                     </div>
                                 ) : null}
+                            </div>
+                        )}
+                    </details>
+
+                    <details style={{ marginTop: "10px" }}>
+                        <summary style={{ cursor: "pointer", fontSize: "0.76rem", fontWeight: 800, color: "#7c2d12", letterSpacing: "0.03em", textTransform: "uppercase" }}>
+                            Reveal bin location reports
+                        </summary>
+                        <div style={{ marginTop: "8px", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "8px", background: "#f8fafc", display: "grid", gap: "8px" }}>
+                            <div style={{ fontSize: "0.73rem", fontWeight: 800, color: "#334155", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                                Add verified bin directly
+                            </div>
+                            <div style={{ display: "grid", gap: "6px", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0,1fr))" }}>
+                                <input
+                                    type="number"
+                                    step="any"
+                                    value={String(adminManualBinDraft?.latitude || "")}
+                                    onChange={(event) => onAdminManualBinDraftChange("latitude", event.target.value)}
+                                    placeholder="Latitude"
+                                    style={{ width: "100%", minHeight: "32px", borderRadius: "8px", border: "1px solid #cbd5e1", padding: "0 10px", fontSize: "0.78rem", boxSizing: "border-box" }}
+                                />
+                                <input
+                                    type="number"
+                                    step="any"
+                                    value={String(adminManualBinDraft?.longitude || "")}
+                                    onChange={(event) => onAdminManualBinDraftChange("longitude", event.target.value)}
+                                    placeholder="Longitude"
+                                    style={{ width: "100%", minHeight: "32px", borderRadius: "8px", border: "1px solid #cbd5e1", padding: "0 10px", fontSize: "0.78rem", boxSizing: "border-box" }}
+                                />
+                                <input
+                                    type="url"
+                                    value={String(adminManualBinDraft?.googleMapsUrl || "")}
+                                    onChange={(event) => onAdminManualBinDraftChange("googleMapsUrl", event.target.value)}
+                                    placeholder="Google Maps URL"
+                                    style={{ width: "100%", minHeight: "32px", borderRadius: "8px", border: "1px solid #cbd5e1", padding: "0 10px", fontSize: "0.78rem", boxSizing: "border-box", gridColumn: isMobile ? "auto" : "1 / -1" }}
+                                />
+                                <input
+                                    type="url"
+                                    value={String(adminManualBinDraft?.streetViewUrl || "")}
+                                    onChange={(event) => onAdminManualBinDraftChange("streetViewUrl", event.target.value)}
+                                    placeholder="Street View URL (optional)"
+                                    style={{ width: "100%", minHeight: "32px", borderRadius: "8px", border: "1px solid #cbd5e1", padding: "0 10px", fontSize: "0.78rem", boxSizing: "border-box", gridColumn: isMobile ? "auto" : "1 / -1" }}
+                                />
+                                <input
+                                    type="text"
+                                    value={String(adminManualBinDraft?.locateNote || "")}
+                                    onChange={(event) => onAdminManualBinDraftChange("locateNote", event.target.value)}
+                                    placeholder="Locate note (optional)"
+                                    style={{ width: "100%", minHeight: "32px", borderRadius: "8px", border: "1px solid #cbd5e1", padding: "0 10px", fontSize: "0.78rem", boxSizing: "border-box", gridColumn: isMobile ? "auto" : "1 / -1" }}
+                                />
+                                <label style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "0.74rem", color: "#334155", fontWeight: 700, gridColumn: isMobile ? "auto" : "1 / -1" }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={Boolean(adminManualBinDraft?.isGlasdonJubilee)}
+                                        onChange={(event) => onAdminManualBinDraftChange("isGlasdonJubilee", event.target.checked)}
+                                    />
+                                    Glasdon Jubilee bin
+                                </label>
+                            </div>
+                            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                                <button
+                                    type="button"
+                                    onClick={onCreateManualVerifiedBin}
+                                    disabled={updatingAdminBinReportId === "manual"}
+                                    style={{ minHeight: "32px", borderRadius: "8px", border: "1px solid #166534", background: "#dcfce7", color: "#166534", padding: "0 10px", fontSize: "0.76rem", fontWeight: 700, cursor: updatingAdminBinReportId === "manual" ? "not-allowed" : "pointer", opacity: updatingAdminBinReportId === "manual" ? 0.7 : 1 }}
+                                >
+                                    {updatingAdminBinReportId === "manual" ? "Creating..." : "Create manual verified bin"}
+                                </button>
+                            </div>
+                        </div>
+                        <div style={{ marginTop: "8px", display: "flex", justifyContent: "flex-end" }}>
+                            <button
+                                type="button"
+                                onClick={onRefreshAdminBinReports}
+                                disabled={isAdminBinReportsLoading}
+                                style={{
+                                    minHeight: "30px",
+                                    borderRadius: "8px",
+                                    border: "1px solid #334155",
+                                    background: "#f8fafc",
+                                    color: "#334155",
+                                    padding: "0 9px",
+                                    fontSize: "0.74rem",
+                                    fontWeight: 700,
+                                    cursor: isAdminBinReportsLoading ? "not-allowed" : "pointer",
+                                }}
+                            >
+                                {isAdminBinReportsLoading ? "Refreshing..." : "Refresh"}
+                            </button>
+                        </div>
+                        {adminBinReportsError ? (
+                            <div style={{ marginTop: "8px", fontSize: "0.75rem", color: "#b91c1c" }}>{adminBinReportsError}</div>
+                        ) : null}
+                        {isAdminBinReportsLoading ? (
+                            <div style={{ marginTop: "8px", fontSize: "0.75rem", color: "#57534e" }}>Loading bin reports...</div>
+                        ) : (
+                            <div style={{ marginTop: "8px", display: "grid", gap: "8px", maxHeight: "280px", overflowY: "auto", paddingRight: "2px" }}>
+                                {Array.isArray(adminBinReports) && adminBinReports.length ? adminBinReports.map((report) => {
+                                    const isWorking = updatingAdminBinReportId === String(report?.id || "");
+                                    const status = String(report?.status || "pending").trim().toLowerCase();
+                                    const createdAt = report?.created_at ? new Date(report.created_at).toLocaleString("en-GB") : "";
+                                    const reporterText = String(report?.reporter_display_name || report?.reporter_label || "Anonymous").trim() || "Anonymous";
+
+                                    return (
+                                        <div key={report.id} style={{ border: "1px solid #fde68a", borderRadius: "10px", padding: "8px", background: "#fffbeb", display: "grid", gap: "6px" }}>
+                                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", flexWrap: "wrap" }}>
+                                                <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: "999px", padding: "2px 8px", fontSize: "0.65rem", fontWeight: 800, border: "1px solid #f59e0b", background: "#fef3c7", color: "#92400e", textTransform: "uppercase" }}>
+                                                    {status.replace(/_/g, " ")}
+                                                </span>
+                                                <span style={{ fontSize: "0.69rem", color: "#78716c" }}>{createdAt}</span>
+                                            </div>
+                                            <div style={{ fontSize: "0.75rem", color: "#334155" }}>Reporter: {reporterText}</div>
+                                            <div style={{ fontSize: "0.74rem", color: "#334155" }}>
+                                                GPS: {formatCoordinate(report?.latitude, 6) || report?.latitude}, {formatCoordinate(report?.longitude, 6) || report?.longitude}
+                                            </div>
+                                            {report?.is_glasdon_jubilee ? (
+                                                <div style={{ fontSize: "0.72rem", color: "#92400e", fontWeight: 700 }}>Tagged: Glasdon Jubilee</div>
+                                            ) : null}
+                                            {report?.report_note ? (
+                                                <div style={{ fontSize: "0.74rem", color: "#334155", whiteSpace: "pre-wrap" }}>{report.report_note}</div>
+                                            ) : null}
+                                            {report?.locate_note ? (
+                                                <div style={{ fontSize: "0.74rem", color: "#475569", whiteSpace: "pre-wrap" }}>Locate note: {report.locate_note}</div>
+                                            ) : null}
+                                            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                                                {report?.google_maps_url ? (
+                                                    <a href={report.google_maps_url} target="_blank" rel="noreferrer" style={{ fontSize: "0.72rem", fontWeight: 700, color: "#1d4ed8" }}>
+                                                        Google Maps
+                                                    </a>
+                                                ) : null}
+                                                {report?.street_view_url ? (
+                                                    <a href={report.street_view_url} target="_blank" rel="noreferrer" style={{ fontSize: "0.72rem", fontWeight: 700, color: "#0369a1" }}>
+                                                        Street View
+                                                    </a>
+                                                ) : null}
+                                            </div>
+                                            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onCreateVerifiedBinFromReport(report)}
+                                                    disabled={isWorking}
+                                                    style={{ border: "1px solid #166534", background: "#dcfce7", color: "#166534", borderRadius: "7px", padding: "5px 9px", fontSize: "0.74rem", fontWeight: 700, cursor: isWorking ? "not-allowed" : "pointer", opacity: isWorking ? 0.65 : 1 }}
+                                                >
+                                                    {isWorking ? "Working..." : "Create verified bin"}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onSetAdminBinReportStatus(report.id, "verification_requested", "Please provide better Street View context or locate note.")}
+                                                    disabled={isWorking}
+                                                    style={{ border: "1px solid #1d4ed8", background: "#eff6ff", color: "#1d4ed8", borderRadius: "7px", padding: "5px 9px", fontSize: "0.74rem", fontWeight: 700, cursor: isWorking ? "not-allowed" : "pointer", opacity: isWorking ? 0.65 : 1 }}
+                                                >
+                                                    Request verification
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onSetAdminBinReportStatus(report.id, "duplicate", "Duplicate of an existing bin record.")}
+                                                    disabled={isWorking}
+                                                    style={{ border: "1px solid #78716c", background: "#f5f5f4", color: "#57534e", borderRadius: "7px", padding: "5px 9px", fontSize: "0.74rem", fontWeight: 700, cursor: isWorking ? "not-allowed" : "pointer", opacity: isWorking ? 0.65 : 1 }}
+                                                >
+                                                    Mark duplicate
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onSetAdminBinReportStatus(report.id, "rejected", "Rejected after review.")}
+                                                    disabled={isWorking}
+                                                    style={{ border: "1px solid #dc2626", background: "#fee2e2", color: "#991b1b", borderRadius: "7px", padding: "5px 9px", fontSize: "0.74rem", fontWeight: 700, cursor: isWorking ? "not-allowed" : "pointer", opacity: isWorking ? 0.65 : 1 }}
+                                                >
+                                                    Reject
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                }) : (
+                                    <div style={{ fontSize: "0.75rem", color: "#57534e" }}>No bin reports yet.</div>
+                                )}
                             </div>
                         )}
                     </details>
@@ -9368,6 +9717,7 @@ function FilterControls({
     const typeOptions = [
         { value: "all", label: "All" },
         { value: "bike", label: "Bike" },
+        { value: "bin", label: "Bin" },
         { value: "historic", label: "Historic finds" },
         { value: "motorbike", label: "Moto" },
         { value: "trolley", label: "Trolley" },
@@ -9738,6 +10088,7 @@ function FilterControls({
                             >
                                 <option value="all">All</option>
                                 <option value="bike">Bikes</option>
+                                <option value="bin">Bins</option>
                                 <option value="historic">Historic finds</option>
                                 <option value="motorbike">Motorbikes</option>
                                 <option value="trolley">Trolleys</option>
@@ -13155,6 +13506,19 @@ function App() {
     const [adminPendingComments, setAdminPendingComments] = useState([]);
     const [isAdminPendingCommentsLoading, setIsAdminPendingCommentsLoading] = useState(false);
     const [adminPendingCommentsError, setAdminPendingCommentsError] = useState("");
+    const [adminBinReports, setAdminBinReports] = useState([]);
+    const [isAdminBinReportsLoading, setIsAdminBinReportsLoading] = useState(false);
+    const [adminBinReportsError, setAdminBinReportsError] = useState("");
+    const [updatingAdminBinReportId, setUpdatingAdminBinReportId] = useState("");
+    const [adminManualBinDraft, setAdminManualBinDraft] = useState({
+        latitude: "",
+        longitude: "",
+        googleMapsUrl: "",
+        streetViewUrl: "",
+        locateNote: "",
+        reportNote: "",
+        isGlasdonJubilee: false,
+    });
     const [adminAuditLogs, setAdminAuditLogs] = useState([]);
     const [isAdminAuditLogsLoading, setIsAdminAuditLogsLoading] = useState(false);
     const [adminAuditLogsError, setAdminAuditLogsError] = useState("");
@@ -13305,6 +13669,10 @@ function App() {
     const [reportLocation, setReportLocation] = useState(null);
     const [pendingReportLocation, setPendingReportLocation] = useState(null);
     const [reportNote, setReportNote] = useState("");
+    const [reportGoogleMapsUrl, setReportGoogleMapsUrl] = useState("");
+    const [reportStreetViewUrl, setReportStreetViewUrl] = useState("");
+    const [reportLocateNote, setReportLocateNote] = useState("");
+    const [reportIsGlasdonJubilee, setReportIsGlasdonJubilee] = useState(false);
     const [reportStatus, setReportStatus] = useState("");
     const [isReportConsentOpen, setIsReportConsentOpen] = useState(false);
     const [hasAcceptedReportConsent, setHasAcceptedReportConsent] = useState(() =>
@@ -13939,6 +14307,194 @@ function App() {
         });
     };
 
+    const normalizeReportUrlField = (value) => String(value || "").trim();
+
+    const isLikelyHttpUrl = (value) => /^https?:\/\//i.test(String(value || "").trim());
+
+    const handleSubmitBinReport = async () => {
+        if (!reportLocation) return;
+
+        const googleMapsUrl = normalizeReportUrlField(reportGoogleMapsUrl);
+        const streetViewUrl = normalizeReportUrlField(reportStreetViewUrl);
+
+        if (!googleMapsUrl) {
+            setReportStatusMessage("Google Maps URL is required for bin reports.");
+            return;
+        }
+
+        if (!isLikelyHttpUrl(googleMapsUrl)) {
+            setReportStatusMessage("Google Maps URL must start with http:// or https://.");
+            return;
+        }
+
+        if (streetViewUrl && !isLikelyHttpUrl(streetViewUrl)) {
+            setReportStatusMessage("Street View URL must start with http:// or https://.");
+            return;
+        }
+
+        const githubLogin = getGitHubLoginFromUser(currentUser);
+        const reporterLabel = githubLogin
+            ? `@${githubLogin}`
+            : currentUser?.email || "Anonymous website visitor";
+
+        const { error } = await submitBinLocationReport({
+            latitude: reportLocation.y,
+            longitude: reportLocation.x,
+            googleMapsUrl,
+            streetViewUrl,
+            locateNote: reportLocateNote,
+            reportNote,
+            isGlasdonJubilee: reportIsGlasdonJubilee,
+            reporterLabel,
+        });
+
+        if (error) {
+            setReportStatusMessage("Could not submit bin report right now. Please try again.", 3600);
+            return;
+        }
+
+        setReportStatusMessage("Bin report sent for admin verification.", 3200);
+        setReportLocation(null);
+        setReportNote("");
+        setReportGoogleMapsUrl("");
+        setReportStreetViewUrl("");
+        setReportLocateNote("");
+        setReportIsGlasdonJubilee(false);
+    };
+
+    const refreshAdminBinReports = async () => {
+        if (!canManageItems || !hasSupabaseConfig) return;
+
+        setIsAdminBinReportsLoading(true);
+        setAdminBinReportsError("");
+
+        const { reports, error } = await listBinLocationReportsForAdmin();
+        if (error) {
+            setAdminBinReports([]);
+            setAdminBinReportsError("Unable to refresh bin reports.");
+            setIsAdminBinReportsLoading(false);
+            return;
+        }
+
+        setAdminBinReports(Array.isArray(reports) ? reports : []);
+        setIsAdminBinReportsLoading(false);
+    };
+
+    const setAdminBinReportStatus = async (reportId, status, reason = "") => {
+        if (!canManageItems || !hasSupabaseConfig || !reportId) return;
+
+        setUpdatingAdminBinReportId(String(reportId));
+        setAdminActionError("");
+        setAdminActionStatus("");
+
+        const { error } = await setBinLocationReportStatusForAdmin(reportId, status, reason);
+        if (error) {
+            setAdminActionError("Could not update bin report status.");
+            setUpdatingAdminBinReportId("");
+            return;
+        }
+
+        await Promise.all([
+            refreshAdminBinReports(),
+            (async () => {
+                const { logs } = await listAdminAuditLogs();
+                setAdminAuditLogs(logs || []);
+            })(),
+        ]);
+        setAdminActionStatus(`Bin report marked as ${status.replace(/_/g, " ")}.`);
+        setUpdatingAdminBinReportId("");
+    };
+
+    const createVerifiedBinFromReport = async (report) => {
+        if (!canManageItems || !hasSupabaseConfig || !report?.id) return;
+
+        setUpdatingAdminBinReportId(String(report.id));
+        setAdminActionError("");
+        setAdminActionStatus("");
+
+        const { error } = await createVerifiedBinForAdmin({ reportId: report.id });
+        if (error) {
+            setAdminActionError("Could not create bin record from this report.");
+            setUpdatingAdminBinReportId("");
+            return;
+        }
+
+        await Promise.all([
+            refreshAdminBinReports(),
+            fetchItems({ bypassTtl: true }),
+            (async () => {
+                const { logs } = await listAdminAuditLogs();
+                setAdminAuditLogs(logs || []);
+            })(),
+        ]);
+        setAdminActionStatus("Verified bin record created on the map.");
+        setUpdatingAdminBinReportId("");
+    };
+
+    const createManualVerifiedBin = async () => {
+        if (!canManageItems || !hasSupabaseConfig) return;
+
+        const latitude = Number(adminManualBinDraft.latitude);
+        const longitude = Number(adminManualBinDraft.longitude);
+        const googleMapsUrl = String(adminManualBinDraft.googleMapsUrl || "").trim();
+        const streetViewUrl = String(adminManualBinDraft.streetViewUrl || "").trim();
+
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+            setAdminActionError("Manual bin requires valid latitude and longitude.");
+            return;
+        }
+
+        if (!googleMapsUrl || !isLikelyHttpUrl(googleMapsUrl)) {
+            setAdminActionError("Manual bin requires a valid Google Maps URL.");
+            return;
+        }
+
+        if (streetViewUrl && !isLikelyHttpUrl(streetViewUrl)) {
+            setAdminActionError("Street View URL must start with http:// or https://.");
+            return;
+        }
+
+        setUpdatingAdminBinReportId("manual");
+        setAdminActionError("");
+        setAdminActionStatus("");
+
+        const { error } = await createVerifiedBinForAdmin({
+            latitude,
+            longitude,
+            googleMapsUrl,
+            streetViewUrl,
+            locateNote: adminManualBinDraft.locateNote,
+            reportNote: adminManualBinDraft.reportNote,
+            isGlasdonJubilee: Boolean(adminManualBinDraft.isGlasdonJubilee),
+        });
+
+        if (error) {
+            setAdminActionError("Could not create manual verified bin.");
+            setUpdatingAdminBinReportId("");
+            return;
+        }
+
+        await Promise.all([
+            fetchItems({ bypassTtl: true }),
+            (async () => {
+                const { logs } = await listAdminAuditLogs();
+                setAdminAuditLogs(logs || []);
+            })(),
+        ]);
+
+        setAdminManualBinDraft({
+            latitude: "",
+            longitude: "",
+            googleMapsUrl: "",
+            streetViewUrl: "",
+            locateNote: "",
+            reportNote: "",
+            isGlasdonJubilee: false,
+        });
+        setAdminActionStatus("Manual verified bin created.");
+        setUpdatingAdminBinReportId("");
+    };
+
     const markOverlayInteraction = () => {
         ignoreNextMapClickRef.current = true;
 
@@ -14486,9 +15042,11 @@ function App() {
 
     useEffect(() => {
         if (!isProfileModalOpen || !canManageItems || !hasSupabaseConfig) {
+            setIsAdminBinReportsLoading(false);
             if (!isProfileModalOpen) {
                 setAdminProfiles([]);
                 setAdminPendingComments([]);
+                setAdminBinReports([]);
                 setAdminBans([]);
                 setAdminUnmatchedBmacEvents([]);
                 setAdminAuditLogs([]);
@@ -14506,12 +15064,14 @@ function App() {
         let isMounted = true;
         setIsAdminProfilesLoading(true);
         setIsAdminPendingCommentsLoading(true);
+        setIsAdminBinReportsLoading(true);
         setIsAdminBansLoading(true);
         setIsAdminUnmatchedBmacEventsLoading(true);
         setIsAdminAuditLogsLoading(true);
         setIsAdminRecentPointDeltasLoading(true);
         setAdminProfilesError("");
         setAdminPendingCommentsError("");
+        setAdminBinReportsError("");
         setAdminBansError("");
         setAdminUnmatchedBmacEventsError("");
         setAdminAuditLogsError("");
@@ -14524,6 +15084,7 @@ function App() {
             const [
                 profilesResult,
                 pendingCommentsResult,
+                binReportsResult,
                 bansResult,
                 unmatchedBmacEventsResult,
                 auditLogsResult,
@@ -14531,6 +15092,7 @@ function App() {
             ] = await Promise.all([
                 listProfilesForAdmin(),
                 listPendingCommentsForAdmin(),
+                listBinLocationReportsForAdmin(),
                 listBansForAdmin(),
                 listUnmatchedBmacEventsForAdmin(),
                 listAdminAuditLogs(),
@@ -14551,6 +15113,13 @@ function App() {
                 setAdminPendingCommentsError("Unable to load pending comments.");
             } else {
                 setAdminPendingComments(pendingCommentsResult.comments || []);
+            }
+
+            if (binReportsResult.error) {
+                setAdminBinReports([]);
+                setAdminBinReportsError("Unable to load bin reports.");
+            } else {
+                setAdminBinReports(binReportsResult.reports || []);
             }
 
             if (bansResult.error) {
@@ -14588,6 +15157,7 @@ function App() {
 
             setIsAdminProfilesLoading(false);
             setIsAdminPendingCommentsLoading(false);
+            setIsAdminBinReportsLoading(false);
             setIsAdminBansLoading(false);
             setIsAdminUnmatchedBmacEventsLoading(false);
             setIsAdminAuditLogsLoading(false);
@@ -14874,6 +15444,10 @@ function App() {
         setPendingReportLocation(null);
         setIsReportConsentOpen(false);
         setReportNote("");
+        setReportGoogleMapsUrl("");
+        setReportStreetViewUrl("");
+        setReportLocateNote("");
+        setReportIsGlasdonJubilee(false);
         setReportStatus("");
     }, [canManageItems]);
 
@@ -14884,6 +15458,10 @@ function App() {
         setPendingReportLocation(null);
         setIsReportConsentOpen(false);
         setReportNote("");
+        setReportGoogleMapsUrl("");
+        setReportStreetViewUrl("");
+        setReportLocateNote("");
+        setReportIsGlasdonJubilee(false);
         setReportStatus("");
     }, [canUsePublicReports]);
 
@@ -15000,16 +15578,28 @@ function App() {
     };
 
     const getItemGps = (item) => {
-        const fromDbLatitude =
-            dbGpsFieldSupport.latitude !== false && item.gps_latitude !== undefined
-                ? parseGpsNumber(item.gps_latitude)
-                : null;
-        const fromDbLongitude =
-            dbGpsFieldSupport.longitude !== false && item.gps_longitude !== undefined
-                ? parseGpsNumber(item.gps_longitude)
-                : null;
+        const fromDbLatitude = parseGpsNumber(
+            item?.gps_latitude
+            ?? item?.y
+            ?? item?.latitude
+            ?? item?.lat,
+        );
+        const fromDbLongitude = parseGpsNumber(
+            item?.gps_longitude
+            ?? item?.x
+            ?? item?.longitude
+            ?? item?.lng
+            ?? item?.lon,
+        );
 
-        if (fromDbLatitude !== null && fromDbLongitude !== null) {
+        if (
+            fromDbLatitude !== null &&
+            fromDbLongitude !== null &&
+            fromDbLatitude >= -90 &&
+            fromDbLatitude <= 90 &&
+            fromDbLongitude >= -180 &&
+            fromDbLongitude <= 180
+        ) {
             return {
                 latitude: fromDbLatitude,
                 longitude: fromDbLongitude,
@@ -16686,6 +17276,7 @@ function App() {
                 }
 
                 setReportLocation(nextLocation);
+                setReportGoogleMapsUrl(createMapsUrl(nextLocation.y, nextLocation.x));
                 setReportStatus("");
             },
         });
@@ -16810,7 +17401,6 @@ function App() {
         clearPickerLifecycleHandlers();
         clearPickerProgressClearTimer();
         clearPickerInputElement();
-
         clearUploadFeedback();
         setUploadStage("opening");
         setLastUploadRequest({ selectedType, imageSource });
@@ -17611,14 +18201,14 @@ function App() {
             return acc;
         },
         {
-            totalByType: { trolley: 0, bike: 0, historic: 0, motorbike: 0, misc: 0 },
+            totalByType: { trolley: 0, bike: 0, bin: 0, historic: 0, motorbike: 0, misc: 0 },
             estimatedRecoveredKg: 0,
             estimatedRemainingKg: 0,
-            recoveredByType: { trolley: 0, bike: 0, historic: 0, motorbike: 0, misc: 0 },
-            remainingByType: { trolley: 0, bike: 0, historic: 0, motorbike: 0, misc: 0 },
-            totalWeightByType: { trolley: 0, bike: 0, historic: 0, motorbike: 0, misc: 0 },
-            recoveredWeightByType: { trolley: 0, bike: 0, historic: 0, motorbike: 0, misc: 0 },
-            remainingWeightByType: { trolley: 0, bike: 0, historic: 0, motorbike: 0, misc: 0 },
+            recoveredByType: { trolley: 0, bike: 0, bin: 0, historic: 0, motorbike: 0, misc: 0 },
+            remainingByType: { trolley: 0, bike: 0, bin: 0, historic: 0, motorbike: 0, misc: 0 },
+            totalWeightByType: { trolley: 0, bike: 0, bin: 0, historic: 0, motorbike: 0, misc: 0 },
+            recoveredWeightByType: { trolley: 0, bike: 0, bin: 0, historic: 0, motorbike: 0, misc: 0 },
+            remainingWeightByType: { trolley: 0, bike: 0, bin: 0, historic: 0, motorbike: 0, misc: 0 },
         },
     );
 
@@ -18256,6 +18846,10 @@ function App() {
         setPendingReportLocation(null);
         setIsReportConsentOpen(false);
         setReportNote("");
+        setReportGoogleMapsUrl("");
+        setReportStreetViewUrl("");
+        setReportLocateNote("");
+        setReportIsGlasdonJubilee(false);
         setReportStatus("");
         setIsFilterSheetOpen(false);
         setIsMapToolsOpen(false);
@@ -18924,6 +19518,10 @@ function App() {
         setPendingReportLocation(null);
         setIsReportConsentOpen(false);
         setReportNote("");
+        setReportGoogleMapsUrl("");
+        setReportStreetViewUrl("");
+        setReportLocateNote("");
+        setReportIsGlasdonJubilee(false);
         setReportStatus("");
         setIsFilterSheetOpen(false);
         setIsMapToolsOpen(false);
@@ -18944,6 +19542,10 @@ function App() {
         setPendingReportLocation(null);
         setIsReportConsentOpen(false);
         setReportNote("");
+        setReportGoogleMapsUrl("");
+        setReportStreetViewUrl("");
+        setReportLocateNote("");
+        setReportIsGlasdonJubilee(false);
         setReportStatus("");
         setIsFilterSheetOpen(false);
         setIsMapToolsOpen(false);
@@ -19839,11 +20441,20 @@ function App() {
                             canUsePublicReports ? reportLocation : null
                         }
                         reportNote={reportNote}
+                        reportGoogleMapsUrl={reportGoogleMapsUrl}
+                        reportStreetViewUrl={reportStreetViewUrl}
+                        reportLocateNote={reportLocateNote}
+                        reportIsGlasdonJubilee={reportIsGlasdonJubilee}
                         reportStatus={reportStatus}
                         isMobile={isMobile}
                         onNoteChange={(nextValue) =>
                             setReportNote(preserveReportNoteInput(nextValue))
                         }
+                        onGoogleMapsUrlChange={(nextValue) => setReportGoogleMapsUrl(nextValue)}
+                        onStreetViewUrlChange={(nextValue) => setReportStreetViewUrl(nextValue)}
+                        onLocateNoteChange={(nextValue) => setReportLocateNote(nextValue)}
+                        onGlasdonJubileeToggle={(nextValue) => setReportIsGlasdonJubilee(Boolean(nextValue))}
+                        onSubmitBinReport={handleSubmitBinReport}
                         onOpenMessenger={handleOpenMessengerForReport}
                         onOpenEmail={handleOpenEmailForReport}
                         onCopyReportText={() => {
@@ -19860,6 +20471,10 @@ function App() {
                         onCancel={() => {
                             setReportLocation(null);
                             setReportNote("");
+                            setReportGoogleMapsUrl("");
+                            setReportStreetViewUrl("");
+                            setReportLocateNote("");
+                            setReportIsGlasdonJubilee(false);
                             setReportStatus("");
                         }}
                         markOverlayInteraction={markOverlayInteraction}
@@ -19879,6 +20494,7 @@ function App() {
                                     item.type,
                                     getItemCounts(item).isRecovered,
                                     Boolean(item?.viewer_has_liked ?? item?.viewerHasLiked),
+                                    item?.bin_subtype,
                                 )}
                                 eventHandlers={{
                                     click: () => {
@@ -20411,6 +21027,12 @@ function App() {
                                         setReportLocation(
                                             pendingReportLocation,
                                         );
+                                        setReportGoogleMapsUrl(
+                                            createMapsUrl(
+                                                pendingReportLocation.y,
+                                                pendingReportLocation.x,
+                                            ),
+                                        );
                                     }
                                     setPendingReportLocation(null);
                                     setReportStatus("");
@@ -20509,6 +21131,21 @@ function App() {
                     adminPendingComments={adminPendingComments}
                     isAdminPendingCommentsLoading={isAdminPendingCommentsLoading}
                     adminPendingCommentsError={adminPendingCommentsError}
+                    adminBinReports={adminBinReports}
+                    isAdminBinReportsLoading={isAdminBinReportsLoading}
+                    adminBinReportsError={adminBinReportsError}
+                    updatingAdminBinReportId={updatingAdminBinReportId}
+                    adminManualBinDraft={adminManualBinDraft}
+                    onAdminManualBinDraftChange={(field, value) => {
+                        setAdminManualBinDraft((prev) => ({
+                            ...prev,
+                            [field]: value,
+                        }));
+                    }}
+                    onCreateManualVerifiedBin={createManualVerifiedBin}
+                    onRefreshAdminBinReports={refreshAdminBinReports}
+                    onSetAdminBinReportStatus={setAdminBinReportStatus}
+                    onCreateVerifiedBinFromReport={createVerifiedBinFromReport}
                     onApprovePendingComment={approvePendingComment}
                     onRejectPendingComment={rejectPendingComment}
                     adminAuditLogs={adminAuditLogs}

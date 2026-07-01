@@ -958,3 +958,95 @@ export async function listBansForAdmin() {
 
     return { bans: Array.isArray(data) ? data : [], error: null };
 }
+
+export async function submitBinLocationReport(payload = {}) {
+    const latitude = Number(payload?.latitude);
+    const longitude = Number(payload?.longitude);
+
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+        return { report: null, error: new Error("Missing valid report coordinates") };
+    }
+
+    const googleMapsUrl = normalizeText(payload?.googleMapsUrl);
+    if (!googleMapsUrl) {
+        return { report: null, error: new Error("Google Maps URL is required") };
+    }
+
+    const { data, error } = await supabase.rpc("submit_bin_location_report", {
+        p_latitude: latitude,
+        p_longitude: longitude,
+        p_google_maps_url: googleMapsUrl,
+        p_street_view_url: normalizeText(payload?.streetViewUrl) || null,
+        p_locate_note: normalizeText(payload?.locateNote),
+        p_report_note: normalizeText(payload?.reportNote),
+        p_is_glasdon_jubilee: Boolean(payload?.isGlasdonJubilee),
+        p_reporter_label: normalizeText(payload?.reporterLabel),
+    });
+
+    if (error) {
+        return { report: null, error };
+    }
+
+    return { report: data || null, error: null };
+}
+
+export async function listBinLocationReportsForAdmin(status = "") {
+    const normalizedStatus = normalizeText(status).toLowerCase();
+    const { data, error } = await supabase.rpc("list_bin_location_reports", {
+        p_status: normalizedStatus || null,
+    });
+
+    if (error) {
+        return { reports: [], error };
+    }
+
+    return { reports: Array.isArray(data) ? data : [], error: null };
+}
+
+export async function setBinLocationReportStatusForAdmin(reportId, status, reason = "") {
+    const normalizedReportId = normalizeText(String(reportId || ""));
+    const normalizedStatus = normalizeText(status).toLowerCase();
+
+    if (!normalizedReportId) {
+        return { report: null, error: new Error("Missing report id") };
+    }
+
+    if (!normalizedStatus) {
+        return { report: null, error: new Error("Missing report status") };
+    }
+
+    const { data, error } = await supabase.rpc("set_bin_location_report_status", {
+        p_report_id: normalizedReportId,
+        p_status: normalizedStatus,
+        p_reason: normalizeText(reason),
+    });
+
+    if (error) {
+        return { report: null, error };
+    }
+
+    return { report: data || null, error: null };
+}
+
+export async function createVerifiedBinForAdmin(payload = {}) {
+    const reportId = normalizeText(String(payload?.reportId || ""));
+    const latitude = Number(payload?.latitude);
+    const longitude = Number(payload?.longitude);
+
+    const { data, error } = await supabase.rpc("create_verified_bin_item", {
+        p_report_id: reportId || null,
+        p_latitude: Number.isFinite(latitude) ? latitude : null,
+        p_longitude: Number.isFinite(longitude) ? longitude : null,
+        p_google_maps_url: normalizeText(payload?.googleMapsUrl) || null,
+        p_street_view_url: normalizeText(payload?.streetViewUrl) || null,
+        p_locate_note: normalizeText(payload?.locateNote),
+        p_report_note: normalizeText(payload?.reportNote),
+        p_is_glasdon_jubilee: Boolean(payload?.isGlasdonJubilee),
+    });
+
+    if (error) {
+        return { item: null, error };
+    }
+
+    return { item: data || null, error: null };
+}

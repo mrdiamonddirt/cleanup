@@ -15,6 +15,7 @@ const PAGE_SIZE = 500;
 
 const TYPE_LABELS = {
     bike: "Bike",
+    bin: "Bin location",
     historic: "Historic find",
     motorbike: "Motorbike",
     trolley: "Trolley",
@@ -24,6 +25,17 @@ const TYPE_LABELS = {
 const normalizeType = (value) => {
     if (typeof value !== "string") return "misc";
     const normalized = value.trim().toLowerCase();
+    if (
+        normalized === "bin" ||
+        normalized === "bins" ||
+        normalized === "bin location" ||
+        normalized === "bin locations" ||
+        normalized.includes("glasdon") ||
+        normalized.includes("jubilee") ||
+        normalized.includes("bin")
+    ) {
+        return "bin";
+    }
     if (
         normalized === "historic" ||
         normalized === "historic find" ||

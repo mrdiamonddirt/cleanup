@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1200" viewBox="0 0 900 1200" role="img" aria-labelledby="title desc">
+  <title id="title">Jubilee Bin Placeholder</title>
+  <desc id="desc">Temporary placeholder image for Jubilee bin records.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f8fafc" />
+      <stop offset="100%" stop-color="#e2e8f0" />
+    </linearGradient>
+    <linearGradient id="bin" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#475569" />
+      <stop offset="100%" stop-color="#1e293b" />
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="900" height="1200" fill="url(#bg)" />
+
+  <rect x="260" y="250" width="380" height="660" rx="42" fill="url(#bin)" />
+  <rect x="240" y="210" width="420" height="70" rx="24" fill="#334155" />
+  <rect x="320" y="330" width="260" height="300" rx="24" fill="#0f172a" opacity="0.28" />
+
+  <circle cx="450" cy="515" r="106" fill="#f8fafc" opacity="0.92" />
+  <text x="450" y="530" text-anchor="middle" font-size="72" font-family="Georgia, serif" fill="#1e293b">J</text>
+
+  <text x="450" y="990" text-anchor="middle" font-size="50" font-family="Georgia, serif" fill="#1e293b">Jubilee Bin</text>
+  <text x="450" y="1046" text-anchor="middle" font-size="30" font-family="Verdana, sans-serif" fill="#475569">Placeholder image</text>
+</svg>

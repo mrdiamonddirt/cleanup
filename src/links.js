@@ -7,15 +7,17 @@ const LINKS_FETCH_TIMEOUT_MS = 4500;
 const ASSUMED_ITEM_WEIGHTS_KG = {
     trolley: 28,
     bike: 15,
+    bin: 30,
     historic: 1,
     motorbike: 180,
     misc: 30,
 };
 
-const TYPE_COUNT_ORDER = ["trolley", "bike", "motorbike", "historic", "misc"];
+const TYPE_COUNT_ORDER = ["trolley", "bike", "bin", "motorbike", "historic", "misc"];
 const TYPE_COUNT_LABELS = {
     trolley: ["trolley", "trolleys"],
     bike: ["bike", "bikes"],
+    bin: ["bin location", "bin locations"],
     motorbike: ["motorbike", "motorbikes"],
     historic: ["historic find", "historic finds"],
     misc: ["misc item", "misc items"],
@@ -23,7 +25,20 @@ const TYPE_COUNT_LABELS = {
 
 const DEFAULT_WEIGHT_KG = ASSUMED_ITEM_WEIGHTS_KG.misc;
 
-const normalizeType = (value) => String(value || "").toLowerCase().trim();
+const normalizeType = (value) => {
+    const normalized = String(value || "").toLowerCase().trim();
+    if (!normalized) return "misc";
+    if (
+        normalized === "bin" ||
+        normalized === "bins" ||
+        normalized.includes("glasdon") ||
+        normalized.includes("jubilee") ||
+        normalized.includes("bin")
+    ) {
+        return "bin";
+    }
+    return normalized;
+};
 
 const clampRecoveredCount = (total, recovered) => {
     const normalizedTotal = Number.isFinite(Number(total)) ? Number(total) : 0;
@@ -121,6 +136,7 @@ const buildRecoveredTypeBreakdown = (rows) => {
     const totalsByType = {
         trolley: 0,
         bike: 0,
+        bin: 0,
         motorbike: 0,
         historic: 0,
         misc: 0,

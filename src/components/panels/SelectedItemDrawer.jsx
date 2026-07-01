@@ -20,6 +20,11 @@ function getStorageThumbnailUrl(url, width = 400, quality = 75) {
     }
 }
 
+function isLikelyHttpUrl(value) {
+    const text = typeof value === "string" ? value.trim() : "";
+    return /^https?:\/\//i.test(text);
+}
+
 export default function SelectedItemDrawer({
     selectedItem,
     selectedCounts,
@@ -76,6 +81,7 @@ export default function SelectedItemDrawer({
     normalizeOptionalDateInput,
 }) {
     if (!selectedItem || !selectedCounts) return null;
+    const BIN_PLACEHOLDER_IMAGE_URL = "/bin-images/GlasJubilee-Litter.jpg";
     const suppressDrawerBackdropCloseUntilRef = React.useRef(0);
     const viewportHeight = typeof window !== "undefined" ? window.innerHeight : 900;
     const useShortDesktop = !isMobile && viewportHeight <= 820;
@@ -88,6 +94,8 @@ export default function SelectedItemDrawer({
     const statGridColumns = useCompactLayout ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))";
     const imagePanelHeight = useBottomSheet ? "min(23svh, 180px)" : useShortDesktop ? "200px" : "240px";
     const itemTypeLabel = TYPE_LABELS[normalizeType(selectedItem.type)];
+    const isBinType = normalizeType(selectedItem.type) === "bin";
+    const isGlasdonJubilee = String(selectedItem?.bin_subtype || "").trim().toLowerCase() === "glasdon_jubilee";
     const itemStatusLabel = selectedCounts.isRecovered ? "Recovered" : "In Water";
     const shareCountLabel = Number.isFinite(Number(itemShareCount)) ? Number(itemShareCount) : 0;
     const likeCountLabel = Number.isFinite(Number(itemLikeCount)) ? Number(itemLikeCount) : 0;
@@ -113,9 +121,49 @@ export default function SelectedItemDrawer({
         selectedStory?.knownSinceDate,
         selectedStory?.recoveredOnDate,
     );
-    const selectedItemPreviewSmall = getStorageThumbnailUrl(selectedItem?.image_url, 180, 52);
-    const selectedItemPreviewMedium = getStorageThumbnailUrl(selectedItem?.image_url, 320, 60);
-    const selectedItemPreviewLarge = getStorageThumbnailUrl(selectedItem?.image_url, 560, 68);
+    const storyReferenceUrl = typeof selectedStory?.referenceImageUrl === "string"
+        ? selectedStory.referenceImageUrl.trim()
+        : "";
+    const storyReferenceCaption = typeof selectedStory?.referenceImageCaption === "string"
+        ? selectedStory.referenceImageCaption.trim()
+        : "";
+    const binGoogleMapsUrlFromItem = typeof selectedItem?.bin_google_maps_url === "string"
+        ? selectedItem.bin_google_maps_url.trim()
+        : "";
+    const binStreetViewUrlFromItem = typeof selectedItem?.bin_street_view_url === "string"
+        ? selectedItem.bin_street_view_url.trim()
+        : "";
+    const binLocateNoteFromItem = typeof selectedItem?.bin_locate_note === "string"
+        ? selectedItem.bin_locate_note.trim()
+        : "";
+    const binReportNote = typeof selectedItem?.bin_report_note === "string"
+        ? selectedItem.bin_report_note.trim()
+        : "";
+    const binGoogleMapsUrl = isLikelyHttpUrl(binGoogleMapsUrlFromItem)
+        ? binGoogleMapsUrlFromItem
+        : (isLikelyHttpUrl(storyReferenceUrl) ? storyReferenceUrl : (selectedMapsUrl || ""));
+    const binStreetViewUrl = isLikelyHttpUrl(binStreetViewUrlFromItem)
+        ? binStreetViewUrlFromItem
+        : (isLikelyHttpUrl(storyReferenceCaption) ? storyReferenceCaption : "");
+    const binLocateNote = binLocateNoteFromItem || (binStreetViewUrl ? "" : storyReferenceCaption);
+    const binCoordinateLabel = selectedGps
+        ? `${Number(selectedGps.latitude).toFixed(5)}, ${Number(selectedGps.longitude).toFixed(5)}`
+        : "";
+    const binAreaLabel = typeof selectedGeoLookup?.label === "string"
+        ? selectedGeoLookup.label.trim()
+        : "";
+    const binPostcodeLabel = typeof selectedGeoLookup?.postcode === "string"
+        ? selectedGeoLookup.postcode.trim()
+        : "";
+    const binW3WLabel = typeof selectedItem?.w3w_address === "string"
+        ? selectedItem.w3w_address.trim()
+        : "";
+    const selectedItemImageUrl = isBinType
+        ? BIN_PLACEHOLDER_IMAGE_URL
+        : selectedItem?.image_url;
+    const selectedItemPreviewSmall = getStorageThumbnailUrl(selectedItemImageUrl, 180, 52);
+    const selectedItemPreviewMedium = getStorageThumbnailUrl(selectedItemImageUrl, 320, 60);
+    const selectedItemPreviewLarge = getStorageThumbnailUrl(selectedItemImageUrl, 560, 68);
     const selectedItemPreviewSrcSet = [
         `${selectedItemPreviewSmall} 180w`,
         `${selectedItemPreviewMedium} 320w`,
@@ -243,13 +291,15 @@ export default function SelectedItemDrawer({
                                     width: "7px",
                                     height: "7px",
                                     borderRadius: "999px",
-                                    background: selectedCounts.isRecovered ? "#22c55e" : "#f59e0b",
-                                    boxShadow: selectedCounts.isRecovered
-                                        ? "0 0 0 4px rgba(34,197,94,0.14)"
-                                        : "0 0 0 4px rgba(245,158,11,0.14)",
+                                    background: isBinType ? "#1d4ed8" : (selectedCounts.isRecovered ? "#22c55e" : "#f59e0b"),
+                                    boxShadow: isBinType
+                                        ? "0 0 0 4px rgba(29,78,216,0.14)"
+                                        : selectedCounts.isRecovered
+                                            ? "0 0 0 4px rgba(34,197,94,0.14)"
+                                            : "0 0 0 4px rgba(245,158,11,0.14)",
                                 }}
                             />
-                            Cleanup Item
+                            {isBinType ? "Bin Location" : "Cleanup Item"}
                         </div>
                         <strong
                             style={{
@@ -258,8 +308,29 @@ export default function SelectedItemDrawer({
                                 color: "#0f172a",
                             }}
                         >
-                            {itemTypeLabel} recovery log
+                            {isBinType ? `${itemTypeLabel} record` : `${itemTypeLabel} recovery log`}
                         </strong>
+                        {isGlasdonJubilee ? (
+                            <div
+                                style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "6px",
+                                    width: "fit-content",
+                                    padding: "3px 8px",
+                                    borderRadius: "999px",
+                                    border: "1px solid #f59e0b",
+                                    background: "#fffbeb",
+                                    color: "#92400e",
+                                    fontSize: "0.68rem",
+                                    fontWeight: 700,
+                                    letterSpacing: "0.04em",
+                                    textTransform: "uppercase",
+                                }}
+                            >
+                                Glasdon Jubilee
+                            </div>
+                        ) : null}
                         <div
                             style={{
                                 display: "flex",
@@ -271,12 +342,16 @@ export default function SelectedItemDrawer({
                             }}
                         >
                             <span>{new Date(selectedItem.created_at).toLocaleDateString()}</span>
-                            <span aria-hidden="true" style={{ color: "#cbd5e1" }}>•</span>
-                            <span style={{ color: "#334155", fontWeight: 600 }}>{itemStatusLabel}</span>
+                            {!isBinType ? (
+                                <>
+                                    <span aria-hidden="true" style={{ color: "#cbd5e1" }}>•</span>
+                                    <span style={{ color: "#334155", fontWeight: 600 }}>{itemStatusLabel}</span>
+                                </>
+                            ) : null}
                         </div>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
-                        {typeof onLikeItem === "function" ? (
+                        {!isBinType && typeof onLikeItem === "function" ? (
                             <button
                                 type="button"
                                 onClick={() => onLikeItem(selectedItem.id)}
@@ -304,7 +379,7 @@ export default function SelectedItemDrawer({
                                 <span style={interactionCountBadgeStyle}>{likeCountLabel}</span>
                             </button>
                         ) : null}
-                        {onCopyShareLink ? (
+                        {!isBinType && onCopyShareLink ? (
                             <button
                                 onClick={() => onCopyShareLink(selectedItem.id)}
                                 style={{
@@ -437,7 +512,7 @@ export default function SelectedItemDrawer({
                                             textAlign: "left",
                                         }}
                                     >
-                                        Full image shown. Tap to expand.
+                                        {isBinType ? "Jubilee placeholder image." : "Full image shown. Tap to expand."}
                                     </div>
                                 ) : null}
                             </button>
@@ -458,16 +533,18 @@ export default function SelectedItemDrawer({
                             </div>
                         )}
 
-                        <div style={{ marginTop: "8px" }}>
-                            <LocationDetailsBlock
-                                gps={selectedGps}
-                                geoLookup={selectedGeoLookup}
-                                isResolving={isResolvingGeoLookup}
-                                mapsUrl={selectedMapsUrl}
-                                compact={compactNoScroll || useDenseDesktopCard}
-                                w3wAddress={selectedItem.w3w_address ?? null}
-                            />
-                        </div>
+                        {!isBinType ? (
+                            <div style={{ marginTop: "8px" }}>
+                                <LocationDetailsBlock
+                                    gps={selectedGps}
+                                    geoLookup={selectedGeoLookup}
+                                    isResolving={isResolvingGeoLookup}
+                                    mapsUrl={selectedMapsUrl}
+                                    compact={compactNoScroll || useDenseDesktopCard}
+                                    w3wAddress={selectedItem.w3w_address ?? null}
+                                />
+                            </div>
+                        ) : null}
                     </div>
 
                     {/* Right: details + actions */}
@@ -480,127 +557,207 @@ export default function SelectedItemDrawer({
                         overflowY: "visible",
                         paddingRight: 0,
                     }}>
-                        <div style={{
-                            display: "grid",
-                            gap: useBottomSheet ? "10px" : "12px",
-                            marginBottom: useBottomSheet ? "8px" : "10px",
-                        }}>
-                            <div style={{ color: "#64748b", fontSize: useBottomSheet ? "0.8rem" : "0.85rem", letterSpacing: "0.01em" }}>
-                                Spotted: {new Date(selectedItem.created_at).toLocaleString()}
-                            </div>
-
-                            <div style={{ display: "grid", gridTemplateColumns: statGridColumns, gap: useBottomSheet ? "8px" : "10px", minWidth: 0 }}>
-                                <DetailBadge
-                                    label="Status"
-                                    value={selectedCounts.isRecovered ? "Recovered" : "In Water"}
-                                    tone={selectedCounts.isRecovered ? "success" : "warning"}
-                                    compact={useBottomSheet}
-                                />
-                                <DetailBadge label="Total" value={selectedCounts.total} compact={useBottomSheet} />
-                                <DetailBadge label="Recovered" value={selectedCounts.recovered} compact={useBottomSheet} />
-                                <DetailBadge label="In Water" value={selectedCounts.inWater} compact={useBottomSheet} />
-                            </div>
-
-                            {(selectedWeight || !isItemStoryEmpty(selectedStory)) ? (
-                                <div
-                                    style={{
-                                        display: "grid",
-                                        gap: useBottomSheet ? "6px" : "8px",
-                                        padding: useBottomSheet ? "10px 12px" : "14px 16px",
-                                        borderRadius: "14px",
-                                        border: "1px solid #dbe3ee",
-                                        background: "#f8fafc",
-                                        color: "#334155",
-                                        fontSize: useBottomSheet ? "0.82rem" : "0.9rem",
-                                        lineHeight: 1.6,
-                                    }}
-                                >
-                                    {selectedWeight ? (
-                                        <>
+                        {isBinType ? (
+                            <div
+                                style={{
+                                    display: "grid",
+                                    gap: useBottomSheet ? "8px" : "10px",
+                                    padding: useBottomSheet ? "10px 12px" : "14px 16px",
+                                    borderRadius: "14px",
+                                    border: "1px solid #dbe3ee",
+                                    background: "#f8fafc",
+                                    color: "#334155",
+                                    fontSize: useBottomSheet ? "0.82rem" : "0.9rem",
+                                    lineHeight: 1.6,
+                                }}
+                            >
+                                <div style={{ fontSize: "0.74rem", fontWeight: 800, color: "#475569", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                                    Bin details
+                                </div>
+                                <div>
+                                    Type: <strong style={{ color: "#0f172a" }}>{isGlasdonJubilee ? "Glasdon Jubilee" : "Standard bin"}</strong>
+                                </div>
+                                {(binCoordinateLabel || binAreaLabel || binPostcodeLabel || binW3WLabel) ? (
+                                    <div style={{ display: "grid", gap: "3px", padding: "8px 10px", borderRadius: "10px", border: "1px solid #e2e8f0", background: "#ffffff" }}>
+                                        <div style={{ fontSize: "0.7rem", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                                            Location info
+                                        </div>
+                                        {binCoordinateLabel ? (
                                             <div>
-                                                Est. weight per item: <strong style={{ color: "#0f172a" }}>{formatWeightKg(selectedWeight.value)}</strong>
-                                                {selectedWeight.source === "default" ? " (default)" : ""}
+                                                Coordinates: <strong style={{ color: "#0f172a" }}>{binCoordinateLabel}</strong>
                                             </div>
+                                        ) : null}
+                                        {binAreaLabel ? (
                                             <div>
-                                                Est. total at location: <strong style={{ color: "#0f172a" }}>{formatWeightKg(selectedWeight.value * selectedCounts.total)}</strong>
+                                                Area: <strong style={{ color: "#0f172a" }}>{binAreaLabel}</strong>
                                             </div>
-                                        </>
-                                    ) : null}
-                                    {selectedStory?.knownSinceDate ? (
-                                        <div>
-                                            Known in river since: <strong style={{ color: "#0f172a" }}>{formatStoryDate(selectedStory.knownSinceDate)}</strong>
-                                        </div>
-                                    ) : null}
-                                    {selectedStory?.recoveredOnDate ? (
-                                        <div>
-                                            Recovered on: <strong style={{ color: "#0f172a" }}>{formatStoryDate(selectedStory.recoveredOnDate)}</strong>
-                                        </div>
-                                    ) : null}
-                                    {timeInRiverLabel ? (
-                                        <div>
-                                            Time in river: <strong style={{ color: "#0f172a" }}>{timeInRiverLabel}</strong>
-                                        </div>
-                                    ) : null}
-                                    {selectedStory?.referenceImageUrl ? (
-                                        <div style={{ color: "#1d4ed8", fontWeight: 600 }}>
-                                            Includes reference image in fullscreen viewer.
-                                        </div>
-                                    ) : null}
-                                    {selectedStory?.referenceImageCaption ? (
-                                        <a
-                                            href={selectedStory.referenceImageCaption}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            style={{ color: "#1d4ed8", fontWeight: 700, width: "fit-content" }}
+                                        ) : null}
+                                        {binPostcodeLabel ? (
+                                            <div>
+                                                Postcode: <strong style={{ color: "#0f172a" }}>{binPostcodeLabel}</strong>
+                                            </div>
+                                        ) : null}
+                                        {binW3WLabel ? (
+                                            <div>
+                                                what3words: <strong style={{ color: "#0f172a" }}>{binW3WLabel}</strong>
+                                            </div>
+                                        ) : null}
+                                    </div>
+                                ) : null}
+                                {binGoogleMapsUrl ? (
+                                    <a
+                                        href={binGoogleMapsUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        style={{ color: "#1d4ed8", fontWeight: 700, width: "fit-content" }}
+                                    >
+                                        Open Google Maps link
+                                    </a>
+                                ) : null}
+                                {binStreetViewUrl ? (
+                                    <a
+                                        href={binStreetViewUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        style={{ color: "#1d4ed8", fontWeight: 700, width: "fit-content" }}
+                                    >
+                                        Open Street View link
+                                    </a>
+                                ) : null}
+                                {binLocateNote ? (
+                                    <div>
+                                        Locate note: <strong style={{ color: "#0f172a" }}>{binLocateNote}</strong>
+                                    </div>
+                                ) : null}
+                                {binReportNote ? (
+                                    <div>
+                                        Report note: <strong style={{ color: "#0f172a" }}>{binReportNote}</strong>
+                                    </div>
+                                ) : null}
+                            </div>
+                        ) : (
+                            <>
+                                <div style={{
+                                    display: "grid",
+                                    gap: useBottomSheet ? "10px" : "12px",
+                                    marginBottom: useBottomSheet ? "8px" : "10px",
+                                }}>
+                                    <div style={{ color: "#64748b", fontSize: useBottomSheet ? "0.8rem" : "0.85rem", letterSpacing: "0.01em" }}>
+                                        Spotted: {new Date(selectedItem.created_at).toLocaleString()}
+                                    </div>
+
+                                    <div style={{ display: "grid", gridTemplateColumns: statGridColumns, gap: useBottomSheet ? "8px" : "10px", minWidth: 0 }}>
+                                        <DetailBadge
+                                            label="Status"
+                                            value={selectedCounts.isRecovered ? "Recovered" : "In Water"}
+                                            tone={selectedCounts.isRecovered ? "success" : "warning"}
+                                            compact={useBottomSheet}
+                                        />
+                                        <DetailBadge label="Total" value={selectedCounts.total} compact={useBottomSheet} />
+                                        <DetailBadge label="Recovered" value={selectedCounts.recovered} compact={useBottomSheet} />
+                                        <DetailBadge label="In Water" value={selectedCounts.inWater} compact={useBottomSheet} />
+                                    </div>
+
+                                    {(selectedWeight || !isItemStoryEmpty(selectedStory)) ? (
+                                        <div
+                                            style={{
+                                                display: "grid",
+                                                gap: useBottomSheet ? "6px" : "8px",
+                                                padding: useBottomSheet ? "10px 12px" : "14px 16px",
+                                                borderRadius: "14px",
+                                                border: "1px solid #dbe3ee",
+                                                background: "#f8fafc",
+                                                color: "#334155",
+                                                fontSize: useBottomSheet ? "0.82rem" : "0.9rem",
+                                                lineHeight: 1.6,
+                                            }}
                                         >
-                                            Open Street View source
-                                        </a>
-                                    ) : null}
-                                    {(selectedStory?.facebookVideoUrl || selectedStory?.instagramVideoUrl || selectedStory?.youtubeVideoUrl) ? (
-                                        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "4px" }}>
-                                            {selectedStory.facebookVideoUrl ? (
-                                                <a href={selectedStory.facebookVideoUrl} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "0.78rem", fontWeight: 600, color: "#1877f2", textDecoration: "none", border: "1px solid #bfdbfe", borderRadius: "999px", padding: "4px 10px", background: "#eff6ff" }}>
-                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="#1877f2"><path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.413c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.927-1.956 1.874v2.25h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>
-                                                    Facebook
+                                            {selectedWeight ? (
+                                                <>
+                                                    <div>
+                                                        Est. weight per item: <strong style={{ color: "#0f172a" }}>{formatWeightKg(selectedWeight.value)}</strong>
+                                                        {selectedWeight.source === "default" ? " (default)" : ""}
+                                                    </div>
+                                                    <div>
+                                                        Est. total at location: <strong style={{ color: "#0f172a" }}>{formatWeightKg(selectedWeight.value * selectedCounts.total)}</strong>
+                                                    </div>
+                                                </>
+                                            ) : null}
+                                            {selectedStory?.knownSinceDate ? (
+                                                <div>
+                                                    Known in river since: <strong style={{ color: "#0f172a" }}>{formatStoryDate(selectedStory.knownSinceDate)}</strong>
+                                                </div>
+                                            ) : null}
+                                            {selectedStory?.recoveredOnDate ? (
+                                                <div>
+                                                    Recovered on: <strong style={{ color: "#0f172a" }}>{formatStoryDate(selectedStory.recoveredOnDate)}</strong>
+                                                </div>
+                                            ) : null}
+                                            {timeInRiverLabel ? (
+                                                <div>
+                                                    Time in river: <strong style={{ color: "#0f172a" }}>{timeInRiverLabel}</strong>
+                                                </div>
+                                            ) : null}
+                                            {selectedStory?.referenceImageUrl ? (
+                                                <div style={{ color: "#1d4ed8", fontWeight: 600 }}>
+                                                    Includes reference image in fullscreen viewer.
+                                                </div>
+                                            ) : null}
+                                            {selectedStory?.referenceImageCaption ? (
+                                                <a
+                                                    href={selectedStory.referenceImageCaption}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    style={{ color: "#1d4ed8", fontWeight: 700, width: "fit-content" }}
+                                                >
+                                                    Open Street View source
                                                 </a>
                                             ) : null}
-                                            {selectedStory.instagramVideoUrl ? (
-                                                <a href={selectedStory.instagramVideoUrl} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "0.78rem", fontWeight: 600, color: "#e1306c", textDecoration: "none", border: "1px solid #fce7f3", borderRadius: "999px", padding: "4px 10px", background: "#fdf2f8" }}>
-                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="#e1306c"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
-                                                    Instagram
-                                                </a>
-                                            ) : null}
-                                            {selectedStory.youtubeVideoUrl ? (
-                                                <a href={selectedStory.youtubeVideoUrl} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "0.78rem", fontWeight: 600, color: "#ff0000", textDecoration: "none", border: "1px solid #fecaca", borderRadius: "999px", padding: "4px 10px", background: "#fff5f5" }}>
-                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="#ff0000"><path d="M23.495 6.205a3.007 3.007 0 00-2.088-2.088c-1.87-.501-9.396-.501-9.396-.501s-7.507-.01-9.396.501A3.007 3.007 0 00.527 6.205a31.247 31.247 0 00-.522 5.805 31.247 31.247 0 00.522 5.783 3.007 3.007 0 002.088 2.088c1.868.502 9.396.502 9.396.502s7.506 0 9.396-.502a3.007 3.007 0 002.088-2.088 31.247 31.247 0 00.5-5.783 31.247 31.247 0 00-.5-5.805zM9.609 15.601V8.408l6.264 3.602z"/></svg>
-                                                    YouTube
-                                                </a>
+                                            {(selectedStory?.facebookVideoUrl || selectedStory?.instagramVideoUrl || selectedStory?.youtubeVideoUrl) ? (
+                                                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "4px" }}>
+                                                    {selectedStory.facebookVideoUrl ? (
+                                                        <a href={selectedStory.facebookVideoUrl} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "0.78rem", fontWeight: 600, color: "#1877f2", textDecoration: "none", border: "1px solid #bfdbfe", borderRadius: "999px", padding: "4px 10px", background: "#eff6ff" }}>
+                                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="#1877f2"><path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.413c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.927-1.956 1.874v2.25h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>
+                                                            Facebook
+                                                        </a>
+                                                    ) : null}
+                                                    {selectedStory.instagramVideoUrl ? (
+                                                        <a href={selectedStory.instagramVideoUrl} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "0.78rem", fontWeight: 600, color: "#e1306c", textDecoration: "none", border: "1px solid #fce7f3", borderRadius: "999px", padding: "4px 10px", background: "#fdf2f8" }}>
+                                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="#e1306c"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
+                                                            Instagram
+                                                        </a>
+                                                    ) : null}
+                                                    {selectedStory.youtubeVideoUrl ? (
+                                                        <a href={selectedStory.youtubeVideoUrl} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "0.78rem", fontWeight: 600, color: "#ff0000", textDecoration: "none", border: "1px solid #fecaca", borderRadius: "999px", padding: "4px 10px", background: "#fff5f5" }}>
+                                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="#ff0000"><path d="M23.495 6.205a3.007 3.007 0 00-2.088-2.088c-1.87-.501-9.396-.501-9.396-.501s-7.507-.01-9.396.501A3.007 3.007 0 00.527 6.205a31.247 31.247 0 00-.522 5.805 31.247 31.247 0 00.522 5.783 3.007 3.007 0 002.088 2.088c1.868.502 9.396.502 9.396.502s7.506 0 9.396-.502a3.007 3.007 0 002.088-2.088 31.247 31.247 0 00.5-5.783 31.247 31.247 0 00-.5-5.805zM9.609 15.601V8.408l6.264 3.602z"/></svg>
+                                                            YouTube
+                                                        </a>
+                                                    ) : null}
+                                                </div>
                                             ) : null}
                                         </div>
                                     ) : null}
-                                </div>
-                            ) : null}
 
-                            {copiedShareItemId === selectedItem.id && shareCopyStatus ? (
-                                <div style={{ marginTop: "4px", color: "#0f766e", fontWeight: 600, fontSize: "0.78rem" }}>
-                                    {shareCopyStatus}
-                                </div>
-                            ) : null}
+                                    {copiedShareItemId === selectedItem.id && shareCopyStatus ? (
+                                        <div style={{ marginTop: "4px", color: "#0f766e", fontWeight: 600, fontSize: "0.78rem" }}>
+                                            {shareCopyStatus}
+                                        </div>
+                                    ) : null}
 
-                            {itemInteractionStatus ? (
-                                <div style={{ marginTop: "4px", color: "#155e75", fontWeight: 600, fontSize: "0.78rem" }}>
-                                    {itemInteractionStatus}
-                                </div>
-                            ) : null}
+                                    {itemInteractionStatus ? (
+                                        <div style={{ marginTop: "4px", color: "#155e75", fontWeight: 600, fontSize: "0.78rem" }}>
+                                            {itemInteractionStatus}
+                                        </div>
+                                    ) : null}
 
-                            {itemInteractionError ? (
-                                <div style={{ marginTop: "4px", color: "#991b1b", fontWeight: 600, fontSize: "0.78rem" }}>
-                                    {itemInteractionError}
+                                    {itemInteractionError ? (
+                                        <div style={{ marginTop: "4px", color: "#991b1b", fontWeight: 600, fontSize: "0.78rem" }}>
+                                            {itemInteractionError}
+                                        </div>
+                                    ) : null}
                                 </div>
-                            ) : null}
-                        </div>
 
-                        {typeof onSubmitItemComment === "function" ? (
+                                {typeof onSubmitItemComment === "function" ? (
                             <div
                                 style={{
                                     display: "grid",
@@ -689,9 +846,9 @@ export default function SelectedItemDrawer({
                                     <div style={{ fontSize: "0.78rem", color: "#64748b" }}>No approved comments yet.</div>
                                 )}
                             </div>
-                        ) : null}
+                                ) : null}
 
-                        {canManageItems && editingItemId === selectedItem.id ? (
+                                {canManageItems && editingItemId === selectedItem.id ? (
                             <div style={{ textAlign: "left", marginTop: "4px" }}>
                                 <div style={{ marginBottom: "8px" }}>
                                     <label style={{ fontSize: "0.8rem", color: "#475569" }}>Type</label>
@@ -725,6 +882,7 @@ export default function SelectedItemDrawer({
                                         }}
                                     >
                                         <option value="bike">Bike</option>
+                                        <option value="bin">Bin location</option>
                                         <option value="historic">Historic find</option>
                                         <option value="motorbike">Motorbike</option>
                                         <option value="trolley">Trolley</option>
@@ -1056,7 +1214,7 @@ export default function SelectedItemDrawer({
                                     </div>
                                 ) : null}
                             </div>
-                        ) : canManageItems ? (
+                                ) : canManageItems ? (
                             <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "10px", flexShrink: 0 }}>
                                 {lastSaveResult?.itemId === selectedItem.id && lastSaveResult.status === "success" ? (
                                     <div style={{ flex: "1 1 100%", padding: "8px 10px", background: "#f0fdf4", border: "1px solid #86efac", borderRadius: "6px", fontSize: "0.82rem", color: "#15803d", fontWeight: 600, textAlign: "center" }}>
@@ -1131,7 +1289,9 @@ export default function SelectedItemDrawer({
                                     Delete
                                 </button>
                             </div>
-                        ) : null}
+                                ) : null}
+                            </>
+                        )}
                     </div>
                 </div>
             </div>
