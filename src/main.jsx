@@ -6155,7 +6155,7 @@ function FloatingGoFundMeButton({ isMobile, isOpen, onToggle, onInteraction, onM
                     ? "calc(env(safe-area-inset-right, 0px) + 82px)"
                     : "calc(env(safe-area-inset-right, 0px) + 88px)",
                 bottom: "max(18px, env(safe-area-inset-bottom, 0px) + 18px)",
-                zIndex: 1302,
+                zIndex: 2147483000,
                 pointerEvents: "none",
             }}
         >
