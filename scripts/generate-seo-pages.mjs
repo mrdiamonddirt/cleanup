@@ -9,8 +9,10 @@ const projectRoot = path.resolve(__dirname, "..");
 const publicDir = path.join(projectRoot, "public");
 const shareRoot = path.join(publicDir, "share");
 const poiRoot = path.join(publicDir, "poi");
+const binFinderRoot = path.join(publicDir, "bin-finder");
 const legacyHistoryRoot = path.join(publicDir, "history");
 const fallbackImage = "/river-photo.jpg";
+const binFinderSeoImage = "/bin-images/GlasJubilee-Litter.jpg";
 const PAGE_SIZE = 500;
 
 const TYPE_LABELS = {
@@ -230,6 +232,62 @@ const buildIndexHtml = ({ siteUrl, itemCount }) => `<!doctype html>
 </html>
 `;
 
+const buildBinFinderHtml = ({ siteUrl }) => {
+        const canonicalUrl = `${siteUrl}/bin-finder/`;
+        const ogImageUrl = ensureAbsoluteUrl(siteUrl, binFinderSeoImage);
+        const appUrl = `${siteUrl}/bin-finder`;
+        const title = "Bin Finder | River Bank Cleanup Tracker";
+        const description = "Find the nearest mapped river bins around Lancaster. Bin Finder uses your location when available and falls back to a full bin list if location access is unavailable.";
+
+        const jsonLd = {
+                "@context": "https://schema.org",
+                "@type": "WebPage",
+                "name": title,
+                "url": canonicalUrl,
+                "description": description,
+                "image": ogImageUrl,
+        };
+
+        return `<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+        <meta name="theme-color" content="#0f172a" />
+        <meta name="description" content="${escapeHtml(description)}" />
+        <meta name="robots" content="index, follow" />
+
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="River Bank Cleanup Tracker" />
+        <meta property="og:title" content="${escapeHtml(title)}" />
+        <meta property="og:description" content="${escapeHtml(description)}" />
+        <meta property="og:url" content="${escapeHtml(canonicalUrl)}" />
+        <meta property="og:image" content="${escapeHtml(ogImageUrl)}" />
+        <meta property="og:image:alt" content="Glasdon Jubilee litter bin by the riverside" />
+
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="${escapeHtml(title)}" />
+        <meta name="twitter:description" content="${escapeHtml(description)}" />
+        <meta name="twitter:image" content="${escapeHtml(ogImageUrl)}" />
+
+        <link rel="canonical" href="${escapeHtml(canonicalUrl)}" />
+
+        <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
+        <title>${escapeHtml(title)}</title>
+    </head>
+    <body style="font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif; margin: 0; padding: 24px; background: #f8fafc; color: #0f172a;">
+        <main style="max-width: 720px; margin: 0 auto; background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 12px 26px rgba(15, 23, 42, 0.08);">
+            <h1 style="margin-top: 0; font-size: 1.45rem; line-height: 1.3;">${escapeHtml(title)}</h1>
+            <p style="margin: 0 0 14px; line-height: 1.5;">${escapeHtml(description)}</p>
+            <p style="margin: 0;">
+                <a href="${escapeHtml(appUrl)}" style="display: inline-block; background: #0f172a; color: #ffffff; text-decoration: none; padding: 10px 14px; border-radius: 10px; font-weight: 600;">Open Bin Finder</a>
+            </p>
+        </main>
+    </body>
+</html>
+`;
+};
+
 const buildPoiHtml = ({
         siteUrl,
     poiUrl,
@@ -336,7 +394,11 @@ const main = async () => {
     await mkdir(shareRoot, { recursive: true });
     await rm(poiRoot, { recursive: true, force: true });
     await mkdir(poiRoot, { recursive: true });
+    await rm(binFinderRoot, { recursive: true, force: true });
+    await mkdir(binFinderRoot, { recursive: true });
     await rm(legacyHistoryRoot, { recursive: true, force: true });
+
+    await writeFile(path.join(binFinderRoot, "index.html"), buildBinFinderHtml({ siteUrl }), "utf8");
 
     if (!supabaseUrl || !supabaseKey) {
         const indexHtml = buildIndexHtml({ siteUrl, itemCount: 0 });

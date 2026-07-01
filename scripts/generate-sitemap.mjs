@@ -92,6 +92,7 @@ const main = async () => {
 
     const urls = [
         `${siteUrl}/`,
+        `${siteUrl}/bin-finder/`,
         `${siteUrl}/links/`,
         `${siteUrl}/legal/privacy-policy/`,
         `${siteUrl}/legal/terms-of-service/`,

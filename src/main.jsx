@@ -183,6 +183,15 @@ const DEFAULT_RETRY_BASE_DELAY_MS = 900;
 const BIN_FINDER_SEGMENT = "bin-finder";
 const ROUTE_MANAGED_SEGMENTS = ["share", "poi", "leaderboard", BIN_FINDER_SEGMENT];
 const EARTH_RADIUS_METERS = 6371000;
+const DEFAULT_PAGE_TITLE = "River Bank Cleanup Tracker | Live River Lune Map";
+const DEFAULT_PAGE_DESCRIPTION = "Interactive River Lune cleanup tracker with live mapped recoveries, debris status, and tide-aware planning for volunteer action.";
+const DEFAULT_OG_DESCRIPTION = "Track live cleanup progress on the River Lune with mapped recoveries, item status, and tide context for safer planning.";
+const DEFAULT_OG_IMAGE_PATH = "/river-photo.jpg";
+const DEFAULT_OG_IMAGE_ALT = "Aerial river map used for environmental cleanup tracking";
+const BIN_FINDER_PAGE_TITLE = "Bin Finder | River Bank Cleanup Tracker";
+const BIN_FINDER_PAGE_DESCRIPTION = "Find the nearest mapped river bins around Lancaster. Bin Finder uses your location when available and falls back to a full bin list if location access is unavailable.";
+const BIN_FINDER_OG_IMAGE_PATH = "/bin-images/GlasJubilee-Litter.jpg";
+const BIN_FINDER_OG_IMAGE_ALT = "Glasdon Jubilee litter bin by the riverside";
 
 const AUTH_PROVIDER_PILL_STYLES = {
     github: { label: "GitHub", border: "1px solid #94a3b8", background: "#f8fafc", color: "#334155" },
@@ -1828,6 +1837,59 @@ const stripManagedRoutePathFromLocationPathname = (pathname) => {
     const baseSegments = routeStartIndex >= 0 ? pathSegments.slice(0, routeStartIndex) : pathSegments;
     const normalizedPath = `/${baseSegments.join("/")}`;
     return normalizedPath === "/" ? "/" : normalizedPath.replace(/\/+$/, "");
+};
+
+const buildAbsoluteUrlForManagedPath = (pathname) => {
+    if (typeof window === "undefined") return pathname;
+
+    const basePath = stripManagedRoutePathFromLocationPathname(window.location.pathname);
+    const normalizedPath = String(pathname || "/").startsWith("/")
+        ? String(pathname || "/")
+        : `/${String(pathname || "")}`;
+    const pathWithBase = `${basePath === "/" ? "" : basePath}${normalizedPath}`;
+    const normalized = pathWithBase.endsWith("/") ? pathWithBase : `${pathWithBase}/`;
+
+    return `${window.location.origin}${normalized}`;
+};
+
+const ensureAbsoluteAssetUrl = (value) => {
+    const text = String(value || "").trim();
+    if (!text) return text;
+    if (/^https?:\/\//i.test(text)) return text;
+    if (typeof window === "undefined") return text;
+    return `${window.location.origin}${text.startsWith("/") ? text : `/${text}`}`;
+};
+
+const upsertMetaTag = ({ name, property, content }) => {
+    if (typeof document === "undefined") return;
+    if (!name && !property) return;
+
+    const selector = name
+        ? `meta[name="${name}"]`
+        : `meta[property="${property}"]`;
+    let element = document.head.querySelector(selector);
+    if (!element) {
+        element = document.createElement("meta");
+        if (name) {
+            element.setAttribute("name", name);
+        } else {
+            element.setAttribute("property", property);
+        }
+        document.head.appendChild(element);
+    }
+    element.setAttribute("content", String(content || ""));
+};
+
+const upsertCanonicalLink = (href) => {
+    if (typeof document === "undefined") return;
+
+    let canonical = document.head.querySelector("link[rel=\"canonical\"]");
+    if (!canonical) {
+        canonical = document.createElement("link");
+        canonical.setAttribute("rel", "canonical");
+        document.head.appendChild(canonical);
+    }
+    canonical.setAttribute("href", String(href || ""));
 };
 
 const calculateDistanceMeters = (fromLatitude, fromLongitude, toLatitude, toLongitude) => {
@@ -15520,6 +15582,39 @@ function App() {
         leaderboardScope,
         selectedBinFinderItemId,
     ]);
+
+    useEffect(() => {
+        if (typeof document === "undefined") return;
+
+        const activeSeo = isBinFinderOpen
+            ? {
+                title: BIN_FINDER_PAGE_TITLE,
+                description: BIN_FINDER_PAGE_DESCRIPTION,
+                canonicalUrl: buildAbsoluteUrlForManagedPath(`/${BIN_FINDER_SEGMENT}/`),
+                imageUrl: ensureAbsoluteAssetUrl(BIN_FINDER_OG_IMAGE_PATH),
+                imageAlt: BIN_FINDER_OG_IMAGE_ALT,
+            }
+            : {
+                title: DEFAULT_PAGE_TITLE,
+                description: DEFAULT_PAGE_DESCRIPTION,
+                canonicalUrl: buildAbsoluteUrlForManagedPath("/"),
+                imageUrl: ensureAbsoluteAssetUrl(DEFAULT_OG_IMAGE_PATH),
+                imageAlt: DEFAULT_OG_IMAGE_ALT,
+            };
+
+        document.title = activeSeo.title;
+        upsertMetaTag({ name: "description", content: activeSeo.description });
+        upsertMetaTag({ property: "og:title", content: activeSeo.title });
+        upsertMetaTag({ property: "og:description", content: isBinFinderOpen ? activeSeo.description : DEFAULT_OG_DESCRIPTION });
+        upsertMetaTag({ property: "og:url", content: activeSeo.canonicalUrl });
+        upsertMetaTag({ property: "og:image", content: activeSeo.imageUrl });
+        upsertMetaTag({ property: "og:image:alt", content: activeSeo.imageAlt });
+        upsertMetaTag({ name: "twitter:title", content: activeSeo.title });
+        upsertMetaTag({ name: "twitter:description", content: activeSeo.description });
+        upsertMetaTag({ name: "twitter:image", content: activeSeo.imageUrl });
+        upsertMetaTag({ name: "twitter:image:alt", content: activeSeo.imageAlt });
+        upsertCanonicalLink(activeSeo.canonicalUrl);
+    }, [isBinFinderOpen]);
 
     useEffect(() => {
         if (typeof window === "undefined") return undefined;
