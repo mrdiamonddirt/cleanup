@@ -3262,6 +3262,10 @@ function PendingPlacementOverlay({
     setPendingEstimatedWeight,
     setPendingItemType,
     setPendingLocation,
+    pendingBinDraft,
+    onPendingBinDraftChange,
+    onCreatePendingBin,
+    onResetPendingBinDraft,
     handleTypePick,
     markOverlayInteraction,
     overlayPortalElement,
@@ -3273,6 +3277,7 @@ function PendingPlacementOverlay({
     const panelRef = useRef(null);
     const rafRef = useRef(null);
     const isBusy = isSavingItem || isPickingImage;
+    const isBinTypeSelected = pendingItemType === "bin";
     const desktopPanelWidth = pendingItemType ? 320 : 360;
     const [isWeightTouched, setIsWeightTouched] = useState(false);
     const [panelPosition, setPanelPosition] = useState({
@@ -3381,9 +3386,10 @@ function PendingPlacementOverlay({
     const parsedRawWeight = trimmedWeightInput ? Number.parseFloat(trimmedWeightInput) : null;
     const hasInvalidWeightInput =
         Boolean(pendingItemType) &&
+        !isBinTypeSelected &&
         trimmedWeightInput.length > 0 &&
         (!Number.isFinite(parsedRawWeight) || parsedRawWeight < 0.1);
-    const effectiveWeightKg = pendingItemType
+    const effectiveWeightKg = pendingItemType && !isBinTypeSelected
         ? (parseEstimatedWeightKg(pendingEstimatedWeight) || getDefaultWeightForType(pendingItemType))
         : null;
     const estimatedTotalWeightKg = effectiveWeightKg === null ? null : Math.round(effectiveWeightKg * pendingCount * 10) / 10;
@@ -3581,9 +3587,15 @@ function PendingPlacementOverlay({
                     <span style={{ fontSize: "1rem" }}>{selectedTypeOption.icon}</span>
                     <div style={{ minWidth: 0 }}>
                         <div style={{ fontSize: "0.79rem", fontWeight: 700, color: "#0f172a" }}>{selectedTypeOption.label}</div>
-                        <div style={{ fontSize: "0.72rem", color: "#475569" }}>
-                            Default {formatWeightKg(getDefaultWeightForType(selectedTypeOption.key))} per item
-                        </div>
+                        {isBinTypeSelected ? (
+                            <div style={{ fontSize: "0.72rem", color: "#475569" }}>
+                                Uses the same details as the public bin report form.
+                            </div>
+                        ) : (
+                            <div style={{ fontSize: "0.72rem", color: "#475569" }}>
+                                Default {formatWeightKg(getDefaultWeightForType(selectedTypeOption.key))} per item
+                            </div>
+                        )}
                     </div>
                 </div>
             ) : null}
@@ -3636,128 +3648,258 @@ function PendingPlacementOverlay({
             >
                 Tap another spot on the map to move the pin before saving.
             </div>
-            <div
-                style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    marginBottom: "8px",
-                    flexWrap: "wrap",
-                }}
-            >
-                <span style={{ fontSize: "0.85rem", color: "#334155" }}>
-                    How many items here?
-                </span>
-                <button
-                    onClick={() => setPendingCount((prev) => Math.max(1, prev - 1))}
-                    disabled={isBusy}
-                    style={{
-                        border: "1px solid #94a3b8",
-                        background: "#fff",
-                        borderRadius: "6px",
-                        width: touchButtonSize,
-                        height: touchButtonSize,
-                        fontWeight: 700,
-                        cursor: isBusy ? "not-allowed" : "pointer",
-                    }}
-                >
-                    -
-                </button>
-                <strong style={{ minWidth: "24px", textAlign: "center" }}>
-                    {pendingCount}
-                </strong>
-                <button
-                    onClick={() => setPendingCount((prev) => prev + 1)}
-                    disabled={isBusy}
-                    style={{
-                        border: "1px solid #94a3b8",
-                        background: "#fff",
-                        borderRadius: "6px",
-                        width: touchButtonSize,
-                        height: touchButtonSize,
-                        fontWeight: 700,
-                        cursor: isBusy ? "not-allowed" : "pointer",
-                    }}
-                >
-                    +
-                </button>
-            </div>
-            {pendingItemType ? (
-                <div style={{ marginBottom: "10px" }}>
-                    <label style={{ fontSize: "0.8rem", color: "#475569", display: "block" }}>
-                        Estimated weight per item (kg)
-                    </label>
-                    <input
-                        type="number"
-                        min="0.1"
-                        step="0.1"
-                        value={pendingEstimatedWeight}
-                        onChange={(event) => setPendingEstimatedWeight(event.target.value)}
-                        onBlur={() => setIsWeightTouched(true)}
-                        disabled={isBusy}
+            {!isBinTypeSelected ? (
+                <>
+                    <div
                         style={{
-                            width: "100%",
-                            marginTop: "4px",
-                            border: isWeightTouched && hasInvalidWeightInput ? "1px solid #f87171" : "1px solid #cbd5e1",
-                            borderRadius: "6px",
-                            padding: "8px",
-                            boxSizing: "border-box",
-                            fontSize: controlFontSize,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                            marginBottom: "8px",
+                            flexWrap: "wrap",
                         }}
-                    />
-                    {isWeightTouched && hasInvalidWeightInput ? (
-                        <div style={{ marginTop: "4px", fontSize: "0.74rem", color: "#b91c1c", lineHeight: 1.35 }}>
-                            Enter a valid number of at least 0.1 kg per item.
-                        </div>
-                    ) : (
-                        <div style={{ marginTop: "4px", fontSize: "0.74rem", color: "#64748b", lineHeight: 1.35 }}>
-                            Defaults to {formatWeightKg(getDefaultWeightForType(pendingItemType))} for {TYPE_PLURAL_LABELS[pendingItemType] || "items"}.
-                        </div>
-                    )}
-                    {estimatedTotalWeightKg !== null ? (
-                        <div style={{ marginTop: "3px", fontSize: "0.74rem", color: "#334155", lineHeight: 1.35, fontWeight: 600 }}>
-                            Estimated total: {formatWeightKg(estimatedTotalWeightKg)} for {pendingCount} {pendingCount === 1 ? "item" : "items"}.
-                        </div>
-                    ) : null}
-                </div>
-            ) : null}
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                {pendingItemType ? (
-                    <>
+                    >
+                        <span style={{ fontSize: "0.85rem", color: "#334155" }}>
+                            How many items here?
+                        </span>
                         <button
-                            onClick={(event) => handleImagePickRequest("camera", event)}
-                            disabled={isBusy || hasInvalidWeightInput}
-                            style={{
-                                border: "1px solid #2563eb",
-                                background: "#eff6ff",
-                                color: "#1d4ed8",
-                                padding: isMobile ? "10px 14px" : "8px 12px",
-                                borderRadius: "8px",
-                                fontSize: controlFontSize,
-                                fontWeight: 700,
-                                cursor: (isBusy || hasInvalidWeightInput) ? "not-allowed" : "pointer",
-                                opacity: (isBusy || hasInvalidWeightInput) ? 0.6 : 1,
-                            }}
-                        >
-                            Use Camera
-                        </button>
-                        <button
-                            onClick={(event) => handleImagePickRequest("gallery", event)}
-                            disabled={isBusy || hasInvalidWeightInput}
+                            onClick={() => setPendingCount((prev) => Math.max(1, prev - 1))}
+                            disabled={isBusy}
                             style={{
                                 border: "1px solid #94a3b8",
                                 background: "#fff",
-                                color: "#0f172a",
-                                padding: isMobile ? "10px 14px" : "8px 12px",
-                                borderRadius: "8px",
-                                fontSize: controlFontSize,
+                                borderRadius: "6px",
+                                width: touchButtonSize,
+                                height: touchButtonSize,
                                 fontWeight: 700,
-                                cursor: (isBusy || hasInvalidWeightInput) ? "not-allowed" : "pointer",
-                                opacity: (isBusy || hasInvalidWeightInput) ? 0.6 : 1,
+                                cursor: isBusy ? "not-allowed" : "pointer",
                             }}
                         >
-                            Choose From Gallery
+                            -
                         </button>
+                        <strong style={{ minWidth: "24px", textAlign: "center" }}>
+                            {pendingCount}
+                        </strong>
+                        <button
+                            onClick={() => setPendingCount((prev) => prev + 1)}
+                            disabled={isBusy}
+                            style={{
+                                border: "1px solid #94a3b8",
+                                background: "#fff",
+                                borderRadius: "6px",
+                                width: touchButtonSize,
+                                height: touchButtonSize,
+                                fontWeight: 700,
+                                cursor: isBusy ? "not-allowed" : "pointer",
+                            }}
+                        >
+                            +
+                        </button>
+                    </div>
+                    {pendingItemType ? (
+                        <div style={{ marginBottom: "10px" }}>
+                            <label style={{ fontSize: "0.8rem", color: "#475569", display: "block" }}>
+                                Estimated weight per item (kg)
+                            </label>
+                            <input
+                                type="number"
+                                min="0.1"
+                                step="0.1"
+                                value={pendingEstimatedWeight}
+                                onChange={(event) => setPendingEstimatedWeight(event.target.value)}
+                                onBlur={() => setIsWeightTouched(true)}
+                                disabled={isBusy}
+                                style={{
+                                    width: "100%",
+                                    marginTop: "4px",
+                                    border: isWeightTouched && hasInvalidWeightInput ? "1px solid #f87171" : "1px solid #cbd5e1",
+                                    borderRadius: "6px",
+                                    padding: "8px",
+                                    boxSizing: "border-box",
+                                    fontSize: controlFontSize,
+                                }}
+                            />
+                            {isWeightTouched && hasInvalidWeightInput ? (
+                                <div style={{ marginTop: "4px", fontSize: "0.74rem", color: "#b91c1c", lineHeight: 1.35 }}>
+                                    Enter a valid number of at least 0.1 kg per item.
+                                </div>
+                            ) : (
+                                <div style={{ marginTop: "4px", fontSize: "0.74rem", color: "#64748b", lineHeight: 1.35 }}>
+                                    Defaults to {formatWeightKg(getDefaultWeightForType(pendingItemType))} for {TYPE_PLURAL_LABELS[pendingItemType] || "items"}.
+                                </div>
+                            )}
+                            {estimatedTotalWeightKg !== null ? (
+                                <div style={{ marginTop: "3px", fontSize: "0.74rem", color: "#334155", lineHeight: 1.35, fontWeight: 600 }}>
+                                    Estimated total: {formatWeightKg(estimatedTotalWeightKg)} for {pendingCount} {pendingCount === 1 ? "item" : "items"}.
+                                </div>
+                            ) : null}
+                        </div>
+                    ) : null}
+                </>
+            ) : (
+                <div style={{ display: "grid", gap: "8px", marginBottom: "10px" }}>
+                    <label style={{ display: "grid", gap: "4px" }}>
+                        <span style={{ fontSize: "0.76rem", color: "#334155", fontWeight: 700 }}>
+                            Google Maps URL (required)
+                        </span>
+                        <input
+                            type="url"
+                            value={String(pendingBinDraft?.googleMapsUrl || "")}
+                            onChange={(event) => onPendingBinDraftChange("googleMapsUrl", event.target.value)}
+                            placeholder="https://maps.google.com/..."
+                            disabled={isBusy}
+                            style={{
+                                border: "1px solid #bfdbfe",
+                                borderRadius: "8px",
+                                minHeight: "36px",
+                                padding: "7px",
+                                fontSize: "0.82rem",
+                                color: "#0f172a",
+                                boxSizing: "border-box",
+                                width: "100%",
+                            }}
+                        />
+                    </label>
+                    <label style={{ display: "grid", gap: "4px" }}>
+                        <span style={{ fontSize: "0.76rem", color: "#334155", fontWeight: 700 }}>
+                            Street View URL (optional)
+                        </span>
+                        <input
+                            type="url"
+                            value={String(pendingBinDraft?.streetViewUrl || "")}
+                            onChange={(event) => onPendingBinDraftChange("streetViewUrl", event.target.value)}
+                            placeholder="https://maps.google.com/..."
+                            disabled={isBusy}
+                            style={{
+                                border: "1px solid #bfdbfe",
+                                borderRadius: "8px",
+                                minHeight: "36px",
+                                padding: "7px",
+                                fontSize: "0.82rem",
+                                color: "#0f172a",
+                                boxSizing: "border-box",
+                                width: "100%",
+                            }}
+                        />
+                    </label>
+                    <label style={{ display: "grid", gap: "4px" }}>
+                        <span style={{ fontSize: "0.76rem", color: "#334155", fontWeight: 700 }}>
+                            Help locate this bin (optional)
+                        </span>
+                        <input
+                            type="text"
+                            value={String(pendingBinDraft?.locateNote || "")}
+                            onChange={(event) => onPendingBinDraftChange("locateNote", event.target.value)}
+                            placeholder="Example: behind the second gate near the bridge"
+                            disabled={isBusy}
+                            style={{
+                                border: "1px solid #bfdbfe",
+                                borderRadius: "8px",
+                                minHeight: "36px",
+                                padding: "7px",
+                                fontSize: "0.82rem",
+                                color: "#0f172a",
+                                boxSizing: "border-box",
+                                width: "100%",
+                            }}
+                        />
+                    </label>
+                    <label style={{ display: "inline-flex", alignItems: "center", gap: "8px", fontSize: "0.76rem", color: "#334155", fontWeight: 700 }}>
+                        <input
+                            type="checkbox"
+                            checked={Boolean(pendingBinDraft?.isGlasdonJubilee)}
+                            onChange={(event) => onPendingBinDraftChange("isGlasdonJubilee", event.target.checked)}
+                            disabled={isBusy}
+                        />
+                        This is a Glasdon Jubilee bin
+                    </label>
+                    <label style={{ display: "grid", gap: "4px" }}>
+                        <span style={{ fontSize: "0.76rem", color: "#334155", fontWeight: 700 }}>
+                            Quick details (optional)
+                        </span>
+                        <textarea
+                            value={String(pendingBinDraft?.reportNote || "")}
+                            onChange={(event) => onPendingBinDraftChange("reportNote", event.target.value)}
+                            maxLength={REPORT_NOTE_MAX_LENGTH}
+                            placeholder="Example: near footbridge, opposite the bench"
+                            disabled={isBusy}
+                            style={{
+                                border: "1px solid #bfdbfe",
+                                borderRadius: "8px",
+                                minHeight: "72px",
+                                resize: "vertical",
+                                padding: "7px",
+                                fontSize: "0.82rem",
+                                color: "#0f172a",
+                                boxSizing: "border-box",
+                                width: "100%",
+                            }}
+                        />
+                        <span style={{ fontSize: "0.72rem", color: "#64748b" }}>
+                            {String(pendingBinDraft?.reportNote || "").length}/{REPORT_NOTE_MAX_LENGTH}
+                        </span>
+                    </label>
+                </div>
+            )}
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                {pendingItemType ? (
+                    <>
+                        {isBinTypeSelected ? (
+                            <button
+                                onClick={onCreatePendingBin}
+                                disabled={isBusy}
+                                style={{
+                                    border: "1px solid #166534",
+                                    background: "#dcfce7",
+                                    color: "#166534",
+                                    padding: isMobile ? "10px 14px" : "8px 12px",
+                                    borderRadius: "8px",
+                                    fontSize: controlFontSize,
+                                    fontWeight: 700,
+                                    cursor: isBusy ? "not-allowed" : "pointer",
+                                    opacity: isBusy ? 0.6 : 1,
+                                }}
+                            >
+                                Create verified bin
+                            </button>
+                        ) : (
+                            <>
+                                <button
+                                    onClick={(event) => handleImagePickRequest("camera", event)}
+                                    disabled={isBusy || hasInvalidWeightInput}
+                                    style={{
+                                        border: "1px solid #2563eb",
+                                        background: "#eff6ff",
+                                        color: "#1d4ed8",
+                                        padding: isMobile ? "10px 14px" : "8px 12px",
+                                        borderRadius: "8px",
+                                        fontSize: controlFontSize,
+                                        fontWeight: 700,
+                                        cursor: (isBusy || hasInvalidWeightInput) ? "not-allowed" : "pointer",
+                                        opacity: (isBusy || hasInvalidWeightInput) ? 0.6 : 1,
+                                    }}
+                                >
+                                    Use Camera
+                                </button>
+                                <button
+                                    onClick={(event) => handleImagePickRequest("gallery", event)}
+                                    disabled={isBusy || hasInvalidWeightInput}
+                                    style={{
+                                        border: "1px solid #94a3b8",
+                                        background: "#fff",
+                                        color: "#0f172a",
+                                        padding: isMobile ? "10px 14px" : "8px 12px",
+                                        borderRadius: "8px",
+                                        fontSize: controlFontSize,
+                                        fontWeight: 700,
+                                        cursor: (isBusy || hasInvalidWeightInput) ? "not-allowed" : "pointer",
+                                        opacity: (isBusy || hasInvalidWeightInput) ? 0.6 : 1,
+                                    }}
+                                >
+                                    Choose From Gallery
+                                </button>
+                            </>
+                        )}
                         <button
                             onClick={() => {
                                 setPendingItemType(null);
@@ -3842,7 +3984,7 @@ function PendingPlacementOverlay({
                                         padding: useDesktopCompactTypeButtons ? "1px 6px" : "0",
                                     }}
                                 >
-                                    {useDesktopCompactTypeButtons ? formatWeightKg(getDefaultWeightForType(option.key)) : `Default ${formatWeightKg(getDefaultWeightForType(option.key))}`}
+                                    {option.key === "bin" ? "Verified bin" : (useDesktopCompactTypeButtons ? formatWeightKg(getDefaultWeightForType(option.key)) : `Default ${formatWeightKg(getDefaultWeightForType(option.key))}`)}
                                 </span>
                             </button>
                         ))}
@@ -3854,6 +3996,7 @@ function PendingPlacementOverlay({
                         setPendingItemType(null);
                         setPendingEstimatedWeight("");
                         setPendingLocation(null);
+                        onResetPendingBinDraft();
                         setIsWeightTouched(false);
                     }}
                     disabled={isBusy}
@@ -13650,6 +13793,13 @@ function App() {
     );
     const [lastUploadRequest, setLastUploadRequest] = useState(null);
     const [pendingCount, setPendingCount] = useState(1);
+    const [pendingBinDraft, setPendingBinDraft] = useState({
+        googleMapsUrl: "",
+        streetViewUrl: "",
+        locateNote: "",
+        reportNote: "",
+        isGlasdonJubilee: false,
+    });
     const [editingItemId, setEditingItemId] = useState(null);
     const [editForm, setEditForm] = useState({
         type: "misc",
@@ -14532,6 +14682,88 @@ function App() {
     const normalizeReportUrlField = (value) => String(value || "").trim();
 
     const isLikelyHttpUrl = (value) => /^https?:\/\//i.test(String(value || "").trim());
+
+    const resetPendingBinDraft = (location = null) => {
+        const lat = Number(location?.y);
+        const lng = Number(location?.x);
+
+        setPendingBinDraft({
+            googleMapsUrl: Number.isFinite(lat) && Number.isFinite(lng)
+                ? createMapsUrl(lat, lng)
+                : "",
+            streetViewUrl: "",
+            locateNote: "",
+            reportNote: "",
+            isGlasdonJubilee: false,
+        });
+    };
+
+    const updatePendingBinDraft = (field, value) => {
+        setPendingBinDraft((prev) => ({
+            ...prev,
+            [field]: field === "isGlasdonJubilee" ? Boolean(value) : value,
+        }));
+    };
+
+    const createPendingVerifiedBin = async () => {
+        if (!canManageItems || !hasSupabaseConfig || !pendingLocation || isSavingItem || isPickingImage) return;
+
+        const googleMapsUrl = String(pendingBinDraft.googleMapsUrl || "").trim();
+        const streetViewUrl = String(pendingBinDraft.streetViewUrl || "").trim();
+
+        if (!googleMapsUrl) {
+            showUploadError(null, "Google Maps URL is required for bins.");
+            return;
+        }
+
+        if (!isLikelyHttpUrl(googleMapsUrl)) {
+            showUploadError(null, "Google Maps URL must start with http:// or https://.");
+            return;
+        }
+
+        if (streetViewUrl && !isLikelyHttpUrl(streetViewUrl)) {
+            showUploadError(null, "Street View URL must start with http:// or https://.");
+            return;
+        }
+
+        clearUploadFeedback();
+        setIsSavingItem(true);
+        setUploadStage("saving");
+        setUploadProgressText("Creating verified bin...");
+
+        try {
+            const { error } = await createVerifiedBinForAdmin({
+                latitude: pendingLocation.y,
+                longitude: pendingLocation.x,
+                googleMapsUrl,
+                streetViewUrl,
+                locateNote: pendingBinDraft.locateNote,
+                reportNote: pendingBinDraft.reportNote,
+                isGlasdonJubilee: Boolean(pendingBinDraft.isGlasdonJubilee),
+            });
+
+            if (error) {
+                showUploadError(error, "Could not create verified bin. Please try again.");
+                return;
+            }
+
+            setUploadProgressText("Verified bin created. Refreshing map...");
+            await fetchItems({ bypassTtl: true });
+            setUploadStage("success");
+            setUploadProgressText("Verified bin created.");
+            await wait(900);
+            clearUploadFeedback();
+            setPendingItemType(null);
+            setPendingLocation(null);
+            setPendingEstimatedWeight("");
+            setPendingCount(1);
+            resetPendingBinDraft();
+        } catch (error) {
+            showUploadError(error, "Could not create verified bin. Please try again.");
+        } finally {
+            setIsSavingItem(false);
+        }
+    };
 
     const handleSubmitBinReport = async () => {
         if (!reportLocation) return;
@@ -17565,10 +17797,12 @@ function App() {
                 if (canManageItems) {
                     setPendingItemType(null);
                     setPendingEstimatedWeight("");
-                    setPendingLocation({
+                    const nextPendingLocation = {
                         y: e.latlng.lat,
                         x: e.latlng.lng,
-                    });
+                    };
+                    setPendingLocation(nextPendingLocation);
+                    resetPendingBinDraft(nextPendingLocation);
                     return;
                 }
 
@@ -20830,6 +21064,10 @@ function App() {
                         setPendingEstimatedWeight={setPendingEstimatedWeight}
                         setPendingItemType={setPendingItemType}
                         setPendingLocation={setPendingLocation}
+                        pendingBinDraft={pendingBinDraft}
+                        onPendingBinDraftChange={updatePendingBinDraft}
+                        onCreatePendingBin={createPendingVerifiedBin}
+                        onResetPendingBinDraft={() => resetPendingBinDraft()}
                         handleTypePick={handleTypePick}
                         markOverlayInteraction={markOverlayInteraction}
                         overlayPortalElement={mapOverlayRootRef.current}
