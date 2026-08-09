@@ -1,7 +1,7 @@
 {
   "location": "Lancaster, UK",
   "sourceUrl": "https://www.tide-forecast.com/locations/Lancaster/tides/latest",
-  "updatedAt": "2026-08-08T01:51:29.708Z",
+  "updatedAt": "2026-08-09T01:51:50.606Z",
   "metadata": {
     "mergedFromExistingRows": 0,
     "mergedFromFetchedRows": 20,
@@ -10,109 +10,109 @@
       "past": 30,
       "future": 132
     },
-    "coverageStart": "2026-08-08T01:12:00.000Z",
-    "coverageEnd": "2026-08-12T23:56:00.000Z"
+    "coverageStart": "2026-08-09T02:47:00.000Z",
+    "coverageEnd": "2026-08-14T00:40:00.000Z"
   },
   "rows": [
     {
       "type": "Low Tide",
-      "time": "1:12 AM (Sat 08 August)",
-      "height": "8.33 ft (2.54 m)"
-    },
-    {
-      "type": "High Tide",
-      "time": "7:17 AM (Sat 08 August)",
-      "height": "23.72 ft (7.23 m)"
-    },
-    {
-      "type": "Low Tide",
-      "time": "2:00 PM (Sat 08 August)",
-      "height": "7.98 ft (2.43 m)"
-    },
-    {
-      "type": "High Tide",
-      "time": "7:58 PM (Sat 08 August)",
-      "height": "23.66 ft (7.21 m)"
-    },
-    {
-      "type": "Low Tide",
       "time": "2:47 AM (Sun 09 August)",
-      "height": "7.91 ft (2.41 m)"
+      "height": "2.41 m (7.91 ft)"
     },
     {
       "type": "High Tide",
       "time": "8:36 AM (Sun 09 August)",
-      "height": "24.12 ft (7.35 m)"
+      "height": "7.35 m (24.12 ft)"
     },
     {
       "type": "Low Tide",
       "time": "3:29 PM (Sun 09 August)",
-      "height": "7.25 ft (2.21 m)"
+      "height": "2.21 m (7.25 ft)"
     },
     {
       "type": "High Tide",
       "time": "9:11 PM (Sun 09 August)",
-      "height": "24.97 ft (7.61 m)"
+      "height": "7.61 m (24.97 ft)"
     },
     {
       "type": "Low Tide",
       "time": "4:09 AM (Mon 10 August)",
-      "height": "6.17 ft (1.88 m)"
+      "height": "1.88 m (6.17 ft)"
     },
     {
       "type": "High Tide",
       "time": "9:45 AM (Mon 10 August)",
-      "height": "25.46 ft (7.76 m)"
+      "height": "7.76 m (25.46 ft)"
     },
     {
       "type": "Low Tide",
       "time": "4:39 PM (Mon 10 August)",
-      "height": "5.64 ft (1.72 m)"
+      "height": "1.72 m (5.64 ft)"
     },
     {
       "type": "High Tide",
       "time": "10:14 PM (Mon 10 August)",
-      "height": "26.97 ft (8.22 m)"
+      "height": "8.22 m (26.97 ft)"
     },
     {
       "type": "Low Tide",
       "time": "5:13 AM (Tue 11 August)",
-      "height": "3.87 ft (1.18 m)"
+      "height": "1.18 m (3.87 ft)"
     },
     {
       "type": "High Tide",
       "time": "10:44 AM (Tue 11 August)",
-      "height": "27.17 ft (8.28 m)"
+      "height": "8.28 m (27.17 ft)"
     },
     {
       "type": "Low Tide",
       "time": "5:35 PM (Tue 11 August)",
-      "height": "3.81 ft (1.16 m)"
+      "height": "1.16 m (3.81 ft)"
     },
     {
       "type": "High Tide",
       "time": "11:07 PM (Tue 11 August)",
-      "height": "29.1 ft (8.87 m)"
+      "height": "8.87 m (29.1 ft)"
     },
     {
       "type": "Low Tide",
       "time": "6:05 AM (Wed 12 August)",
-      "height": "1.67 ft (0.51 m)"
+      "height": "0.51 m (1.67 ft)"
     },
     {
       "type": "High Tide",
       "time": "11:36 AM (Wed 12 August)",
-      "height": "28.71 ft (8.75 m)"
+      "height": "8.75 m (28.71 ft)"
     },
     {
       "type": "Low Tide",
       "time": "6:23 PM (Wed 12 August)",
-      "height": "2.26 ft (0.69 m)"
+      "height": "0.69 m (2.26 ft)"
     },
     {
       "type": "High Tide",
       "time": "11:56 PM (Wed 12 August)",
-      "height": "30.94 ft (9.43 m)"
+      "height": "9.43 m (30.94 ft)"
+    },
+    {
+      "type": "Low Tide",
+      "time": "6:51 AM (Thu 13 August)",
+      "height": "0.02 m (0.07 ft)"
+    },
+    {
+      "type": "High Tide",
+      "time": "12:23 PM (Thu 13 August)",
+      "height": "9.09 m (29.82 ft)"
+    },
+    {
+      "type": "Low Tide",
+      "time": "7:06 PM (Thu 13 August)",
+      "height": "0.39 m (1.28 ft)"
+    },
+    {
+      "type": "High Tide",
+      "time": "00:40 AM (Fri 14 August)",
+      "height": "9.78 m (32.07 ft)"
     }
   ]
 }
