@@ -1,7 +1,7 @@
 {
   "location": "Lancaster, UK",
   "sourceUrl": "https://www.tide-forecast.com/locations/Lancaster/tides/latest",
-  "updatedAt": "2026-09-27T01:40:42.521Z",
+  "updatedAt": "2026-09-28T01:44:52.299Z",
   "metadata": {
     "mergedFromExistingRows": 0,
     "mergedFromFetchedRows": 20,
@@ -10,30 +10,10 @@
       "past": 30,
       "future": 132
     },
-    "coverageStart": "2026-09-27T00:01:00.000Z",
-    "coverageEnd": "2026-10-01T21:31:00.000Z"
+    "coverageStart": "2026-09-28T00:38:00.000Z",
+    "coverageEnd": "2026-10-02T22:26:00.000Z"
   },
   "rows": [
-    {
-      "type": "High Tide",
-      "time": "00:01 AM (Sun 27 September)",
-      "height": "30.41 ft (9.27 m)"
-    },
-    {
-      "type": "Low Tide",
-      "time": "6:44 AM (Sun 27 September)",
-      "height": "0.89 ft (0.27 m)"
-    },
-    {
-      "type": "High Tide",
-      "time": "12:22 PM (Sun 27 September)",
-      "height": "29.92 ft (9.12 m)"
-    },
-    {
-      "type": "Low Tide",
-      "time": "6:57 PM (Sun 27 September)",
-      "height": "1.57 ft (0.48 m)"
-    },
     {
       "type": "High Tide",
       "time": "00:38 AM (Mon 28 September)",
@@ -113,6 +93,26 @@
       "type": "Low Tide",
       "time": "9:31 PM (Thu 01 October)",
       "height": "4.04 ft (1.23 m)"
+    },
+    {
+      "type": "High Tide",
+      "time": "3:24 AM (Fri 02 October)",
+      "height": "27.92 ft (8.51 m)"
+    },
+    {
+      "type": "Low Tide",
+      "time": "9:58 AM (Fri 02 October)",
+      "height": "5.32 ft (1.62 m)"
+    },
+    {
+      "type": "High Tide",
+      "time": "3:49 PM (Fri 02 October)",
+      "height": "26.74 ft (8.15 m)"
+    },
+    {
+      "type": "Low Tide",
+      "time": "10:26 PM (Fri 02 October)",
+      "height": "5.77 ft (1.76 m)"
     }
   ]
 }
