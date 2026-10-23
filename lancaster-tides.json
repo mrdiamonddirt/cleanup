@@ -1,118 +1,118 @@
 {
   "location": "Lancaster, UK",
   "sourceUrl": "https://www.tide-forecast.com/locations/Lancaster/tides/latest",
-  "updatedAt": "2026-10-22T18:54:47.039Z",
+  "updatedAt": "2026-10-23T01:34:28.969Z",
   "metadata": {
-    "mergedFromExistingRows": 21,
+    "mergedFromExistingRows": 0,
     "mergedFromFetchedRows": 20,
     "retainedRows": 20,
     "retentionHours": {
       "past": 30,
       "future": 132
     },
-    "coverageStart": "2026-10-22T02:27:00.000Z",
-    "coverageEnd": "2026-10-26T23:12:00.000Z"
+    "coverageStart": "2026-10-23T04:14:00.000Z",
+    "coverageEnd": "2026-10-27T23:54:00.000Z"
   },
   "rows": [
     {
       "type": "Low Tide",
-      "time": "3:27 AM (Thu 22 October)",
-      "height": "2.29 m (7.51 ft)"
-    },
-    {
-      "type": "High Tide",
-      "time": "9:15 AM (Thu 22 October)",
-      "height": "6.86 m (22.51 ft)"
-    },
-    {
-      "type": "Low Tide",
-      "time": "3:45 PM (Thu 22 October)",
-      "height": "2.36 m (7.74 ft)"
-    },
-    {
-      "type": "High Tide",
-      "time": "9:31 PM (Thu 22 October)",
-      "height": "7.46 m (24.48 ft)"
-    },
-    {
-      "type": "Low Tide",
       "time": "4:14 AM (Fri 23 October)",
-      "height": "1.7 m (5.58 ft)"
+      "height": "5.58 ft (1.7 m)"
     },
     {
       "type": "High Tide",
       "time": "9:59 AM (Fri 23 October)",
-      "height": "7.53 m (24.71 ft)"
+      "height": "24.71 ft (7.53 m)"
     },
     {
       "type": "Low Tide",
       "time": "4:32 PM (Fri 23 October)",
-      "height": "1.79 m (5.87 ft)"
+      "height": "5.87 ft (1.79 m)"
     },
     {
       "type": "High Tide",
       "time": "10:13 PM (Fri 23 October)",
-      "height": "8.1 m (26.58 ft)"
+      "height": "26.58 ft (8.1 m)"
     },
     {
       "type": "Low Tide",
       "time": "4:56 AM (Sat 24 October)",
-      "height": "1.13 m (3.71 ft)"
+      "height": "3.71 ft (1.13 m)"
     },
     {
       "type": "High Tide",
       "time": "10:38 AM (Sat 24 October)",
-      "height": "8.2 m (26.9 ft)"
+      "height": "26.9 ft (8.2 m)"
     },
     {
       "type": "Low Tide",
       "time": "5:13 PM (Sat 24 October)",
-      "height": "1.25 m (4.1 ft)"
+      "height": "4.1 ft (1.25 m)"
     },
     {
       "type": "High Tide",
       "time": "10:53 PM (Sat 24 October)",
-      "height": "8.72 m (28.61 ft)"
+      "height": "28.61 ft (8.72 m)"
     },
     {
       "type": "Low Tide",
       "time": "4:35 AM (Sun 25 October)",
-      "height": "0.65 m (2.13 ft)"
+      "height": "2.13 ft (0.65 m)"
     },
     {
       "type": "High Tide",
       "time": "10:16 AM (Sun 25 October)",
-      "height": "8.81 m (28.91 ft)"
+      "height": "28.91 ft (8.81 m)"
     },
     {
       "type": "Low Tide",
       "time": "4:52 PM (Sun 25 October)",
-      "height": "0.79 m (2.59 ft)"
+      "height": "2.59 ft (0.79 m)"
     },
     {
       "type": "High Tide",
       "time": "10:32 PM (Sun 25 October)",
-      "height": "9.23 m (30.28 ft)"
+      "height": "30.28 ft (9.23 m)"
     },
     {
       "type": "Low Tide",
       "time": "5:13 AM (Mon 26 October)",
-      "height": "0.33 m (1.08 ft)"
+      "height": "1.08 ft (0.33 m)"
     },
     {
       "type": "High Tide",
       "time": "10:55 AM (Mon 26 October)",
-      "height": "9.27 m (30.41 ft)"
+      "height": "30.41 ft (9.27 m)"
     },
     {
       "type": "Low Tide",
       "time": "5:31 PM (Mon 26 October)",
-      "height": "0.46 m (1.51 ft)"
+      "height": "1.51 ft (0.46 m)"
     },
     {
       "type": "High Tide",
       "time": "11:12 PM (Mon 26 October)",
-      "height": "9.57 m (31.4 ft)"
+      "height": "31.4 ft (9.57 m)"
+    },
+    {
+      "type": "Low Tide",
+      "time": "5:52 AM (Tue 27 October)",
+      "height": "0.69 ft (0.21 m)"
+    },
+    {
+      "type": "High Tide",
+      "time": "11:34 AM (Tue 27 October)",
+      "height": "31.3 ft (9.54 m)"
+    },
+    {
+      "type": "Low Tide",
+      "time": "6:10 PM (Tue 27 October)",
+      "height": "1.03 ft (0.32 m)"
+    },
+    {
+      "type": "High Tide",
+      "time": "11:54 PM (Tue 27 October)",
+      "height": "31.76 ft (9.68 m)"
     }
   ]
 }
