@@ -1,7 +1,7 @@
 {
   "location": "Lancaster, UK",
   "sourceUrl": "https://www.tide-forecast.com/locations/Lancaster/tides/latest",
-  "updatedAt": "2026-11-19T01:17:08.361Z",
+  "updatedAt": "2026-11-20T01:16:24.897Z",
   "metadata": {
     "mergedFromExistingRows": 0,
     "mergedFromFetchedRows": 20,
@@ -10,109 +10,109 @@
       "past": 30,
       "future": 132
     },
-    "coverageStart": "2026-11-19T00:24:00.000Z",
-    "coverageEnd": "2026-11-23T22:06:00.000Z"
+    "coverageStart": "2026-11-20T01:27:00.000Z",
+    "coverageEnd": "2026-11-24T22:52:00.000Z"
   },
   "rows": [
     {
       "type": "Low Tide",
-      "time": "00:24 AM (Thu 19 November)",
-      "height": "8.53 ft (2.6 m)"
-    },
-    {
-      "type": "High Tide",
-      "time": "6:17 AM (Thu 19 November)",
-      "height": "21.06 ft (6.42 m)"
-    },
-    {
-      "type": "Low Tide",
-      "time": "12:47 PM (Thu 19 November)",
-      "height": "9.42 ft (2.87 m)"
-    },
-    {
-      "type": "High Tide",
-      "time": "6:41 PM (Thu 19 November)",
-      "height": "22.64 ft (6.9 m)"
-    },
-    {
-      "type": "Low Tide",
       "time": "1:27 AM (Fri 20 November)",
-      "height": "7.58 ft (2.31 m)"
+      "height": "2.31 m (7.58 ft)"
     },
     {
       "type": "High Tide",
       "time": "7:21 AM (Fri 20 November)",
-      "height": "22.47 ft (6.85 m)"
+      "height": "6.85 m (22.47 ft)"
     },
     {
       "type": "Low Tide",
       "time": "1:51 PM (Fri 20 November)",
-      "height": "8.3 ft (2.53 m)"
+      "height": "2.53 m (8.3 ft)"
     },
     {
       "type": "High Tide",
       "time": "7:40 PM (Fri 20 November)",
-      "height": "24.01 ft (7.32 m)"
+      "height": "7.32 m (24.01 ft)"
     },
     {
       "type": "Low Tide",
       "time": "2:24 AM (Sat 21 November)",
-      "height": "6.17 ft (1.88 m)"
+      "height": "1.88 m (6.17 ft)"
     },
     {
       "type": "High Tide",
       "time": "8:14 AM (Sat 21 November)",
-      "height": "24.38 ft (7.43 m)"
+      "height": "7.43 m (24.38 ft)"
     },
     {
       "type": "Low Tide",
       "time": "2:48 PM (Sat 21 November)",
-      "height": "6.76 ft (2.06 m)"
+      "height": "2.06 m (6.76 ft)"
     },
     {
       "type": "High Tide",
       "time": "8:32 PM (Sat 21 November)",
-      "height": "25.82 ft (7.87 m)"
+      "height": "7.87 m (25.82 ft)"
     },
     {
       "type": "Low Tide",
       "time": "3:14 AM (Sun 22 November)",
-      "height": "4.59 ft (1.4 m)"
+      "height": "1.4 m (4.59 ft)"
     },
     {
       "type": "High Tide",
       "time": "9:02 AM (Sun 22 November)",
-      "height": "26.51 ft (8.08 m)"
+      "height": "8.08 m (26.51 ft)"
     },
     {
       "type": "Low Tide",
       "time": "3:38 PM (Sun 22 November)",
-      "height": "5.02 ft (1.53 m)"
+      "height": "1.53 m (5.02 ft)"
     },
     {
       "type": "High Tide",
       "time": "9:20 PM (Sun 22 November)",
-      "height": "27.75 ft (8.46 m)"
+      "height": "8.46 m (27.75 ft)"
     },
     {
       "type": "Low Tide",
       "time": "4:02 AM (Mon 23 November)",
-      "height": "3.15 ft (0.96 m)"
+      "height": "0.96 m (3.15 ft)"
     },
     {
       "type": "High Tide",
       "time": "9:46 AM (Mon 23 November)",
-      "height": "28.48 ft (8.68 m)"
+      "height": "8.68 m (28.48 ft)"
     },
     {
       "type": "Low Tide",
       "time": "4:25 PM (Mon 23 November)",
-      "height": "3.35 ft (1.02 m)"
+      "height": "1.02 m (3.35 ft)"
     },
     {
       "type": "High Tide",
       "time": "10:06 PM (Mon 23 November)",
-      "height": "29.46 ft (8.98 m)"
+      "height": "8.98 m (29.46 ft)"
+    },
+    {
+      "type": "Low Tide",
+      "time": "4:48 AM (Tue 24 November)",
+      "height": "0.62 m (2.03 ft)"
+    },
+    {
+      "type": "High Tide",
+      "time": "10:30 AM (Tue 24 November)",
+      "height": "9.17 m (30.09 ft)"
+    },
+    {
+      "type": "Low Tide",
+      "time": "5:11 PM (Tue 24 November)",
+      "height": "0.6 m (1.97 ft)"
+    },
+    {
+      "type": "High Tide",
+      "time": "10:52 PM (Tue 24 November)",
+      "height": "9.36 m (30.71 ft)"
     }
   ]
 }
